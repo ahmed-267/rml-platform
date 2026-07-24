@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --rml-primary: #16a34a;
+        --rml-primary-light: #dcfce7;
+        --rml-primary-lighter: #f0fdf4;
+        --rml-sidebar: #0f172a;
+        --rml-blue: #2563eb;
+        --rml-blue-light: #eff6ff;
+        --rml-amber: #d97706;
+        --rml-red: #dc2626;
+        --rml-text: #111827;
+        --rml-muted: #6b7280;
+        --rml-border: #e5e7eb;
+        --rml-background: #f8fafc;
+        --rml-card: #ffffff;
+    }
+
+    html {
+        @apply scroll-smooth;
+    }
+
+    body {
+        @apply bg-rml-background font-sans text-rml-text antialiased;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        html {
+            scroll-behavior: auto;
+        }
+
+        .animate-\[rml-float_5s_ease-in-out_infinite\],
+        .animate-rml-float {
+            animation: none !important;
+        }
+    }
+}
+
+@layer components {
+    .rml-card {
+        @apply rounded-xl border border-rml-border bg-rml-card shadow-sm;
+    }
+
+    .rml-card-compact {
+        @apply rml-card p-4;
+    }
+
+    .rml-focus-ring {
+        @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-rml-primary focus-visible:ring-offset-2;
+    }
+
+    .rml-page-stack {
+        @apply space-y-3;
+    }
+
+    .rml-form-grid {
+        @apply grid grid-cols-1 gap-3 sm:grid-cols-2;
+    }
+}

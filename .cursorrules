@@ -1,0 +1,146 @@
+You are working on the RML Platform.
+
+Core stack rules:
+- Use Laravel + Inertia React + TypeScript + Tailwind CSS.
+- Use PostgreSQL.
+- Use Laravel authentication/session auth.
+- Use Spatie Laravel Permission for roles and permissions.
+- Use policies for access control.
+- Use services for business logic.
+- Use form requests for backend validation.
+- Use typed React props.
+- Use environment variables for all secrets and external services.
+- Do not hardcode API keys, payment keys, WhatsApp tokens, or private credentials.
+
+UI/design rules:
+- Use Untitled UI design principles and Untitled UI-style components as the default for all screens, layouts, forms, buttons, modals, cards, tables, dashboards, filters, sidebars, tabs, alerts, empty states, and responsive behaviours.
+- Do not use generic shadcn-looking components unless they are heavily customised to match the RML / Untitled UI visual style.
+- Match the provided Figma screenshots as closely as possible.
+- Use the RML design system colours:
+  - Primary Green: #16a34a
+  - Primary Light: #dcfce7
+  - Primary Lighter: #f0fdf4
+  - Sidebar Navy: #0f172a
+  - Blue: #2563eb
+  - Blue Light: #eff6ff
+  - Amber: #d97706
+  - Red: #dc2626
+  - Text: #111827
+  - Muted: #6b7280
+  - Border: #e5e7eb
+  - Background: #f8fafc
+  - Card: #ffffff
+- Use Inter as the main font.
+- Use a mono font for IDs such as LD-1041, PAY-00091, TXN-9921.
+- Use Logo 2 — RML Energy Exchange.
+- Keep the design premium, clean, professional, and suitable for a B2B SaaS marketplace / CRM / operations dashboard.
+- Use light mode only for the MVP.
+- Logged-in portals must use a dark navy sidebar, white content cards, green CTAs, status badges, clean data tables, and polished dashboard layouts.
+- Public website must be one scrollable landing page, not separate Buy/Sell/Contact pages.
+- Remove the Figma prototype top navigation from the real app. Only build real public/app navigation.
+
+Responsive and media query rules:
+- Everything must be responsive from the start.
+- Do not build desktop-only screens.
+- Every page, component, form, table, modal, dashboard, and portal must work properly on mobile, tablet, laptop, and desktop.
+- Use mobile-first Tailwind responsive utilities for visual layout whenever possible.
+- Use React media queries efficiently for conditional rendering, heavy layout changes, table-to-card switching, sidebar behaviour, modal/drawer switching, and performance-sensitive responsive logic.
+- Create a reusable typed `useMediaQuery` hook using `window.matchMedia`.
+- The `useMediaQuery` hook must:
+  - be SSR-safe
+  - clean up listeners properly
+  - avoid unnecessary re-renders
+  - not use inefficient continuous resize listeners
+  - support common breakpoints such as mobile, tablet, desktop, and large desktop
+- Prefer CSS/Tailwind breakpoints for simple styling changes.
+- Prefer React media queries only when the rendered structure should actually change.
+- Do not render large desktop tables on mobile if a mobile card layout is more suitable.
+- Do not hide large duplicated desktop/mobile layouts unless necessary; avoid rendering unnecessary heavy components.
+- On mobile:
+  - collapse the sidebar into a drawer or mobile navigation
+  - convert wide tables into stacked cards where needed
+  - make forms single-column
+  - make modals usable on small screens
+  - use drawers/bottom sheets where better than desktop modals
+  - make file upload components mobile-friendly
+  - make filters wrap neatly or collapse into a filter drawer
+  - make buyer payment summary bars sticky at the bottom where useful
+  - avoid horizontal overflow completely
+  - ensure buttons are easy to tap
+  - ensure text remains readable
+- On tablet:
+  - avoid cramped multi-column layouts
+  - use 2-column grids only where space allows
+  - keep tables readable or switch to card/table hybrid layouts
+- On desktop:
+  - match the Figma dashboard/card/table layouts closely
+  - keep the dark sidebar fixed
+  - use full data tables where appropriate
+- Always test responsive behaviour before marking a page complete.
+
+Suggested media query hook pattern:
+- Create `resources/js/hooks/use-media-query.ts`.
+- Use this hook across responsive components instead of repeating matchMedia logic.
+- Example usage:
+  - `const isMobile = useMediaQuery('(max-width: 767px)')`
+  - `const isTablet = useMediaQuery('(min-width: 768px) and (max-width: 1023px)')`
+  - `const isDesktop = useMediaQuery('(min-width: 1024px)')`
+- Use it for:
+  - Sidebar desktop vs mobile drawer
+  - DataTable desktop view vs mobile card list
+  - Audit modal desktop modal vs mobile drawer
+  - Filter bar desktop inline filters vs mobile filter drawer
+  - Payment summary desktop inline card vs mobile sticky bottom bar
+
+Business/product rules:
+- MVP only: no subscription billing.
+- No homeowner dashboard in MVP.
+- Homeowner free installation enquiry is public form only.
+- Do not expose public pricing.
+- Do not expose customer details before payment.
+- Do not expose buyer details to sellers.
+- Do not expose seller details to buyers.
+- Sellers must not see internal pricing, margins, or buyer information.
+- Buyers must only see zone, distance, size, scheme, unit price, and total price before payment.
+- Each lead can only be sold to one buyer.
+- Commissions are percentage-based and become due only when the lead is sold and buyer payment is confirmed.
+- Account approval is required for sellers and buyers before dashboard access.
+- Internal auditor/staff portal must exist in MVP.
+- EN / ES / FR language switcher must be functional in MVP.
+
+Code quality rules:
+- Keep code modular and production-minded.
+- Reuse components instead of duplicating UI.
+- Create reusable RML/Untitled UI-style components for:
+  - AppLayout
+  - PublicLayout
+  - AuthLayout
+  - PortalSidebar
+  - PortalHeader
+  - MobileSidebarDrawer
+  - KPI cards
+  - DataTable
+  - MobileCardList
+  - StatusBadge
+  - FilterBar
+  - MobileFilterDrawer
+  - Alert
+  - Modal
+  - Drawer
+  - FormInput
+  - Select
+  - Textarea
+  - FileUpload
+  - Tabs
+  - EmptyState
+  - Pagination
+  - PaymentSummaryBar
+  - AuditChecklist
+- Keep React components typed and clean.
+- Keep backend logic out of React components where possible.
+- Use Laravel services for pricing, payments, commissions, distance calculation, lead release, and audit logging.
+- Use policies and permissions for all role-based access.
+- Create audit logs for key actions.
+- Use migrations, seeders, factories, policies, requests, controllers, services, and tests where appropriate.
+- Run tests/formatting after major changes.
+- Do not overwrite important existing code without checking.
