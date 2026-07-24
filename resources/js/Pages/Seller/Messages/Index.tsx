@@ -6,6 +6,7 @@ import {
     DataTable,
     EmptyState,
     FilterBar,
+    MobileFilterDrawer,
     FormInput,
     MobileCardList,
     Pagination,
@@ -67,6 +68,7 @@ export default function SellerMessagesIndex({
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection = resolveSortDirection(
@@ -216,6 +218,7 @@ export default function SellerMessagesIndex({
                 onSearchChange={setSearch}
                 searchLabel={common.search}
                 searchPlaceholder={t.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -243,6 +246,27 @@ export default function SellerMessagesIndex({
                     />
                 </div>
             </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={common.status}
+                    aria-label={common.status}
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    options={[
+                        { value: '', label: common.all_statuses },
+                        ...filterOptions.statuses.map((value) => ({
+                            value,
+                            label: leadStatusLabel(value, statusLabels),
+                        })),
+                    ]}
+                />
+            </MobileFilterDrawer>
 
             <section className="space-y-3">
                 {threads.data.length === 0 ? (

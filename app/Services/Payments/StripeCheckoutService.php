@@ -155,27 +155,35 @@ class StripeCheckoutService
     private function lineItemName(?Purchase $purchase): string
     {
         if (! $purchase) {
-            return 'RML purchase';
+            return (string) __('rml.payments.stripe_line_purchase');
         }
 
         $item = $purchase->items->first();
         if ($item?->leadPackage?->package_reference) {
-            return 'Package '.$item->leadPackage->package_reference;
+            return (string) __('rml.payments.stripe_line_package', [
+                'reference' => $item->leadPackage->package_reference,
+            ]);
         }
 
         if ($item?->item_type === PurchaseItemType::Package && $purchase->items->count() > 1) {
-            return 'Package '.$purchase->purchase_reference;
+            return (string) __('rml.payments.stripe_line_package', [
+                'reference' => $purchase->purchase_reference,
+            ]);
         }
 
         if ($item?->lead?->lead_reference) {
             if ($purchase->items->count() === 1) {
-                return 'Lead '.$item->lead->lead_reference;
+                return (string) __('rml.payments.stripe_line_lead', [
+                    'reference' => $item->lead->lead_reference,
+                ]);
             }
 
-            return 'Leads '.$purchase->purchase_reference;
+            return (string) __('rml.payments.stripe_line_leads', [
+                'reference' => $purchase->purchase_reference,
+            ]);
         }
 
-        return 'Purchase '.$purchase->purchase_reference;
+        return (string) __('rml.payments.stripe_line_purchase');
     }
 
     /**

@@ -6,6 +6,7 @@ import {
     DataTable,
     EmptyState,
     FilterBar,
+    MobileFilterDrawer,
     KpiCard,
     MobileCardList,
     Modal,
@@ -150,6 +151,7 @@ export default function PaymentsIndex({
     const [payoutStatus, setPayoutStatus] = useState(
         filters.payout_status ?? '',
     );
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     const paymentsSort = filters.payments_sort ?? 'date';
     const paymentsDirection: SortDirection =
@@ -304,6 +306,7 @@ export default function PaymentsIndex({
                 onSearchChange={setSearch}
                 searchLabel={common.search}
                 searchPlaceholder={common.search}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -333,6 +336,29 @@ export default function PaymentsIndex({
                     />
                 </div>
             </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={common.status}
+                    aria-label={common.status}
+                    value={paymentStatus}
+                    onChange={(e) => setPaymentStatus(e.target.value)}
+                    options={[
+                        { label: common.all_statuses, value: '' },
+                        ...Object.entries(paymentStatuses).map(
+                            ([value, label]) => ({
+                                label,
+                                value,
+                            }),
+                        ),
+                    ]}
+                />
+            </MobileFilterDrawer>
 
             <section className="space-y-3">
                 <h2 className="text-base font-semibold text-rml-text">
@@ -453,19 +479,35 @@ export default function PaymentsIndex({
                                 id: 'provider',
                                 header: t.provider ?? 'Provider',
                                 cell: (r) => {
+                                    const providers =
+                                        translations.payment_providers ?? {};
+                                    if (!r.provider) {
+                                        return '—';
+                                    }
                                     if (r.provider === 'stripe') {
-                                        return t.provider_stripe ?? 'Stripe';
-                                    }
-                                    if (r.provider === 'mollie') {
-                                        return t.provider_mollie ?? 'Mollie';
-                                    }
-                                    if (r.provider === 'manual_bank_transfer') {
                                         return (
-                                            t.provider_manual ??
-                                            paymentMethods.manual_bank_transfer
+                                            providers.stripe ??
+                                            t.provider_stripe
                                         );
                                     }
-                                    return r.provider ?? '—';
+                                    if (r.provider === 'mollie') {
+                                        return (
+                                            providers.mollie ??
+                                            t.provider_mollie
+                                        );
+                                    }
+                                    if (
+                                        r.provider === 'manual_bank_transfer' ||
+                                        r.provider === 'manual'
+                                    ) {
+                                        return (
+                                            providers.manual ??
+                                            t.provider_manual
+                                        );
+                                    }
+                                    return (
+                                        providers[r.provider] ?? r.provider
+                                    );
                                 },
                             },
                             {

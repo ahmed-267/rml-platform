@@ -97,7 +97,9 @@ export interface SharedTranslations {
     purchase_statuses: Record<string, string>;
     payment_statuses: Record<string, string>;
     payment_methods: Record<string, string>;
+    payment_providers: Record<string, string>;
     payments: Record<string, string>;
+    profile: Record<string, string>;
     whatsapp: Record<string, string>;
     documents: Record<string, string>;
 }

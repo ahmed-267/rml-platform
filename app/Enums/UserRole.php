@@ -14,6 +14,12 @@ enum UserRole: string
 
     public function label(): string
     {
+        $translated = __('rml.roles.'.$this->value);
+
+        if (is_string($translated) && $translated !== 'rml.roles.'.$this->value) {
+            return $translated;
+        }
+
         return match ($this) {
             self::SuperAdmin => 'Super Admin',
             self::AdminStaff => 'Admin Staff',

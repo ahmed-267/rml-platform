@@ -20,7 +20,7 @@ return [
     ],
 
     'bank_transfer' => [
-        'account_name' => env('BANK_TRANSFER_ACCOUNT_NAME', 'RML Energy Exchange'),
+        'account_name' => env('BANK_TRANSFER_ACCOUNT_NAME', 'RML Energy Saving'),
         'iban' => env('BANK_TRANSFER_IBAN', 'ES00 0000 0000 0000 0000 0000'),
         'bic' => env('BANK_TRANSFER_BIC', 'CAIXESBBXXX'),
         'bank_name' => env('BANK_TRANSFER_BANK_NAME', 'Demo Bank'),

@@ -7,7 +7,9 @@ import {
     Drawer,
     EmptyState,
     FilterBar,
+    FormInput,
     MobileCardList,
+    MobileFilterDrawer,
     Modal,
     Pagination,
 } from '@/Components/ui';
@@ -49,6 +51,7 @@ export default function AuditLogsIndex({
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [action, setAction] = useState(filters.action ?? '');
+    const [filtersOpen, setFiltersOpen] = useState(false);
     const [detail, setDetail] = useState<AuditLogRow | null>(null);
 
     const applyFilters = () => {
@@ -135,6 +138,7 @@ export default function AuditLogsIndex({
                 search={search}
                 onSearchChange={setSearch}
                 searchPlaceholder={t.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -145,7 +149,30 @@ export default function AuditLogsIndex({
                         </Button>
                     </>
                 }
-            />
+            >
+                <div className="w-full sm:w-[14rem]">
+                    <FormInput
+                        label={t.action}
+                        name="action"
+                        value={action}
+                        onChange={(e) => setAction(e.target.value)}
+                    />
+                </div>
+            </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <FormInput
+                    label={t.action}
+                    name="action"
+                    value={action}
+                    onChange={(e) => setAction(e.target.value)}
+                />
+            </MobileFilterDrawer>
 
             {logs.data.length === 0 ? (
                 <EmptyState title={common.empty} />

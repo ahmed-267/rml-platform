@@ -7,6 +7,7 @@ import {
     DataTable,
     EmptyState,
     FilterBar,
+    MobileFilterDrawer,
     MobileCardList,
     Pagination,
     Select,
@@ -58,6 +59,7 @@ export default function BuyersIndex({
     const statuses = translations.statuses;
     const isMobile = useIsMobile();
 
+    const [filtersOpen, setFiltersOpen] = useState(false);
     const [search, setSearch] = useState(filters.search ?? '');
     const [approvalStatus, setApprovalStatus] = useState(
         filters.approval_status ?? '',
@@ -147,6 +149,7 @@ export default function BuyersIndex({
                 onSearchChange={setSearch}
                 searchLabel={common.search}
                 searchPlaceholder={t.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -174,6 +177,27 @@ export default function BuyersIndex({
                     />
                 </div>
             </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={common.status}
+                    aria-label={common.status}
+                    value={approvalStatus}
+                    onChange={(e) => setApprovalStatus(e.target.value)}
+                    options={[
+                        { label: common.all_statuses, value: '' },
+                        ...filterOptions.approval_statuses.map((status) => ({
+                            label: approvalStatusLabel(status, statuses),
+                            value: status,
+                        })),
+                    ]}
+                />
+            </MobileFilterDrawer>
 
             {buyers.data.length === 0 ? (
                 <EmptyState title={common.empty} />

@@ -6,6 +6,7 @@ import {
     DataTable,
     EmptyState,
     FilterBar,
+    MobileFilterDrawer,
     FormInput,
     MobileCardList,
     Pagination,
@@ -64,6 +65,7 @@ export default function AuditorMessagesIndex({
     const [search, setSearch] = useState(filters.search ?? '');
     const [category, setCategory] = useState(filters.category ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection = resolveSortDirection(
@@ -167,6 +169,7 @@ export default function AuditorMessagesIndex({
                 onSearchChange={setSearch}
                 searchLabel={common.search}
                 searchPlaceholder={t.messages.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -218,6 +221,40 @@ export default function AuditorMessagesIndex({
                     />
                 </div>
             </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={t.messages.category}
+                    aria-label={t.messages.category}
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    options={[
+                        { value: '', label: common.all },
+                        ...filterOptions.categories.map((c) => ({
+                            value: c,
+                            label: categories[c] ?? c,
+                        })),
+                    ]}
+                />
+                <Select
+                    label={common.status}
+                    aria-label={common.status}
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    options={[
+                        { value: '', label: common.all },
+                        ...filterOptions.statuses.map((s) => ({
+                            value: s,
+                            label: statuses[s] ?? s,
+                        })),
+                    ]}
+                />
+            </MobileFilterDrawer>
 
             {showCreate && (
                 <form

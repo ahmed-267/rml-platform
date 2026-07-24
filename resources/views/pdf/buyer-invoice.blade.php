@@ -17,7 +17,7 @@
 </head>
 <body>
 <div class="header">
-    <div class="brand">RML Energy Exchange</div>
+    <div class="brand">RML Energy Saving</div>
     <div class="muted">{{ $documentTitle }}</div>
 </div>
 

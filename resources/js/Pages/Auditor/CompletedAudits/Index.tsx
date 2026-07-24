@@ -6,6 +6,7 @@ import {
     DataTable,
     EmptyState,
     FilterBar,
+    MobileFilterDrawer,
     MobileCardList,
     Pagination,
     Select,
@@ -72,6 +73,7 @@ export default function CompletedAuditsIndex({
     const [zoneId, setZoneId] = useState(
         filters.zone_id != null ? String(filters.zone_id) : '',
     );
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection = resolveSortDirection(
@@ -164,6 +166,7 @@ export default function CompletedAuditsIndex({
                 onSearchChange={setSearch}
                 searchLabel={common.search}
                 searchPlaceholder={t.completed.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -221,6 +224,53 @@ export default function CompletedAuditsIndex({
                     />
                 </div>
             </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={t.completed.recommendation}
+                    aria-label={t.completed.recommendation}
+                    value={recommendation}
+                    onChange={(e) => setRecommendation(e.target.value)}
+                    options={[
+                        { value: '', label: common.all },
+                        ...filterOptions.recommendations.map((s) => ({
+                            value: s,
+                            label: statusLabel(s),
+                        })),
+                    ]}
+                />
+                <Select
+                    label={common.scheme}
+                    aria-label={common.scheme}
+                    value={schemeId}
+                    onChange={(e) => setSchemeId(e.target.value)}
+                    options={[
+                        { value: '', label: common.all },
+                        ...filterOptions.schemes.map((s) => ({
+                            value: String(s.id),
+                            label: s.name,
+                        })),
+                    ]}
+                />
+                <Select
+                    label={common.zone}
+                    aria-label={common.zone}
+                    value={zoneId}
+                    onChange={(e) => setZoneId(e.target.value)}
+                    options={[
+                        { value: '', label: common.all },
+                        ...filterOptions.zones.map((z) => ({
+                            value: String(z.id),
+                            label: z.code,
+                        })),
+                    ]}
+                />
+            </MobileFilterDrawer>
 
             {audits.data.length === 0 ? (
                 <EmptyState

@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import {
@@ -164,6 +164,7 @@ export default function SellerLeadsCreate({
     const common = translations.seller.common;
 
     const [step, setStep] = useState<StepId>('customer');
+    const [stepAlert, setStepAlert] = useState<string | null>(null);
 
     const initialMetrics = useMemo(() => {
         if (!lead?.metrics) {
@@ -412,7 +413,101 @@ export default function SellerLeadsCreate({
         });
     };
 
+    const stepIsComplete = (id: StepId): boolean => {
+        switch (id) {
+            case 'customer':
+                return customerComplete;
+            case 'property':
+                return propertyComplete;
+            case 'scheme':
+                return schemeComplete;
+            case 'evidence':
+                return evidenceComplete;
+            case 'review':
+                return canSubmit;
+            default:
+                return false;
+        }
+    };
+
+    const errorStep = (errorKeys: string[]): StepId | null => {
+        const customerFields = [
+            'customer_first_name',
+            'customer_last_name',
+            'customer_phone',
+            'customer_email',
+            'customer_whatsapp',
+        ];
+        const propertyFields = [
+            'address_line_1',
+            'address_line_2',
+            'city',
+            'postcode',
+            'country',
+            'property_type',
+        ];
+        const schemeFieldsKeys = [
+            'scheme_id',
+            'zone_id',
+            'zone_code',
+            'size_m2',
+            'epc_rating',
+            'notes',
+            'metrics',
+        ];
+        const evidenceFields = [
+            'evidence_photos',
+            'evidence_video',
+            'evidence_agreement',
+            'evidence_eligibility',
+        ];
+        const reviewFields = ['consent', 'evidence_genuine', 'info_accurate'];
+
+        if (errorKeys.some((key) => customerFields.includes(key))) {
+            return 'customer';
+        }
+        if (errorKeys.some((key) => propertyFields.includes(key))) {
+            return 'property';
+        }
+        if (
+            errorKeys.some(
+                (key) =>
+                    schemeFieldsKeys.includes(key) ||
+                    key.startsWith('metrics.'),
+            )
+        ) {
+            return 'scheme';
+        }
+        if (errorKeys.some((key) => evidenceFields.includes(key))) {
+            return 'evidence';
+        }
+        if (errorKeys.some((key) => reviewFields.includes(key))) {
+            return 'review';
+        }
+
+        return null;
+    };
+
+    useEffect(() => {
+        const keys = Object.keys(errors);
+        if (keys.length === 0) {
+            return;
+        }
+
+        const target = errorStep(keys);
+        if (target) {
+            setStep(target);
+            setStepAlert(t.submit_incomplete);
+        }
+    }, [errors]);
+
     const goNext = () => {
+        if (!stepIsComplete(step)) {
+            setStepAlert(t.step_incomplete ?? t.submit_incomplete);
+            return;
+        }
+
+        setStepAlert(null);
         const index = STEPS.indexOf(step);
         if (index < STEPS.length - 1) {
             setStep(STEPS[index + 1]);
@@ -420,6 +515,7 @@ export default function SellerLeadsCreate({
     };
 
     const goPrevious = () => {
+        setStepAlert(null);
         const index = STEPS.indexOf(step);
         if (index > 0) {
             setStep(STEPS[index - 1]);
@@ -575,6 +671,11 @@ export default function SellerLeadsCreate({
                 {(errors as Record<string, string>).as_draft && (
                     <Alert variant="error">
                         {(errors as Record<string, string>).as_draft}
+                    </Alert>
+                )}
+                {stepAlert && (
+                    <Alert variant="warning" title={t.missing_required}>
+                        {stepAlert}
                     </Alert>
                 )}
 

@@ -7,8 +7,10 @@ import {
     Checkbox,
     DataTable,
     EmptyState,
+    FilterBar,
     FormInput,
     MobileCardList,
+    MobileFilterDrawer,
     Modal,
     Pagination,
     PaymentSummaryBar,
@@ -124,6 +126,7 @@ export default function BuyerLeadsIndex({
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [paymentOpen, setPaymentOpen] = useState(false);
     const [pendingLeadIds, setPendingLeadIds] = useState<number[]>([]);
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection = resolveSortDirection(
@@ -297,115 +300,186 @@ export default function BuyerLeadsIndex({
 
             <Alert variant="info">{t.hidden_notice}</Alert>
 
-            <form
-                className="rml-card-compact space-y-3"
-                onSubmit={(e) => {
-                    e.preventDefault();
-                    applyFilters();
-                }}
-            >
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                    <FormInput
-                        label={common.search}
-                        name="search"
-                        value={search}
-                        placeholder={t.search_placeholder}
-                        onChange={(e) => setSearch(e.target.value)}
-                    />
-                    <Select
-                        label={common.scheme}
-                        aria-label={common.scheme}
-                        value={schemeId}
-                        onChange={(e) => {
-                            setSchemeId(e.target.value);
-                            setZoneId('');
-                        }}
-                        options={[
-                            {
-                                value: '',
-                                label: common.all_schemes ?? common.all,
-                            },
-                            ...filterOptions.schemes.map((scheme) => ({
-                                value: String(scheme.id),
-                                label: scheme.name,
-                            })),
-                        ]}
-                    />
-                    <Select
-                        label={common.zone}
-                        aria-label={common.zone}
-                        value={zoneId}
-                        onChange={(e) => setZoneId(e.target.value)}
-                        options={[
-                            {
-                                value: '',
-                                label: common.all_zones ?? common.all,
-                            },
-                            ...zoneOptions.map((zone) => ({
-                                value: String(zone.id),
-                                label: `${zone.code} — ${zone.name}`,
-                            })),
-                        ]}
-                    />
-                    <FormInput
-                        label={t.min_size}
-                        name="min_size"
-                        type="number"
-                        value={minSize}
-                        onChange={(e) => setMinSize(e.target.value)}
-                    />
-                    <FormInput
-                        label={t.max_size}
-                        name="max_size"
-                        type="number"
-                        value={maxSize}
-                        onChange={(e) => setMaxSize(e.target.value)}
-                    />
-                </div>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
-                    <FormInput
-                        label={t.min_distance}
-                        name="min_distance"
-                        type="number"
-                        value={minDistance}
-                        onChange={(e) => setMinDistance(e.target.value)}
-                    />
-                    <FormInput
-                        label={t.max_distance}
-                        name="max_distance"
-                        type="number"
-                        value={maxDistance}
-                        onChange={(e) => setMaxDistance(e.target.value)}
-                    />
-                    <FormInput
-                        label={t.min_price}
-                        name="min_price"
-                        type="number"
-                        value={minPrice}
-                        onChange={(e) => setMinPrice(e.target.value)}
-                    />
-                    <FormInput
-                        label={t.max_price}
-                        name="max_price"
-                        type="number"
-                        value={maxPrice}
-                        onChange={(e) => setMaxPrice(e.target.value)}
-                    />
-                    <div className="flex items-end gap-2">
-                        <Button type="submit" size="sm" className="flex-1 sm:flex-none">
+            <FilterBar
+                search={search}
+                onSearchChange={setSearch}
+                searchLabel={common.search}
+                searchPlaceholder={t.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
+                actions={
+                    <>
+                        <Button size="sm" onClick={() => applyFilters()}>
                             {common.apply}
                         </Button>
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            onClick={resetFilters}
-                        >
+                        <Button size="sm" variant="ghost" onClick={resetFilters}>
                             {common.reset}
                         </Button>
-                    </div>
-                </div>
-            </form>
+                    </>
+                }
+            >
+                <Select
+                    label={common.scheme}
+                    aria-label={common.scheme}
+                    value={schemeId}
+                    onChange={(e) => {
+                        setSchemeId(e.target.value);
+                        setZoneId('');
+                    }}
+                    options={[
+                        {
+                            value: '',
+                            label: common.all_schemes ?? common.all,
+                        },
+                        ...filterOptions.schemes.map((scheme) => ({
+                            value: String(scheme.id),
+                            label: scheme.name,
+                        })),
+                    ]}
+                />
+                <Select
+                    label={common.zone}
+                    aria-label={common.zone}
+                    value={zoneId}
+                    onChange={(e) => setZoneId(e.target.value)}
+                    options={[
+                        {
+                            value: '',
+                            label: common.all_zones ?? common.all,
+                        },
+                        ...zoneOptions.map((zone) => ({
+                            value: String(zone.id),
+                            label: `${zone.code} — ${zone.name}`,
+                        })),
+                    ]}
+                />
+                <FormInput
+                    label={t.min_size}
+                    name="min_size"
+                    type="number"
+                    value={minSize}
+                    onChange={(e) => setMinSize(e.target.value)}
+                />
+                <FormInput
+                    label={t.max_size}
+                    name="max_size"
+                    type="number"
+                    value={maxSize}
+                    onChange={(e) => setMaxSize(e.target.value)}
+                />
+                <FormInput
+                    label={t.min_distance}
+                    name="min_distance"
+                    type="number"
+                    value={minDistance}
+                    onChange={(e) => setMinDistance(e.target.value)}
+                />
+                <FormInput
+                    label={t.max_distance}
+                    name="max_distance"
+                    type="number"
+                    value={maxDistance}
+                    onChange={(e) => setMaxDistance(e.target.value)}
+                />
+                <FormInput
+                    label={t.min_price}
+                    name="min_price"
+                    type="number"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                />
+                <FormInput
+                    label={t.max_price}
+                    name="max_price"
+                    type="number"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                />
+            </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={() => applyFilters()}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={common.scheme}
+                    aria-label={common.scheme}
+                    value={schemeId}
+                    onChange={(e) => {
+                        setSchemeId(e.target.value);
+                        setZoneId('');
+                    }}
+                    options={[
+                        {
+                            value: '',
+                            label: common.all_schemes ?? common.all,
+                        },
+                        ...filterOptions.schemes.map((scheme) => ({
+                            value: String(scheme.id),
+                            label: scheme.name,
+                        })),
+                    ]}
+                />
+                <Select
+                    label={common.zone}
+                    aria-label={common.zone}
+                    value={zoneId}
+                    onChange={(e) => setZoneId(e.target.value)}
+                    options={[
+                        {
+                            value: '',
+                            label: common.all_zones ?? common.all,
+                        },
+                        ...zoneOptions.map((zone) => ({
+                            value: String(zone.id),
+                            label: `${zone.code} — ${zone.name}`,
+                        })),
+                    ]}
+                />
+                <FormInput
+                    label={t.min_size}
+                    name="min_size"
+                    type="number"
+                    value={minSize}
+                    onChange={(e) => setMinSize(e.target.value)}
+                />
+                <FormInput
+                    label={t.max_size}
+                    name="max_size"
+                    type="number"
+                    value={maxSize}
+                    onChange={(e) => setMaxSize(e.target.value)}
+                />
+                <FormInput
+                    label={t.min_distance}
+                    name="min_distance"
+                    type="number"
+                    value={minDistance}
+                    onChange={(e) => setMinDistance(e.target.value)}
+                />
+                <FormInput
+                    label={t.max_distance}
+                    name="max_distance"
+                    type="number"
+                    value={maxDistance}
+                    onChange={(e) => setMaxDistance(e.target.value)}
+                />
+                <FormInput
+                    label={t.min_price}
+                    name="min_price"
+                    type="number"
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                />
+                <FormInput
+                    label={t.max_price}
+                    name="max_price"
+                    type="number"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                />
+            </MobileFilterDrawer>
 
             <div className={isMobile && selectedIds.length > 0 ? 'pb-28' : ''}>
                 {leads.data.length === 0 ? (

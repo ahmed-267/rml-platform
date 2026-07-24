@@ -7,6 +7,7 @@ import {
     DataTable,
     EmptyState,
     FilterBar,
+    MobileFilterDrawer,
     FormInput,
     MobileCardList,
     Modal,
@@ -74,6 +75,7 @@ export default function UsersIndex({
         filters.approval_status ?? '',
     );
     const [createOpen, setCreateOpen] = useState(false);
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection =
@@ -190,6 +192,7 @@ export default function UsersIndex({
                 onSearchChange={setSearch}
                 searchLabel={common.search}
                 searchPlaceholder={t.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -243,6 +246,42 @@ export default function UsersIndex({
                     />
                 </div>
             </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={common.status}
+                    aria-label={common.status}
+                    value={approvalStatus}
+                    onChange={(e) => setApprovalStatus(e.target.value)}
+                    options={[
+                        { label: common.all_statuses, value: '' },
+                        ...filterOptions.approval_statuses.map((status) => ({
+                            label: approvalStatusLabel(status, statuses),
+                            value: status,
+                        })),
+                    ]}
+                />
+                <Select
+                    label={common.role}
+                    aria-label={common.role}
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    options={[
+                        { label: common.all_roles, value: '' },
+                        ...filterOptions.roles
+                            .filter((r) => r !== 'super_admin' || isSuperAdmin)
+                            .map((r) => ({
+                                label: roles[r] ?? r,
+                                value: r,
+                            })),
+                    ]}
+                />
+            </MobileFilterDrawer>
 
             {users.data.length === 0 ? (
                 <EmptyState title={common.empty} />

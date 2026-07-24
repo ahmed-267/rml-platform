@@ -4,7 +4,7 @@
 Hello {{ $user->name }},
 
 @if ($status === 'approved')
-Your RML Energy Exchange account has been approved. You can now sign in and access your portal.
+Your RML Energy Saving account has been approved. You can now sign in and access your portal.
 @elseif ($status === 'rejected')
 Your registration was not approved.
 @if ($reason)

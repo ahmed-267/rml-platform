@@ -7,6 +7,7 @@ import {
     DataTable,
     EmptyState,
     FilterBar,
+    MobileFilterDrawer,
     MobileCardList,
     Pagination,
     Select,
@@ -71,6 +72,7 @@ export default function SellersIndex({
         filters.approval_status ?? '',
     );
     const [role, setRole] = useState(filters.role ?? '');
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection =
@@ -161,6 +163,7 @@ export default function SellersIndex({
                 onSearchChange={setSearch}
                 searchLabel={common.search}
                 searchPlaceholder={t.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -203,6 +206,40 @@ export default function SellersIndex({
                     />
                 </div>
             </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={common.status}
+                    aria-label={common.status}
+                    value={approvalStatus}
+                    onChange={(e) => setApprovalStatus(e.target.value)}
+                    options={[
+                        { label: common.all_statuses, value: '' },
+                        ...filterOptions.approval_statuses.map((status) => ({
+                            label: approvalStatusLabel(status, statuses),
+                            value: status,
+                        })),
+                    ]}
+                />
+                <Select
+                    label={common.role}
+                    aria-label={common.role}
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    options={[
+                        { label: common.all_roles, value: '' },
+                        ...filterOptions.roles.map((r) => ({
+                            label: roles[r] ?? r,
+                            value: r,
+                        })),
+                    ]}
+                />
+            </MobileFilterDrawer>
 
             {sellers.data.length === 0 ? (
                 <EmptyState title={common.empty} />

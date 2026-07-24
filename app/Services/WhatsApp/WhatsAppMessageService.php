@@ -128,7 +128,7 @@ class WhatsAppMessageService
     private function buildLeadDetailsBody(Lead $lead, Purchase $purchase): string
     {
         $lines = [
-            'RML Energy Exchange — purchased lead details',
+            'RML Energy Saving — purchased lead details',
             'Purchase: '.$purchase->purchase_reference,
             'Lead: '.$lead->lead_reference,
             'Customer: '.trim(($lead->customer_first_name ?? '').' '.($lead->customer_last_name ?? '')),

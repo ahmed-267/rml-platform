@@ -6,6 +6,7 @@ import {
     DataTable,
     EmptyState,
     FilterBar,
+    MobileFilterDrawer,
     MobileCardList,
     Pagination,
     Select,
@@ -73,6 +74,7 @@ export default function AssignedAuditsIndex({
         filters.zone_id != null ? String(filters.zone_id) : '',
     );
     const [evidence, setEvidence] = useState(filters.evidence ?? '');
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection = resolveSortDirection(
@@ -159,6 +161,7 @@ export default function AssignedAuditsIndex({
                 onSearchChange={setSearch}
                 searchLabel={common.search}
                 searchPlaceholder={t.assigned.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -235,6 +238,70 @@ export default function AssignedAuditsIndex({
                     />
                 </div>
             </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={common.status}
+                    aria-label={common.status}
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    options={[
+                        { value: '', label: common.all },
+                        ...filterOptions.statuses.map((s) => ({
+                            value: s,
+                            label: statusLabel(s),
+                        })),
+                    ]}
+                />
+                <Select
+                    label={common.scheme}
+                    aria-label={common.scheme}
+                    value={schemeId}
+                    onChange={(e) => setSchemeId(e.target.value)}
+                    options={[
+                        { value: '', label: common.all },
+                        ...filterOptions.schemes.map((s) => ({
+                            value: String(s.id),
+                            label: s.name,
+                        })),
+                    ]}
+                />
+                <Select
+                    label={common.zone}
+                    aria-label={common.zone}
+                    value={zoneId}
+                    onChange={(e) => setZoneId(e.target.value)}
+                    options={[
+                        { value: '', label: common.all },
+                        ...filterOptions.zones.map((z) => ({
+                            value: String(z.id),
+                            label: z.code,
+                        })),
+                    ]}
+                />
+                <Select
+                    label={t.assigned.evidence_status}
+                    aria-label={t.assigned.evidence_status}
+                    value={evidence}
+                    onChange={(e) => setEvidence(e.target.value)}
+                    options={[
+                        { value: '', label: common.all },
+                        {
+                            value: 'available',
+                            label: t.assigned.evidence_available,
+                        },
+                        {
+                            value: 'missing',
+                            label: t.assigned.evidence_missing,
+                        },
+                    ]}
+                />
+            </MobileFilterDrawer>
 
             {audits.data.length === 0 ? (
                 <EmptyState title={common.empty} description={t.assigned.empty} />

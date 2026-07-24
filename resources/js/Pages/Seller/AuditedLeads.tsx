@@ -7,6 +7,7 @@ import {
     EmptyState,
     FilterBar,
     MobileCardList,
+    MobileFilterDrawer,
     Pagination,
     Select,
     SortableHeader,
@@ -83,6 +84,7 @@ export default function AuditedLeads({
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection = resolveSortDirection(
@@ -156,6 +158,7 @@ export default function AuditedLeads({
                 onSearchChange={setSearch}
                 searchLabel={common.search}
                 searchPlaceholder={t.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -183,6 +186,27 @@ export default function AuditedLeads({
                     />
                 </div>
             </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={common.status}
+                    aria-label={common.status}
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    options={[
+                        { value: '', label: common.all_statuses },
+                        ...filterOptions.statuses.map((value) => ({
+                            value,
+                            label: leadStatusLabel(value, leadStatuses),
+                        })),
+                    ]}
+                />
+            </MobileFilterDrawer>
 
             {leads.data.length === 0 ? (
                 <EmptyState title={common.empty} />

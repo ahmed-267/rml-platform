@@ -6,6 +6,7 @@ import {
     DataTable,
     EmptyState,
     FilterBar,
+    MobileFilterDrawer,
     KpiCard,
     MobileCardList,
     Pagination,
@@ -74,6 +75,7 @@ export default function LeadsSoldIndex({
     const paymentStatuses = translations.payment_statuses;
     const isMobile = useIsMobile();
 
+    const [filtersOpen, setFiltersOpen] = useState(false);
     const [search, setSearch] = useState(filters.search ?? '');
     const [schemeId, setSchemeId] = useState(
         filters.scheme_id != null ? String(filters.scheme_id) : '',
@@ -170,6 +172,7 @@ export default function LeadsSoldIndex({
                 onSearchChange={setSearch}
                 searchLabel={common.search}
                 searchPlaceholder={t.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -203,6 +206,33 @@ export default function LeadsSoldIndex({
                     />
                 </div>
             </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={common.scheme}
+                    aria-label={common.scheme}
+                    value={schemeId}
+                    onChange={(e) => setSchemeId(e.target.value)}
+                    options={[
+                        {
+                            label:
+                                t.all_schemes ??
+                                lb.all_schemes ??
+                                common.all,
+                            value: '',
+                        },
+                        ...filterOptions.schemes.map((s) => ({
+                            label: s.name,
+                            value: String(s.id),
+                        })),
+                    ]}
+                />
+            </MobileFilterDrawer>
 
             {leads.data.length === 0 ? (
                 <EmptyState title={common.empty} />

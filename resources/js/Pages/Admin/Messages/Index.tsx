@@ -6,6 +6,7 @@ import {
     DataTable,
     EmptyState,
     FilterBar,
+    MobileFilterDrawer,
     MobileCardList,
     Pagination,
     Select,
@@ -66,6 +67,7 @@ export default function MessagesIndex({
     const [search, setSearch] = useState(filters.search ?? '');
     const [category, setCategory] = useState(filters.category ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection =
@@ -142,6 +144,7 @@ export default function MessagesIndex({
                 onSearchChange={setSearch}
                 searchLabel={common.search}
                 searchPlaceholder={t.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -187,6 +190,43 @@ export default function MessagesIndex({
                     />
                 </div>
             </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={t.filter_category}
+                    aria-label={t.filter_category}
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    options={[
+                        {
+                            label: common.all_categories ?? common.all,
+                            value: '',
+                        },
+                        ...filterOptions.categories.map((c) => ({
+                            label: categoryLabel(c),
+                            value: c,
+                        })),
+                    ]}
+                />
+                <Select
+                    label={t.filter_status}
+                    aria-label={t.filter_status}
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    options={[
+                        { label: common.all_statuses, value: '' },
+                        ...filterOptions.statuses.map((s) => ({
+                            label: leadStatusLabel(s, statuses),
+                            value: s,
+                        })),
+                    ]}
+                />
+            </MobileFilterDrawer>
 
             {threads.data.length === 0 ? (
                 <EmptyState title={common.empty} />

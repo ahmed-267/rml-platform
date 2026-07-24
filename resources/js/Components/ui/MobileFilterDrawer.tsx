@@ -1,6 +1,8 @@
 import { ReactNode } from 'react';
+import { usePage } from '@inertiajs/react';
 import { Drawer } from '@/Components/ui/Drawer';
 import { Button } from '@/Components/ui/Button';
+import type { PageProps } from '@/types';
 
 export interface MobileFilterDrawerProps {
     open: boolean;
@@ -17,19 +19,40 @@ export function MobileFilterDrawer({
     onApply,
     onReset,
     children,
-    title = 'Filters',
+    title,
 }: MobileFilterDrawerProps) {
+    const { translations } = usePage<PageProps>().props;
+    const resolvedTitle =
+        title ??
+        translations.common?.filters ??
+        translations.admin?.common?.filters ??
+        translations.seller?.common?.filters ??
+        translations.buyer?.common?.filters ??
+        '';
+    const applyLabel =
+        translations.common?.apply_filters ??
+        translations.admin?.common?.apply ??
+        translations.seller?.common?.apply ??
+        translations.buyer?.common?.apply ??
+        '';
+    const resetLabel =
+        translations.common?.reset ??
+        translations.admin?.common?.reset ??
+        translations.seller?.common?.reset ??
+        translations.buyer?.common?.reset ??
+        '';
+
     return (
         <Drawer
             open={open}
             onClose={onClose}
-            title={title}
+            title={resolvedTitle}
             side="bottom"
             footer={
                 <div className="flex gap-2">
                     {onReset && (
                         <Button variant="outline" fullWidth onClick={onReset}>
-                            Reset
+                            {resetLabel}
                         </Button>
                     )}
                     <Button
@@ -39,7 +62,7 @@ export function MobileFilterDrawer({
                             onClose();
                         }}
                     >
-                        Apply filters
+                        {applyLabel}
                     </Button>
                 </div>
             }

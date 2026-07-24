@@ -7,6 +7,7 @@ import {
     EmptyState,
     FilterBar,
     MobileCardList,
+    MobileFilterDrawer,
     Pagination,
     Select,
     SortableHeader,
@@ -90,6 +91,7 @@ export default function SellerLeadsIndex({
     const [zoneId, setZoneId] = useState(
         filters.zone_id != null ? String(filters.zone_id) : '',
     );
+    const [filtersOpen, setFiltersOpen] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection = resolveSortDirection(
@@ -181,6 +183,7 @@ export default function SellerLeadsIndex({
                 onSearchChange={setSearch}
                 searchLabel={common.search}
                 searchPlaceholder={t.search_placeholder}
+                onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
                         <Button size="sm" onClick={applyFilters}>
@@ -241,6 +244,56 @@ export default function SellerLeadsIndex({
                     />
                 </div>
             </FilterBar>
+
+            <MobileFilterDrawer
+                open={filtersOpen}
+                onClose={() => setFiltersOpen(false)}
+                onApply={applyFilters}
+                onReset={resetFilters}
+            >
+                <Select
+                    label={t.filter_status}
+                    aria-label={t.filter_status}
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    options={[
+                        { value: '', label: common.all_statuses },
+                        ...filterOptions.statuses.map((value) => ({
+                            value,
+                            label: leadStatusLabel(value, leadStatuses),
+                        })),
+                    ]}
+                />
+                <Select
+                    label={t.filter_scheme}
+                    aria-label={t.filter_scheme}
+                    value={schemeId}
+                    onChange={(e) => {
+                        setSchemeId(e.target.value);
+                        setZoneId('');
+                    }}
+                    options={[
+                        { value: '', label: common.all_schemes },
+                        ...filterOptions.schemes.map((scheme) => ({
+                            value: String(scheme.id),
+                            label: scheme.name,
+                        })),
+                    ]}
+                />
+                <Select
+                    label={t.filter_zone}
+                    aria-label={t.filter_zone}
+                    value={zoneId}
+                    onChange={(e) => setZoneId(e.target.value)}
+                    options={[
+                        { value: '', label: common.all_zones },
+                        ...zoneOptions.map((zone) => ({
+                            value: String(zone.id),
+                            label: `${zone.code} — ${zone.name}`,
+                        })),
+                    ]}
+                />
+            </MobileFilterDrawer>
 
             {leads.data.length === 0 ? (
                 <EmptyState title={common.empty} />

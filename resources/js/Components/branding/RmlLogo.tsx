@@ -9,7 +9,7 @@ type RmlLogoProps = SVGAttributes<SVGElement> & {
 };
 
 /**
- * Logo 2 — RML Energy Exchange
+ * Logo 2 — RML Energy Saving
  * House outline + exchange arrows + energy bolt.
  */
 export default function RmlLogo({

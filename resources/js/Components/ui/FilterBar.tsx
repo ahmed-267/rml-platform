@@ -37,13 +37,15 @@ export function FilterBar({
 }: FilterBarProps) {
     const { translations } = usePage<PageProps>().props;
     const resolvedSearchLabel =
-        searchLabel ?? translations.common?.search ?? 'Search';
+        searchLabel ?? translations.common?.search ?? '';
     const filtersLabel =
+        translations.common?.filters ??
         translations.admin?.common?.filters ??
         translations.seller?.common?.filters ??
         translations.buyer?.common?.filters ??
-        'Filters';
+        '';
     const resolvedPlaceholder = searchPlaceholder ?? `${resolvedSearchLabel}…`;
+    const mobileDrawerMode = Boolean(onOpenMobileFilters);
 
     return (
         <div
@@ -87,15 +89,18 @@ export function FilterBar({
                     </div>
                 )}
 
-                <div
-                    className={cn(
-                        compact
-                            ? 'flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end lg:w-auto'
-                            : 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-end',
-                    )}
-                >
-                    {children}
-                </div>
+                {children ? (
+                    <div
+                        className={cn(
+                            compact
+                                ? 'w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end lg:w-auto'
+                                : 'grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-end',
+                            mobileDrawerMode ? 'hidden lg:flex' : 'flex',
+                        )}
+                    >
+                        {children}
+                    </div>
+                ) : null}
 
                 <div
                     className={cn(
@@ -117,10 +122,19 @@ export function FilterBar({
                                 {filtersLabel}
                             </Button>
                         )}
-                        {actions}
+                        {actions ? (
+                            <div
+                                className={cn(
+                                    'flex items-center gap-2',
+                                    mobileDrawerMode && 'hidden lg:flex',
+                                )}
+                            >
+                                {actions}
+                            </div>
+                        ) : null}
                     </div>
                     {endActions ? (
-                        <div className="flex w-full items-center gap-2 sm:w-auto sm:ml-auto lg:ml-2">
+                        <div className="flex w-full items-center gap-2 sm:ml-auto sm:w-auto lg:ml-2">
                             {endActions}
                         </div>
                     ) : null}

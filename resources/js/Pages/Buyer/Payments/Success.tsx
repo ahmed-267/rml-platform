@@ -69,9 +69,24 @@ export default function PaymentSuccess({
                         {t.amount}:{' '}
                         {formatMoney(payment.amount, payment.currency ?? 'EUR')}
                     </p>
-                    {payment.provider === 'stripe' && (
+                    {payment.method && (
                         <p className="text-sm text-rml-muted">
-                            {t.payment_provider}: {t.stripe_checkout}
+                            {t.payment_method}:{' '}
+                            {translations.payment_methods?.[payment.method] ??
+                                payment.method}
+                        </p>
+                    )}
+                    {payment.provider && (
+                        <p className="text-sm text-rml-muted">
+                            {t.payment_provider}:{' '}
+                            {translations.payment_providers?.[
+                                payment.provider === 'manual_bank_transfer'
+                                    ? 'manual'
+                                    : payment.provider
+                            ] ??
+                                (payment.provider === 'stripe'
+                                    ? t.stripe_checkout
+                                    : payment.provider)}
                         </p>
                     )}
                 </div>

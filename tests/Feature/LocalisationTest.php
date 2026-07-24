@@ -94,7 +94,7 @@ class LocalisationTest extends TestCase
                 ->where('translations.statuses.pending', 'Pendiente')
                 ->where(
                     'translations.roles.seller_company_admin',
-                    'Admin vendedor',
+                    'Seller Admin',
                 ));
     }
 
@@ -346,7 +346,7 @@ class LocalisationTest extends TestCase
                 ->where('translations.admin.reports.index_title', 'Rapports')
                 ->where('translations.admin.reports.chart_lead_volume_title', 'Volume de leads')
                 ->where('translations.admin.reports.chart_empty_title', 'Pas encore assez de données')
-                ->where('translations.admin.reports.legend_accepted', 'Acceptés'));
+                ->where('translations.admin.reports.legend_accepted', 'Listés'));
 
         $this->actingAs($admin)
             ->from(route('admin.reports.index'))
@@ -359,7 +359,7 @@ class LocalisationTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->where('app.locale', 'es')
                 ->where('translations.admin.reports.chart_leads_by_zone_title', 'Leads por zona')
-                ->where('translations.admin.reports.legend_submitted', 'Enviados'));
+                ->where('translations.admin.reports.legend_submitted', 'Pendiente de revisión'));
     }
 
     public function test_auditor_portal_translates_across_en_es_fr_and_persists(): void
