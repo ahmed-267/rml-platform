@@ -34,9 +34,14 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        $home = PortalRouter::homePath($request->user());
+        $user = $request->user();
+        $home = PortalRouter::homePath($user);
+        $intended = PortalRouter::safeIntendedPath(
+            $user,
+            $request->session()->pull('url.intended'),
+        );
 
-        return redirect()->intended($home);
+        return redirect()->to($intended ?? $home);
     }
 
     /**
@@ -50,6 +55,6 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerateToken();
 
-        return redirect('/');
+        return redirect()->route('login');
     }
 }

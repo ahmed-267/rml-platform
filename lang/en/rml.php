@@ -39,6 +39,7 @@ return [
         'tap_to_upload' => 'Tap to upload',
         'zone_not_set' => 'Not set',
         'zone_needs_review' => 'Needs review',
+        'log_out' => 'Log out',
     ],
     'profile' => [
         'title' => 'Account',

@@ -56,6 +56,29 @@ class AuthenticationTest extends TestCase
         $response = $this->actingAs($user)->post('/logout');
 
         $this->assertGuest();
-        $response->assertRedirect('/');
+        $response->assertRedirect(route('login'));
+    }
+
+    public function test_guest_login_is_not_redirected_to_admin(): void
+    {
+        $this->get('/login')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Auth/Login'));
+
+        $this->get('/register')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Auth/Register'));
+    }
+
+    public function test_authenticated_users_are_redirected_from_login_by_role(): void
+    {
+        $this->seed(RolePermissionSeeder::class);
+
+        $admin = User::factory()->create(['email' => 'admin.redirect@rml.test']);
+        $admin->assignRole(UserRole::SuperAdmin);
+
+        $this->actingAs($admin)
+            ->get('/login')
+            ->assertRedirect('/admin/dashboard');
     }
 }

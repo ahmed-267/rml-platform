@@ -66,6 +66,7 @@ class HandleInertiaRequests extends Middleware
                 'register' => __('rml.register'),
                 'auth' => __('rml.auth'),
                 'pending' => __('rml.pending'),
+                'profile' => __('rml.profile'),
                 'enquiries' => __('rml.enquiries'),
                 'landing' => __('rml.landing'),
                 'approvals' => __('rml.approvals'),

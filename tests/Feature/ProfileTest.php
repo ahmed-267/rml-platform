@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Enums\UserRole;
 use App\Models\User;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -12,13 +14,20 @@ class ProfileTest extends TestCase
 
     public function test_profile_page_is_displayed(): void
     {
+        $this->seed(RolePermissionSeeder::class);
+
         $user = User::factory()->create();
+        $user->assignRole(UserRole::SuperAdmin);
 
         $response = $this
             ->actingAs($user)
             ->get('/profile');
 
-        $response->assertOk();
+        $response->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Profile/Edit')
+                ->where('translations.profile.title', 'Account')
+                ->where('auth.user.portal', 'admin'));
     }
 
     public function test_profile_information_can_be_updated(): void

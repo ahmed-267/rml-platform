@@ -16,8 +16,19 @@ export default function PublicLayout({
     children,
     headerActions,
 }: PublicLayoutProps) {
-    const { translations, flash } = usePage<PageProps>().props;
+    const { translations, flash, auth } = usePage<PageProps>().props;
     const [mobileOpen, setMobileOpen] = useState(false);
+    const portalHome =
+        auth.user?.portal === 'admin'
+            ? '/admin/dashboard'
+            : auth.user?.portal === 'seller'
+              ? '/seller/dashboard'
+              : auth.user?.portal === 'buyer'
+                ? '/buyer/dashboard'
+                : auth.user?.portal === 'auditor'
+                  ? '/auditor/dashboard'
+                  : '/dashboard';
+    const isAuthenticated = Boolean(auth.user);
 
     const publicLinks = [
         { label: translations.nav.home ?? 'Home', href: '#home' },
@@ -69,16 +80,35 @@ export default function PublicLayout({
                         <LanguageSwitcher className="hidden sm:inline-flex" />
                         {headerActions ?? (
                             <>
-                                <Link href="/login" className="hidden sm:inline-flex">
-                                    <Button variant="ghost" size="sm">
-                                        {translations.nav.login}
-                                    </Button>
-                                </Link>
-                                <Link href="/register" className="hidden sm:inline-flex">
-                                    <Button size="sm">
-                                        {translations.nav.register}
-                                    </Button>
-                                </Link>
+                                {isAuthenticated ? (
+                                    <Link
+                                        href={portalHome}
+                                        className="hidden sm:inline-flex"
+                                    >
+                                        <Button variant="ghost" size="sm">
+                                            {translations.nav.dashboard}
+                                        </Button>
+                                    </Link>
+                                ) : (
+                                    <>
+                                        <Link
+                                            href="/login"
+                                            className="hidden sm:inline-flex"
+                                        >
+                                            <Button variant="ghost" size="sm">
+                                                {translations.nav.login}
+                                            </Button>
+                                        </Link>
+                                        <Link
+                                            href="/register"
+                                            className="hidden sm:inline-flex"
+                                        >
+                                            <Button size="sm">
+                                                {translations.nav.register}
+                                            </Button>
+                                        </Link>
+                                    </>
+                                )}
                             </>
                         )}
                         <Button
@@ -124,16 +154,30 @@ export default function PublicLayout({
                             </a>
                         ))}
                         <div className="flex gap-2 border-t border-rml-border pt-3 sm:hidden">
-                            <Link href="/login" className="flex-1">
-                                <Button variant="outline" fullWidth size="sm">
-                                    {translations.nav.login}
-                                </Button>
-                            </Link>
-                            <Link href="/register" className="flex-1">
-                                <Button fullWidth size="sm">
-                                    {translations.nav.register}
-                                </Button>
-                            </Link>
+                            {isAuthenticated ? (
+                                <Link href={portalHome} className="flex-1">
+                                    <Button variant="outline" fullWidth size="sm">
+                                        {translations.nav.dashboard}
+                                    </Button>
+                                </Link>
+                            ) : (
+                                <>
+                                    <Link href="/login" className="flex-1">
+                                        <Button
+                                            variant="outline"
+                                            fullWidth
+                                            size="sm"
+                                        >
+                                            {translations.nav.login}
+                                        </Button>
+                                    </Link>
+                                    <Link href="/register" className="flex-1">
+                                        <Button fullWidth size="sm">
+                                            {translations.nav.register}
+                                        </Button>
+                                    </Link>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>

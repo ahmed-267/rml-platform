@@ -14,7 +14,7 @@ function AccountForms({
     status?: string;
 }) {
     const { translations, auth } = usePage<PageProps>().props;
-    const t = translations.profile;
+    const t = translations.profile ?? {};
     const user = auth.user!;
 
     const profileForm = useForm({
@@ -260,13 +260,15 @@ export default function Edit({
     status?: string;
 }) {
     const { translations, auth } = usePage<PageProps>().props;
-    const t = translations.profile;
+    const t = translations.profile ?? {};
     const portal = auth.user?.portal;
+    const title = t.title ?? 'Account';
+    const subtitle = t.subtitle;
 
     if (portal) {
         return (
-            <AppLayout title={t.title} subtitle={t.subtitle}>
-                <Head title={t.title} />
+            <AppLayout title={title} subtitle={subtitle}>
+                <Head title={title} />
                 <AccountForms
                     mustVerifyEmail={mustVerifyEmail}
                     status={status}
@@ -276,8 +278,8 @@ export default function Edit({
     }
 
     return (
-        <AuthLayout title={t.title} subtitle={t.subtitle} wide>
-            <Head title={t.title} />
+        <AuthLayout title={title} subtitle={subtitle} wide>
+            <Head title={title} />
             <AccountForms mustVerifyEmail={mustVerifyEmail} status={status} />
         </AuthLayout>
     );

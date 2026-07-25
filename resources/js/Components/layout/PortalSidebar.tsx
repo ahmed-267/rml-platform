@@ -1,4 +1,5 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { LogOut } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import RmlLogo from '@/Components/branding/RmlLogo';
 import { isNavItemActive, type NavItem } from '@/config/navigation';
@@ -20,6 +21,12 @@ export function PortalSidebar({
     const { translations } = usePage<PageProps>().props;
     const homeHref = items[0]?.href ?? '/dashboard';
     const footerBrand = translations.brand.footer_brand;
+    const logOutLabel = translations.common?.log_out ?? 'Log out';
+
+    const handleLogout = () => {
+        onNavigate?.();
+        router.post(route('logout'));
+    };
 
     return (
         <aside
@@ -57,8 +64,16 @@ export function PortalSidebar({
                     );
                 })}
             </nav>
-            <div className="border-t border-white/10 px-5 py-4 text-xs text-slate-400">
-                {footerBrand}
+            <div className="space-y-3 border-t border-white/10 px-3 py-4">
+                <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-300 transition-colors hover:bg-white/5 hover:text-white"
+                >
+                    <LogOut className="h-4 w-4 shrink-0" />
+                    <span>{logOutLabel}</span>
+                </button>
+                <p className="px-3 text-xs text-slate-400">{footerBrand}</p>
             </div>
         </aside>
     );

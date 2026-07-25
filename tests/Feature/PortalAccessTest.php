@@ -111,6 +111,35 @@ class PortalAccessTest extends TestCase
         $this->get('/dashboard')->assertRedirect(route('login'));
     }
 
+    public function test_login_ignores_cross_portal_intended_url(): void
+    {
+        $this->get('/admin/dashboard')->assertRedirect(route('login'));
+
+        $this->post('/login', [
+            'email' => 'buyer@rml.test',
+            'password' => 'password',
+        ])->assertRedirect('/buyer/dashboard');
+    }
+
+    public function test_logout_clears_session_and_login_shows_form(): void
+    {
+        $this->post('/login', [
+            'email' => 'admin@rml.test',
+            'password' => 'password',
+        ])->assertRedirect('/admin/dashboard');
+
+        $this->post('/logout')
+            ->assertRedirect(route('login'));
+
+        $this->assertGuest();
+
+        $this->get('/login')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('Auth/Login'));
+
+        $this->get('/admin/dashboard')->assertRedirect(route('login'));
+    }
+
     public function test_pending_seller_is_redirected_to_pending_approval(): void
     {
         $this->post('/login', [

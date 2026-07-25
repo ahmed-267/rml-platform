@@ -7,7 +7,7 @@ import type { PageProps } from '@/types';
 
 export default function ConfirmPassword() {
     const { translations } = usePage<PageProps>().props;
-    const t = translations.profile;
+    const t = translations.profile ?? {};
     const auth = translations.auth;
 
     const { data, setData, post, processing, errors, reset } = useForm({

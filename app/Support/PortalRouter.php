@@ -46,6 +46,37 @@ final class PortalRouter
         return self::dashboardPath($user);
     }
 
+    /**
+     * Only honour url.intended when it belongs to the user's portal
+     * (or shared account routes). Never send a seller/buyer to /admin/*.
+     */
+    public static function safeIntendedPath(?User $user, ?string $intended): ?string
+    {
+        if (! $user || ! $intended) {
+            return null;
+        }
+
+        $path = parse_url($intended, PHP_URL_PATH);
+
+        if (! is_string($path) || $path === '') {
+            return null;
+        }
+
+        if (in_array($path, ['/profile', '/pending-approval', '/dashboard'], true)) {
+            return $path;
+        }
+
+        $portal = $user->portal();
+
+        return match ($portal) {
+            'admin' => str_starts_with($path, '/admin') ? $path : null,
+            'seller' => str_starts_with($path, '/seller') ? $path : null,
+            'buyer' => str_starts_with($path, '/buyer') ? $path : null,
+            'auditor' => str_starts_with($path, '/auditor') ? $path : null,
+            default => null,
+        };
+    }
+
     public static function isInternalRole(?User $user): bool
     {
         if (! $user) {

@@ -7,7 +7,7 @@ import type { PageProps } from '@/types';
 
 export default function VerifyEmail({ status }: { status?: string }) {
     const { translations } = usePage<PageProps>().props;
-    const t = translations.profile;
+    const t = translations.profile ?? {};
     const pending = translations.pending;
     const { post, processing } = useForm({});
 
