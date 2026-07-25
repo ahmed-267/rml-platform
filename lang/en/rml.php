@@ -27,6 +27,7 @@ return [
         'notifications' => 'Notifications',
         'open_menu' => 'Open menu',
         'close_menu' => 'Close menu',
+        'back' => 'Back',
         'back_to_home' => 'Back to home',
         'filters' => 'Filters',
         'apply_filters' => 'Apply filters',

@@ -1,5 +1,5 @@
 import { FormEventHandler, useState } from 'react';
-import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import AuthLayout from '@/Layouts/AuthLayout';
 import { Alert, Button, FormInput } from '@/Components/ui';
@@ -279,14 +279,6 @@ export default function Edit({
         <AuthLayout title={t.title} subtitle={t.subtitle} wide>
             <Head title={t.title} />
             <AccountForms mustVerifyEmail={mustVerifyEmail} status={status} />
-            <p className="mt-4 text-center text-sm text-rml-muted">
-                <Link
-                    href="/"
-                    className="font-semibold text-rml-primary hover:underline"
-                >
-                    {translations.common.back_to_home}
-                </Link>
-            </p>
         </AuthLayout>
     );
 }

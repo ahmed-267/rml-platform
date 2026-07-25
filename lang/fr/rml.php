@@ -27,6 +27,7 @@ return [
         'notifications' => 'Notifications',
         'open_menu' => 'Ouvrir le menu',
         'close_menu' => 'Fermer le menu',
+        'back' => 'Retour',
         'back_to_home' => 'Retour à l’accueil',
         'filters' => 'Filtres',
         'apply_filters' => 'Appliquer les filtres',

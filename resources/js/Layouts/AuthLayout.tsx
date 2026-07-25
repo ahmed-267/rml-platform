@@ -9,9 +9,14 @@ export interface AuthLayoutProps extends PropsWithChildren {
     title: string;
     subtitle?: string;
     wide?: boolean;
-    /** Defaults to public landing `/`. Pass `null` to hide. */
+    /**
+     * Fallback when history/referrer is unavailable. Defaults to `/`.
+     * Pass `null` to hide the back control.
+     */
     backHref?: string | null;
     backLabel?: string;
+    /** Prefer previous page via history when safe. Defaults to true. */
+    backUsesHistory?: boolean;
 }
 
 export default function AuthLayout({
@@ -21,6 +26,7 @@ export default function AuthLayout({
     wide = false,
     backHref = '/',
     backLabel,
+    backUsesHistory = true,
 }: AuthLayoutProps) {
     const { translations } = usePage<PageProps>().props;
     const footer =
@@ -28,10 +34,7 @@ export default function AuthLayout({
         translations.brand?.footer_brand ??
         '';
     const resolvedBackLabel =
-        backLabel ??
-        translations.common?.back_to_home ??
-        translations.nav?.home ??
-        '';
+        backLabel ?? translations.common?.back ?? '';
 
     return (
         <div className="relative min-h-screen overflow-hidden bg-rml-background">
@@ -51,6 +54,7 @@ export default function AuthLayout({
                                 href={backHref}
                                 label={resolvedBackLabel}
                                 showLabel
+                                useHistory={backUsesHistory}
                             />
                         </div>
                     )}
