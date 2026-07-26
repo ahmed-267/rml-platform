@@ -4,7 +4,7 @@ namespace App\Support;
 
 /**
  * Resolves the disk used for durable app uploads (evidence, invoices, etc.).
- * Local: FILESYSTEM_DISK=local. Laravel Cloud: injected FILESYSTEM_DISK=s3 (bucket).
+ * Local: FILESYSTEM_DISK=local. Laravel Cloud: injected FILESYSTEM_DISK=private (bucket).
  */
 final class FilesystemDisk
 {

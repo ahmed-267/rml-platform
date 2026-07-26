@@ -26,9 +26,9 @@ return [
     |
     | Supported drivers: "local", "ftp", "sftp", "s3"
     |
-    | Laravel Cloud: attach an Object Storage bucket and FILESYSTEM_DISK / AWS_*
-    | are injected. App uploads (evidence, invoices) use filesystems.default via
-    | App\Support\FilesystemDisk::uploads().
+    | Laravel Cloud: attach an Object Storage bucket; FILESYSTEM_DISK is often
+    | injected as `private`. That disk name must exist below (S3-compatible).
+    | App uploads use filesystems.default via App\Support\FilesystemDisk::uploads().
     |
     */
 
@@ -60,6 +60,20 @@ return [
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'throw' => false,
+            'report' => false,
+        ],
+
+        'private' => [
+            'driver' => 's3',
+            'key' => env('AWS_ACCESS_KEY_ID'),
+            'secret' => env('AWS_SECRET_ACCESS_KEY'),
+            'region' => env('AWS_DEFAULT_REGION'),
+            'bucket' => env('AWS_BUCKET'),
+            'url' => env('AWS_URL'),
+            'endpoint' => env('AWS_ENDPOINT'),
+            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            'visibility' => 'private',
             'throw' => false,
             'report' => false,
         ],
