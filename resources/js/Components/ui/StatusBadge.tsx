@@ -1,12 +1,12 @@
 import { cn } from '@/lib/cn';
 
+/** Shared badge tones for StatusBadge and status helpers. */
 export type BadgeTone =
     | 'neutral'
     | 'success'
     | 'warning'
     | 'danger'
-    | 'info'
-    | 'primary';
+    | 'info';
 
 export interface StatusBadgeProps {
     label: string;
@@ -21,7 +21,6 @@ const toneClasses: Record<BadgeTone, string> = {
     warning: 'bg-amber-50 text-rml-amber ring-amber-200',
     danger: 'bg-red-50 text-rml-red ring-red-200',
     info: 'bg-rml-blue-light text-rml-blue ring-blue-200',
-    primary: 'bg-rml-primary-lighter text-rml-primary ring-green-100',
 };
 
 export function StatusBadge({

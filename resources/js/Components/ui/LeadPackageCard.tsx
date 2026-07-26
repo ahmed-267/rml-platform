@@ -34,7 +34,7 @@ export function LeadPackageCard({
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-rml-primary-light text-rml-primary">
                     <Package className="h-5 w-5" />
                 </div>
-                {badge && <StatusBadge label={badge} tone="primary" />}
+                {badge && <StatusBadge label={badge} tone="success" />}
             </div>
             <h3 className="text-base font-semibold text-rml-text">{title}</h3>
             {description && (

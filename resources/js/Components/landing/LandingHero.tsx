@@ -85,7 +85,7 @@ export default function LandingHero({ t }: LandingHeroProps) {
                             <li key={badge}>
                                 <StatusBadge
                                     label={badge}
-                                    tone="primary"
+                                    tone="success"
                                     className="bg-white/10 text-slate-100 ring-white/20"
                                 />
                             </li>

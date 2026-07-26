@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { Button, Modal, StatusBadge } from '@/Components/ui';
+import type { BadgeTone } from '@/Components/ui/StatusBadge';
 
 export type SellerQuickView = {
     id: number;
@@ -36,7 +37,7 @@ export function SellerQuickViewModal({
         close: string;
     };
     statusLabel?: string;
-    statusTone?: 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'default';
+    statusTone?: BadgeTone;
 }) {
     if (!seller) {
         return null;

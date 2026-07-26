@@ -66,7 +66,7 @@ export default function LandingSpainSchemes({ t }: LandingSpainSchemesProps) {
                                             <StatusBadge
                                                 key={zone}
                                                 label={zone}
-                                                tone="primary"
+                                                tone="success"
                                                 mono
                                                 className="px-3 py-1.5 text-sm font-bold"
                                             />

@@ -422,14 +422,14 @@ export function AuditLeadModal({
     const canAcceptLead = requiredChecklistComplete && pricingComplete;
 
     const leadStatus = loadedAudit?.lead?.status ?? null;
-    const canRejectLead =
+    // Rejected remains rejectable (update reason) and acceptable; only
+    // sold / cancelled / listed are terminal for reject.
+    const showRejectAction =
         leadStatus !== 'sold' &&
         leadStatus !== 'cancelled' &&
         leadStatus !== 'listed';
     const canRequestInfoLead =
         leadStatus !== 'sold' && leadStatus !== 'cancelled';
-    // Rejected leads can still be rejected again (update reason) or accepted.
-    const showRejectAction = canRejectLead || leadStatus === 'rejected';
     const showAcceptAction =
         leadStatus !== 'sold' && leadStatus !== 'cancelled';
 
