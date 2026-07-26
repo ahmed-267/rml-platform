@@ -53,9 +53,9 @@ class PurchaseController extends Controller
         if ($request->filled('search')) {
             $search = '%'.$request->string('search')->toString().'%';
             $query->where(function (Builder $q) use ($search) {
-                $q->where('purchase_reference', 'like', $search)
-                    ->orWhereHas('items.lead', fn (Builder $lq) => $lq->where('lead_reference', 'like', $search))
-                    ->orWhereHas('items.leadPackage', fn (Builder $pq) => $pq->where('package_reference', 'like', $search));
+                $q->where('purchase_reference', 'ilike', $search)
+                    ->orWhereHas('items.lead', fn (Builder $lq) => $lq->where('lead_reference', 'ilike', $search))
+                    ->orWhereHas('items.leadPackage', fn (Builder $pq) => $pq->where('package_reference', 'ilike', $search));
             });
         }
 
@@ -161,12 +161,18 @@ class PurchaseController extends Controller
         $receipt = $payment?->invoices?->firstWhere('type', InvoiceType::BuyerReceipt);
         $cardConfigured ??= app(PaymentProviderManager::class)->cardConfigured();
         $isCard = $payment?->method === PaymentMethod::Card;
+        $isManual = $payment?->method === PaymentMethod::ManualBankTransfer;
         $isPayableStatus = in_array($payment?->status, [
             PaymentStatus::Pending,
             PaymentStatus::Failed,
             PaymentStatus::Cancelled,
         ], true);
         $cardBlocked = $isCard && $isPayableStatus && ! $cardConfigured;
+        $canPayByCard = $isManual
+            && $isPayableStatus
+            && $purchase->status === PurchaseStatus::Pending
+            && ! $released
+            && $cardConfigured;
 
         $data = [
             'id' => $purchase->id,
@@ -188,10 +194,14 @@ class PurchaseController extends Controller
                 'amount' => $payment->amount !== null ? (float) $payment->amount : null,
                 'due_date' => $payment->due_date?->toDateString(),
                 'paid_at' => $payment->paid_at?->toIso8601String(),
+                // Hide Pay now for manual bank transfer — use Pay by card instead.
                 'can_pay' => $isPayableStatus
                     && $purchase->status === PurchaseStatus::Pending
-                    && ! $cardBlocked,
-                'card_provider_missing' => $cardBlocked
+                    && ! $cardBlocked
+                    && ! $isManual,
+                'can_pay_by_card' => $canPayByCard,
+                'card_provider_missing' => ($isCard && $cardBlocked)
+                    || ($isManual && $isPayableStatus && ! $released && ! $cardConfigured)
                     || (bool) ($payment->metadata['provider_not_configured'] ?? false),
                 'bank_instructions' => $this->paymentService->bankInstructions($payment),
             ] : null,
@@ -219,12 +229,17 @@ class PurchaseController extends Controller
 
         if (! $summary) {
             $data['leads'] = $purchase->items
-                ->map(function ($item) use ($user) {
+                ->map(function ($item) use ($user, $released) {
                     if (! $item->lead) {
                         return null;
                     }
 
-                    return BuyerLeadPresenter::presentForPurchase($item->lead, $user, $this->releaseService);
+                    return BuyerLeadPresenter::presentForPurchase(
+                        $item->lead,
+                        $user,
+                        $this->releaseService,
+                        released: $released,
+                    );
                 })
                 ->filter()
                 ->values()

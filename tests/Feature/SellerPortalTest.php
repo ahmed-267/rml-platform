@@ -98,15 +98,15 @@ class SellerPortalTest extends TestCase
         $admin = User::query()->where('email', 'seller.admin@rml.test')->firstOrFail();
 
         $this->actingAs($admin)
-            ->get(route('seller.staff.index', ['tab' => 'commissions']))
+            ->get(route('seller.staff.index'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Seller/Staff/Index')
-                ->where('tab', 'commissions'));
+                ->where('tab', 'staff'));
 
         $this->actingAs($admin)
             ->get(route('seller.staff-commissions'))
-            ->assertRedirect(route('seller.staff.index', ['tab' => 'commissions']));
+            ->assertRedirect(route('seller.staff.index'));
     }
 
     public function test_submit_without_required_evidence_is_rejected(): void

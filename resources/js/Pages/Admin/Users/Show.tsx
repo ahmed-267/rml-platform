@@ -132,7 +132,14 @@ export default function UsersShow({
                             targetName={user.name}
                             companyName={user.company_name}
                             showView={false}
-                            variant="buttons"
+                            variant="icons"
+                            onEdit={() => setEditOpen(true)}
+                            deleteRoute={route('admin.users.destroy', user.id)}
+                            canDelete={
+                                isSuperAdmin &&
+                                user.id !== auth.user?.id &&
+                                !user.roles.includes('super_admin')
+                            }
                             approveRoute={route('admin.users.approve', user.id)}
                             rejectRoute={route('admin.users.reject', user.id)}
                             suspendRoute={route('admin.users.suspend', user.id)}

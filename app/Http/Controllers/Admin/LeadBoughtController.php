@@ -26,12 +26,16 @@ class LeadBoughtController extends Controller
 
     public function index(Request $request): Response
     {
-        abort_unless(
-            $request->user()?->can(Permissions::VIEW_LEADS)
-                || $request->user()?->hasRole('super_admin'),
-            403,
-        );
+        $this->authorizeView($request);
 
+        return Inertia::render('Admin/LeadsBought/Index', $this->indexProps($request));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function indexProps(Request $request): array
+    {
         $query = Lead::query()
             ->where('leads.status', '!=', LeadStatus::Draft->value)
             ->with(['scheme:id,name', 'zone:id,code', 'submittedBy:id,name', 'sellerCompany:id,name']);
@@ -44,21 +48,24 @@ class LeadBoughtController extends Controller
             $query->where('leads.scheme_id', $request->integer('scheme_id'));
         }
 
-        if ($request->filled('zone_id')) {
+        if ($request->filled('zone_code')) {
+            $zoneCode = $request->string('zone_code')->toString();
+            $query->whereHas('zone', fn ($zq) => $zq->where('code', $zoneCode));
+        } elseif ($request->filled('zone_id')) {
             $query->where('leads.zone_id', $request->integer('zone_id'));
         }
 
         if ($request->filled('search')) {
             $search = '%'.$request->string('search')->toString().'%';
             $query->where(function ($q) use ($search) {
-                $q->where('leads.lead_reference', 'like', $search)
-                    ->orWhere('leads.customer_first_name', 'like', $search)
-                    ->orWhere('leads.customer_last_name', 'like', $search)
-                    ->orWhereHas('submittedBy', fn ($uq) => $uq->where('name', 'like', $search))
-                    ->orWhereHas('sellerCompany', fn ($cq) => $cq->where('name', 'like', $search))
+                $q->where('leads.lead_reference', 'ilike', $search)
+                    ->orWhere('leads.customer_first_name', 'ilike', $search)
+                    ->orWhere('leads.customer_last_name', 'ilike', $search)
+                    ->orWhereHas('submittedBy', fn ($uq) => $uq->where('name', 'ilike', $search))
+                    ->orWhereHas('sellerCompany', fn ($cq) => $cq->where('name', 'ilike', $search))
                     ->orWhereHas(
                         'purchaseItems.purchase.buyerCompany',
-                        fn ($bq) => $bq->where('name', 'like', $search),
+                        fn ($bq) => $bq->where('name', 'ilike', $search),
                     );
             });
         }
@@ -71,12 +78,13 @@ class LeadBoughtController extends Controller
             ->withQueryString()
             ->through(fn (Lead $lead) => AdminLeadPresenter::listRow($lead));
 
-        return Inertia::render('Admin/LeadsBought/Index', [
+        return [
             'leads' => $leads,
             'filters' => [
                 'status' => $request->input('status'),
                 'scheme_id' => $request->input('scheme_id'),
                 'zone_id' => $request->input('zone_id'),
+                'zone_code' => $request->input('zone_code'),
                 'search' => $request->input('search'),
                 'sort' => $sortState['sort'],
                 'direction' => $sortState['direction'],
@@ -85,18 +93,34 @@ class LeadBoughtController extends Controller
             'filterOptions' => [
                 'statuses' => LeadStatusPresentation::visibleValues(includeDraft: false),
                 'schemes' => Scheme::query()->where('active', true)->orderBy('sort_order')->get(['id', 'name']),
-                'zones' => Zone::query()->where('active', true)->orderBy('code')->get(['id', 'code', 'name']),
+                'zones' => Zone::query()
+                    ->where('active', true)
+                    ->orderBy('code')
+                    ->get(['id', 'code', 'name'])
+                    ->unique('code')
+                    ->values()
+                    ->map(fn (Zone $zone) => [
+                        'id' => $zone->id,
+                        'code' => $zone->code,
+                        'name' => $zone->name,
+                    ])
+                    ->all(),
             ],
-        ]);
+        ];
     }
 
-    public function show(Request $request, Lead $lead): Response
+    private function authorizeView(Request $request): void
     {
         abort_unless(
             $request->user()?->can(Permissions::VIEW_LEADS)
                 || $request->user()?->hasRole('super_admin'),
             403,
         );
+    }
+
+    public function show(Request $request, Lead $lead): Response
+    {
+        $this->authorizeView($request);
 
         abort_if($lead->status === LeadStatus::Draft, 404);
 

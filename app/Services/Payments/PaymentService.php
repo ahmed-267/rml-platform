@@ -151,6 +151,56 @@ class PaymentService
     }
 
     /**
+     * Switch a pending manual bank transfer to card and start Stripe Checkout.
+     *
+     * @return array{checkout_url: string|null, bank_instructions: array<string, mixed>|null, card_configured: bool, mollie_configured: bool, provider: string, status: string, error?: string}
+     */
+    public function switchToCardCheckout(Payment $payment, User $payer): array
+    {
+        if ($payment->status === PaymentStatus::Paid) {
+            throw ValidationException::withMessages([
+                'payment' => __('rml.payments.already_paid'),
+            ]);
+        }
+
+        if (! in_array($payment->status, [
+            PaymentStatus::Pending,
+            PaymentStatus::Failed,
+            PaymentStatus::Cancelled,
+        ], true)) {
+            throw ValidationException::withMessages([
+                'payment' => __('rml.payments.not_payable'),
+            ]);
+        }
+
+        $method = $payment->method ?? PaymentMethod::ManualBankTransfer;
+        if (! in_array($method, [PaymentMethod::ManualBankTransfer, PaymentMethod::Card], true)) {
+            throw ValidationException::withMessages([
+                'payment' => __('rml.payments.not_payable'),
+            ]);
+        }
+
+        if ($method === PaymentMethod::ManualBankTransfer) {
+            $payment->update([
+                'method' => PaymentMethod::Card,
+                'provider' => 'stripe',
+                'provider_payment_id' => null,
+                'provider_reference' => null,
+                'provider_status' => null,
+                'stripe_checkout_session_id' => null,
+                'stripe_payment_intent_id' => null,
+                'metadata' => array_merge($payment->metadata ?? [], [
+                    'switched_from' => PaymentMethod::ManualBankTransfer->value,
+                    'switched_to_card_at' => now()->toIso8601String(),
+                ]),
+            ]);
+            $payment->refresh();
+        }
+
+        return $this->initiate($payment, $payer);
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function bankInstructions(Payment $payment): ?array

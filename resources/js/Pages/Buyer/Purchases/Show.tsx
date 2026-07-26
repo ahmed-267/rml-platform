@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import {
@@ -7,7 +8,11 @@ import {
     DataTable,
     StatusBadge,
 } from '@/Components/ui';
-import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
+import { leadStatusLabel } from '@/lib/lead-status';
+import {
+    purchaseFlowStatus,
+    purchaseFlowStatusTone,
+} from '@/lib/purchase-status';
 import type { PageProps } from '@/types';
 
 interface EvidenceFile {
@@ -74,6 +79,7 @@ interface PurchaseDetail {
         due_date: string | null;
         paid_at: string | null;
         can_pay?: boolean;
+        can_pay_by_card?: boolean;
         card_provider_missing?: boolean;
         bank_instructions?: {
             account_name?: string | null;
@@ -127,7 +133,7 @@ export default function BuyerPurchasesShow({
     mollie_configured?: boolean;
     card_provider_admin_hint?: string | null;
 }) {
-    const { translations, app } = usePage<PageProps>().props;
+    const { translations, app, errors, flash } = usePage<PageProps>().props;
     const t = translations.buyer?.purchases ?? {};
     const paymentsT = translations.buyer?.payments ?? {};
     const common = translations.buyer?.common ?? {};
@@ -142,6 +148,53 @@ export default function BuyerPurchasesShow({
         ...paymentMethods,
     };
     const cardConfigured = card_configured ?? mollie_configured ?? true;
+    const [paying, setPaying] = useState(false);
+    const [payingByCard, setPayingByCard] = useState(false);
+
+    const flowStatus = purchaseFlowStatus(purchase);
+    const flowStatusLabel =
+        leadStatusLabel(flowStatus, statusLabels) ||
+        paymentStatuses[flowStatus] ||
+        flowStatus;
+
+    const payNow = () => {
+        if (!purchase.payment?.can_pay || paying || payingByCard || !purchase.payment?.id) {
+            return;
+        }
+
+        setPaying(true);
+        router.post(
+            route('buyer.payments.pay', purchase.payment.id),
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => setPaying(false),
+                onError: () => setPaying(false),
+            },
+        );
+    };
+
+    const payByCardInstead = () => {
+        if (
+            !purchase.payment?.can_pay_by_card ||
+            paying ||
+            payingByCard ||
+            !purchase.payment?.id
+        ) {
+            return;
+        }
+
+        setPayingByCard(true);
+        router.post(
+            route('buyer.payments.pay-by-card', purchase.payment.id),
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => setPayingByCard(false),
+                onError: () => setPayingByCard(false),
+            },
+        );
+    };
 
     const showCardProviderWarning =
         Boolean(purchase.payment?.card_provider_missing) ||
@@ -167,45 +220,51 @@ export default function BuyerPurchasesShow({
                 </Alert>
             )}
 
+            {(errors?.payment || flash?.error) && (
+                <Alert variant="error">
+                    {errors?.payment ?? flash?.error ?? t.pay_error}
+                </Alert>
+            )}
+
             <div className="flex flex-wrap items-center gap-3">
                 <BackLink
                     href={route('buyer.purchases.index')}
                     label={common.back}
+                    useHistory={false}
                 />
                 <p className="font-mono text-sm text-rml-muted">
                     {purchase.purchase_reference}
                 </p>
-                {purchase.status && (
-                    <StatusBadge
-                        label={leadStatusLabel(
-                            purchase.status,
-                            statusLabels,
-                        )}
-                        tone={leadStatusTone(purchase.status)}
-                    />
-                )}
-                {purchase.payment?.status && (
-                    <StatusBadge
-                        label={leadStatusLabel(
-                            purchase.payment.status,
-                            statusLabels,
-                        )}
-                        tone={leadStatusTone(purchase.payment.status)}
-                    />
-                )}
+                <StatusBadge
+                    label={flowStatusLabel}
+                    tone={purchaseFlowStatusTone(flowStatus)}
+                />
             </div>
 
             <div className="flex flex-wrap gap-2">
                 {purchase.payment?.can_pay && (
                     <Button
                         size="sm"
-                        onClick={() =>
-                            router.post(
-                                route('buyer.payments.pay', purchase.payment!.id),
-                            )
-                        }
+                        onClick={payNow}
+                        disabled={paying || payingByCard}
                     >
-                        {paymentsT.pay_now ?? paymentsT.continue_payment}
+                        {paying
+                            ? (t.paying ?? 'Starting payment…')
+                            : (paymentsT.pay_now ??
+                              paymentsT.continue_payment)}
+                    </Button>
+                )}
+                {purchase.payment?.can_pay_by_card && (
+                    <Button
+                        size="sm"
+                        onClick={payByCardInstead}
+                        disabled={paying || payingByCard}
+                    >
+                        {payingByCard
+                            ? (t.paying ?? 'Starting payment…')
+                            : (paymentsT.pay_by_card_instead ??
+                              paymentsT.pay_by_card ??
+                              'Pay by card instead')}
                     </Button>
                 )}
                 {purchase.can_download_invoice && purchase.invoice_id && (
@@ -341,16 +400,9 @@ export default function BuyerPurchasesShow({
                 </div>
                 <div>
                     <p className="text-xs uppercase text-rml-muted">
-                        {t.payment_status}
+                        {t.status ?? t.payment_status}
                     </p>
-                    <p className="text-sm text-rml-text">
-                        {purchase.payment?.status
-                            ? leadStatusLabel(
-                                  purchase.payment.status,
-                                  statusLabels,
-                              )
-                            : '—'}
-                    </p>
+                    <p className="text-sm text-rml-text">{flowStatusLabel}</p>
                 </div>
                 <div>
                     <p className="text-xs uppercase text-rml-muted">

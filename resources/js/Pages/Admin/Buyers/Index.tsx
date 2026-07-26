@@ -26,6 +26,7 @@ import {
 import { useIsMobile } from '@/hooks/use-media-query';
 import { leadStatusTone } from '@/lib/lead-status';
 import type { ApprovalStatus, PageProps } from '@/types';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 
 interface BuyerRow {
     id: number;
@@ -42,6 +43,7 @@ export default function BuyersIndex({
     buyers,
     filters,
     filterOptions,
+    embedded = false,
 }: {
     buyers: Paginator<BuyerRow>;
     filters: {
@@ -52,6 +54,7 @@ export default function BuyersIndex({
         per_page?: number | string | null;
     };
     filterOptions: { approval_statuses: string[] };
+    embedded?: boolean;
 }) {
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.admin.buyers;
@@ -73,7 +76,9 @@ export default function BuyersIndex({
 
     const actionLabels = accountActionLabels(common);
 
+    const listHref = route('admin.users.index');
     const queryParams = (overrides: Record<string, string | number | undefined> = {}) => ({
+        tab: 'buyers',
         search: search || undefined,
         approval_status: approvalStatus || undefined,
         sort: currentSort,
@@ -83,25 +88,28 @@ export default function BuyersIndex({
     });
 
     const applyFilters = () => {
-        router.get(route('admin.buyers.index'), queryParams({ page: 1 }), {
+        router.get(listHref, queryParams({ page: 1 }), {
             preserveState: true,
             replace: true,
         });
-    };
+    }
+
+    useInstantListFilters(applyFilters, search, [approvalStatus]);
+
 
     const resetFilters = () => {
         setSearch('');
         setApprovalStatus('');
         router.get(
-            route('admin.buyers.index'),
-            { sort: 'date', direction: 'desc', per_page: 10 },
+            listHref,
+            { tab: 'buyers', sort: 'date', direction: 'desc', per_page: 10 },
             { preserveState: true, replace: true },
         );
     };
 
     const handleSort = (column: string) => {
         router.get(
-            route('admin.buyers.index'),
+            listHref,
             queryParams({
                 sort: column,
                 direction:
@@ -139,9 +147,9 @@ export default function BuyersIndex({
         />
     );
 
-    return (
-        <AppLayout title={t.index_title} subtitle={t.index_subtitle}>
-            <Head title={t.index_title} />
+    const body = (
+        <>
+            {!embedded && <Head title={t.index_title} />}
 
             <FilterBar
                 compact
@@ -152,10 +160,7 @@ export default function BuyersIndex({
                 onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
-                        <Button size="sm" onClick={applyFilters}>
-                            {common.apply}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={resetFilters}>
+<Button size="sm" variant="ghost" onClick={resetFilters}>
                             {common.reset}
                         </Button>
                     </>
@@ -288,20 +293,30 @@ export default function BuyersIndex({
                 perPage={currentPerPage}
                 onPerPageChange={(next) =>
                     router.get(
-                        route('admin.buyers.index'),
+                        listHref,
                         queryParams({ per_page: next, page: 1 }),
                         { preserveState: true, replace: true },
                     )
                 }
                 onPageChange={(next) =>
                     router.get(
-                        route('admin.buyers.index'),
+                        listHref,
                         queryParams({ page: next }),
                         { preserveState: true },
                     )
                 }
                 labels={paginationLabels(common)}
             />
+        </>
+    );
+
+    if (embedded) {
+        return body;
+    }
+
+    return (
+        <AppLayout title={t.index_title} subtitle={t.index_subtitle}>
+            {body}
         </AppLayout>
     );
 }

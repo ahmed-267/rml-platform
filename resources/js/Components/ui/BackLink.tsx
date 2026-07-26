@@ -3,50 +3,115 @@ import { Link, router } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
+const PREV_URL_KEY = 'rml:prev-url';
+
 type BackLinkProps = {
     href: string;
     label: string;
     /** When true, show the label beside the arrow (auth / public pages). */
     showLabel?: boolean;
     /**
-     * Prefer browser history when safe (same-origin previous page).
-     * Falls back to `href` when history/referrer is unavailable or unsafe.
+     * Prefer previous page (session trail / referrer / history).
+     * Falls back to `href` when unavailable.
      */
     useHistory?: boolean;
     className?: string;
 };
 
-function isSameOriginReferrer(referrer: string, origin: string): boolean {
-    if (!referrer) {
+function isSameOriginUrl(url: string, origin: string): boolean {
+    if (!url) {
         return false;
     }
 
     try {
-        return new URL(referrer).origin === origin;
+        return new URL(url, origin).origin === origin;
     } catch {
         return false;
     }
 }
 
+function normalizeUrl(url: string): string {
+    try {
+        const parsed = new URL(url, window.location.origin);
+        return `${parsed.origin}${parsed.pathname}${parsed.search}`;
+    } catch {
+        return url;
+    }
+}
+
+/** Call from app bootstrap so Inertia navigations leave a reliable trail. */
+export function rememberCurrentUrlAsPrevious(): void {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        sessionStorage.setItem(PREV_URL_KEY, normalizeUrl(window.location.href));
+    } catch {
+        // Ignore private-mode / blocked storage.
+    }
+}
+
+function readPreviousUrl(): string | null {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    try {
+        return sessionStorage.getItem(PREV_URL_KEY);
+    } catch {
+        return null;
+    }
+}
+
 /**
- * Client-safe back navigation: history when available & same-origin, else href.
- * Only touches `window` inside this click-time helper (SSR-safe).
+ * Client-safe back navigation: remembered Inertia URL → same-origin referrer → fallback.
+ * Never uses history.back() after checkout POSTs (that can replay a forbidden URL).
  */
 export function navigateBack(fallbackHref = '/'): void {
     if (typeof window === 'undefined') {
         return;
     }
 
-    const referrer = document.referrer;
+    const origin = window.location.origin;
+    const current = normalizeUrl(window.location.href);
 
-    // External / unsafe referrer → home (avoid leaving the app oddly).
-    if (referrer && !isSameOriginReferrer(referrer, window.location.origin)) {
-        router.visit(fallbackHref);
+    const isSafeListUrl = (url: string): boolean => {
+        try {
+            const path = new URL(url, origin).pathname;
+            // Skip POST-only / action endpoints that 403/405 on GET.
+            if (
+                /\/(purchase|pay|cancel|whatsapp|reply|invite)(\/|$)/i.test(
+                    path,
+                )
+            ) {
+                return false;
+            }
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    const remembered = readPreviousUrl();
+    if (
+        remembered &&
+        isSameOriginUrl(remembered, origin) &&
+        normalizeUrl(remembered) !== current &&
+        isSafeListUrl(remembered)
+    ) {
+        router.visit(remembered);
         return;
     }
 
-    if (window.history.length > 1) {
-        window.history.back();
+    const referrer = document.referrer;
+    if (
+        referrer &&
+        isSameOriginUrl(referrer, origin) &&
+        normalizeUrl(referrer) !== current &&
+        isSafeListUrl(referrer)
+    ) {
+        router.visit(referrer);
         return;
     }
 
@@ -61,7 +126,7 @@ export function BackLink({
     href,
     label,
     showLabel = false,
-    useHistory = false,
+    useHistory = true,
     className,
 }: BackLinkProps) {
     const onHistoryClick = (event: ReactMouseEvent<HTMLAnchorElement>) => {

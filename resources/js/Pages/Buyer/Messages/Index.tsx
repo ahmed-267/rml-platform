@@ -13,7 +13,9 @@ import {
     Select,
     SortableHeader,
     StatusBadge,
+    TableActionLink,
     Textarea,
+    tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
 import {
@@ -26,6 +28,7 @@ import {
 import { useIsMobile } from '@/hooks/use-media-query';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import type { PageProps } from '@/types';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 
 interface ThreadRow {
     id: number;
@@ -111,6 +114,8 @@ export default function BuyerMessagesIndex({
             { preserveState: true, replace: true },
         );
     };
+
+    useInstantListFilters(applyFilters, '', [status]);
 
     const resetFilters = () => {
         setStatus('');
@@ -232,10 +237,7 @@ export default function BuyerMessagesIndex({
                 onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
-                        <Button size="sm" onClick={applyFilters}>
-                            {common.apply}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={resetFilters}>
+<Button size="sm" variant="ghost" onClick={resetFilters}>
                             {common.reset}
                         </Button>
                     </>
@@ -318,15 +320,14 @@ export default function BuyerMessagesIndex({
                                 </div>
                             ),
                             actions: (
-                                <Link
+                                <TableActionLink
                                     href={route(
                                         'buyer.messages.show',
                                         thread.id,
                                     )}
-                                    className="text-sm font-semibold text-rml-primary"
-                                >
-                                    {t.open_thread}
-                                </Link>
+                                    label={t.open_thread}
+                                    icon={tableActionIcons.view}
+                                />
                             ),
                         }))}
                     />
@@ -399,15 +400,14 @@ export default function BuyerMessagesIndex({
                                 id: 'actions',
                                 header: common.actions,
                                 cell: (row) => (
-                                    <Link
+                                    <TableActionLink
                                         href={route(
                                             'buyer.messages.show',
                                             row.id,
                                         )}
-                                        className="font-semibold text-rml-primary hover:underline"
-                                    >
-                                        {t.open_thread}
-                                    </Link>
+                                        label={t.open_thread}
+                                        icon={tableActionIcons.view}
+                                    />
                                 ),
                             },
                         ]}

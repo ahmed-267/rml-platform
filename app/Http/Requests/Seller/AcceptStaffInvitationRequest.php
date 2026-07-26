@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Seller;
 
+use App\Rules\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
 
@@ -20,7 +21,19 @@ class AcceptStaffInvitationRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'password' => ['required', 'confirmed', Password::defaults()],
-            'phone' => ['nullable', 'string', 'max:50'],
+            'phone' => ['nullable', 'string', 'max:50', new PhoneNumber],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'name' => __('rml.auth.full_name'),
+            'password' => __('rml.auth.password'),
+            'phone' => __('rml.auth.phone'),
         ];
     }
 

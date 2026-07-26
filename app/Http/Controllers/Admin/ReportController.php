@@ -24,21 +24,36 @@ class ReportController extends Controller
     {
         $this->authorizeReports($request);
 
-        return Inertia::render('Admin/Reports/Index', $this->reportService->build());
+        return Inertia::render('Admin/Reports/Index', $this->reportService->build(
+            $this->filtersFromRequest($request),
+        ));
     }
 
     public function exportCsv(Request $request): StreamedResponse
     {
         $this->authorizeReports($request);
 
-        return $this->exportService->downloadCsv();
+        return $this->exportService->downloadCsv($this->filtersFromRequest($request));
     }
 
     public function exportPdf(Request $request): Response
     {
         $this->authorizeReports($request);
 
-        return $this->exportService->downloadPdf();
+        return $this->exportService->downloadPdf($this->filtersFromRequest($request));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function filtersFromRequest(Request $request): array
+    {
+        return [
+            'date_from' => $request->input('date_from'),
+            'date_to' => $request->input('date_to'),
+            'scheme_id' => $request->input('scheme_id'),
+            'tab' => $request->input('tab'),
+        ];
     }
 
     private function authorizeReports(Request $request): void

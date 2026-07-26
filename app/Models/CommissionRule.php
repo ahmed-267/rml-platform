@@ -14,6 +14,7 @@ class CommissionRule extends Model
         'name',
         'applies_to',
         'percentage',
+        'rate_per_m2',
         'active',
         'notes',
     ];
@@ -26,6 +27,7 @@ class CommissionRule extends Model
         return [
             'applies_to' => CommissionAppliesTo::class,
             'percentage' => 'decimal:2',
+            'rate_per_m2' => 'decimal:2',
             'active' => 'boolean',
         ];
     }

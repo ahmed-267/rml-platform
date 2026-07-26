@@ -2,7 +2,7 @@ import { FormEventHandler, useState } from 'react';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import AuthLayout from '@/Layouts/AuthLayout';
-import { Alert, Button, FormInput } from '@/Components/ui';
+import { Alert, Button, FormInput, FormSection } from '@/Components/ui';
 import { Modal } from '@/Components/ui/Modal';
 import type { PageProps } from '@/types';
 
@@ -58,15 +58,10 @@ function AccountForms({
 
     return (
         <div className="space-y-6">
-            <section className="rml-card space-y-4 p-5 sm:p-6">
-                <div>
-                    <h2 className="text-base font-semibold text-rml-text">
-                        {t.account_details}
-                    </h2>
-                    <p className="mt-1 text-sm text-rml-muted">
-                        {t.account_details_help}
-                    </p>
-                </div>
+            <FormSection
+                title={t.account_details}
+                description={t.account_details_help}
+            >
                 <form onSubmit={submitProfile} className="space-y-4">
                     <FormInput
                         label={t.name}
@@ -121,17 +116,12 @@ function AccountForms({
                         )}
                     </div>
                 </form>
-            </section>
+            </FormSection>
 
-            <section className="rml-card space-y-4 p-5 sm:p-6">
-                <div>
-                    <h2 className="text-base font-semibold text-rml-text">
-                        {t.change_password}
-                    </h2>
-                    <p className="mt-1 text-sm text-rml-muted">
-                        {t.change_password_help}
-                    </p>
-                </div>
+            <FormSection
+                title={t.change_password}
+                description={t.change_password_help}
+            >
                 <form onSubmit={submitPassword} className="space-y-4">
                     <FormInput
                         label={t.current_password}
@@ -186,24 +176,19 @@ function AccountForms({
                         )}
                     </div>
                 </form>
-            </section>
+            </FormSection>
 
-            <section className="rml-card space-y-4 p-5 sm:p-6">
-                <div>
-                    <h2 className="text-base font-semibold text-rml-text">
-                        {t.delete_account}
-                    </h2>
-                    <p className="mt-1 text-sm text-rml-muted">
-                        {t.delete_account_help}
-                    </p>
-                </div>
+            <FormSection
+                title={t.delete_account}
+                description={t.delete_account_help}
+            >
                 <Button
                     variant="danger"
                     onClick={() => setConfirmDelete(true)}
                 >
                     {t.delete_account}
                 </Button>
-            </section>
+            </FormSection>
 
             <Modal
                 open={confirmDelete}

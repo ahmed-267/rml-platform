@@ -1,4 +1,5 @@
-import { Head, usePage } from '@inertiajs/react';
+import { useEffect, useState } from 'react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { BuyerPerformanceChart } from '@/Components/admin/reports/BuyerPerformanceChart';
 import { DistributionDonutChart } from '@/Components/admin/reports/DistributionDonutChart';
 import { LeadVolumeChart } from '@/Components/admin/reports/LeadVolumeChart';
@@ -10,12 +11,25 @@ import {
     Button,
     DataTable,
     EmptyState,
+    FilterBar,
+    FormInput,
     KpiCard,
+    Select,
     StatusBadge,
+    Tabs,
 } from '@/Components/ui';
 import { formatMoney } from '@/lib/admin-helpers';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import type { PageProps } from '@/types';
+
+type ReportTab = 'overview' | 'charts' | 'performance' | 'tables';
+
+const REPORT_TABS: ReportTab[] = [
+    'overview',
+    'charts',
+    'performance',
+    'tables',
+];
 
 interface ReportsPageProps {
     summary: {
@@ -74,6 +88,15 @@ interface ReportsPageProps {
         spent: number;
         avg_per_lead: number;
     }>;
+    filters: {
+        date_from?: string | null;
+        date_to?: string | null;
+        scheme_id?: number | string | null;
+        tab?: string | null;
+    };
+    filterOptions: {
+        schemes: Array<{ id: number; name: string }>;
+    };
 }
 
 export default function ReportsIndex({
@@ -84,12 +107,83 @@ export default function ReportsIndex({
     charts,
     seller_performance,
     buyer_performance,
+    filters,
+    filterOptions,
 }: ReportsPageProps) {
     const { translations } = usePage<PageProps>().props;
     const t = translations.admin.reports;
     const common = translations.admin.common;
     const leadStatuses = translations.lead_statuses;
     const statuses = translations.statuses;
+
+    const activeTab: ReportTab = REPORT_TABS.includes(filters.tab as ReportTab)
+        ? (filters.tab as ReportTab)
+        : 'overview';
+
+    const [dateFrom, setDateFrom] = useState(filters.date_from ?? '');
+    const [dateTo, setDateTo] = useState(filters.date_to ?? '');
+    const [schemeId, setSchemeId] = useState(
+        filters.scheme_id != null ? String(filters.scheme_id) : '',
+    );
+
+    useEffect(() => {
+        setDateFrom(filters.date_from ?? '');
+        setDateTo(filters.date_to ?? '');
+        setSchemeId(
+            filters.scheme_id != null ? String(filters.scheme_id) : '',
+        );
+    }, [filters.date_from, filters.date_to, filters.scheme_id]);
+
+    const queryParams = (
+        overrides: Record<string, string | undefined> = {},
+    ): Record<string, string | undefined> => ({
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+        scheme_id: schemeId || undefined,
+        tab: activeTab,
+        ...overrides,
+    });
+
+    const exportParams = (): Record<string, string | undefined> => ({
+        date_from: filters.date_from ?? undefined,
+        date_to: filters.date_to ?? undefined,
+        scheme_id:
+            filters.scheme_id != null ? String(filters.scheme_id) : undefined,
+    });
+
+    const applyFilters = () => {
+        router.get(route('admin.reports.index'), queryParams({ tab: activeTab }), {
+            preserveState: true,
+            replace: true,
+        });
+    };
+
+    const resetFilters = () => {
+        setDateFrom('');
+        setDateTo('');
+        setSchemeId('');
+        router.get(
+            route('admin.reports.index'),
+            { tab: activeTab },
+            { preserveState: true, replace: true },
+        );
+    };
+
+    const changeTab = (tab: string) => {
+        router.get(
+            route('admin.reports.index'),
+            queryParams({ tab }),
+            { preserveState: true, replace: true },
+        );
+    };
+
+    const schemeOptions = [
+        { value: '', label: t.all_schemes },
+        ...filterOptions.schemes.map((scheme) => ({
+            value: String(scheme.id),
+            label: scheme.name,
+        })),
+    ];
 
     const pipelineRows = Object.entries(lead_pipeline).map(
         ([status, count]) => ({
@@ -110,23 +204,8 @@ export default function ReportsIndex({
         count,
     }));
 
-    return (
-        <AppLayout title={t.index_title} subtitle={t.index_subtitle}>
-            <Head title={t.index_title} />
-
-            <div className="flex flex-wrap gap-2">
-                <a href={route('admin.reports.export.pdf')}>
-                    <Button variant="outline" size="sm" type="button">
-                        {t.export_pdf}
-                    </Button>
-                </a>
-                <a href={route('admin.reports.export.csv')}>
-                    <Button variant="outline" size="sm" type="button">
-                        {t.export_csv}
-                    </Button>
-                </a>
-            </div>
-
+    const overviewPanel = (
+        <div className="space-y-6">
             <section className="space-y-3">
                 <h2 className="text-base font-semibold text-rml-text">
                     {t.summary}
@@ -191,58 +270,98 @@ export default function ReportsIndex({
             </section>
 
             <section className="space-y-3">
-                <div>
-                    <h2 className="text-base font-semibold text-rml-text">
-                        {t.charts_section}
-                    </h2>
-                    <p className="mt-1 text-sm text-rml-muted">
-                        {t.charts_section_subtitle}
-                    </p>
-                </div>
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                    <LeadVolumeChart
-                        data={charts.lead_volume}
-                        title={t.chart_lead_volume_title}
-                        subtitle={t.chart_lead_volume_subtitle}
-                        emptyTitle={t.chart_empty_title}
-                        emptyDescription={t.chart_empty_description}
-                        labels={{
-                            submitted: t.legend_submitted,
-                            accepted: t.legend_accepted,
-                            rejected: t.legend_rejected,
-                        }}
+                <h2 className="text-base font-semibold text-rml-text">
+                    {t.lead_pipeline}
+                </h2>
+                {pipelineRows.length === 0 ? (
+                    <p className="text-sm text-rml-muted">{common.empty}</p>
+                ) : (
+                    <DataTable
+                        data={pipelineRows}
+                        getRowId={(r) => r.status}
+                        columns={[
+                            {
+                                id: 'status',
+                                header: common.status,
+                                cell: (r) => (
+                                    <StatusBadge
+                                        label={leadStatusLabel(
+                                            r.status,
+                                            leadStatuses,
+                                        )}
+                                        tone={leadStatusTone(r.status)}
+                                    />
+                                ),
+                            },
+                            {
+                                id: 'count',
+                                header: t.count,
+                                cell: (r) => r.count,
+                            },
+                        ]}
                     />
-                    <DistributionDonutChart
-                        data={charts.leads_by_zone}
-                        title={t.chart_leads_by_zone_title}
-                        subtitle={t.chart_leads_by_zone_subtitle}
-                        emptyTitle={t.chart_empty_title}
-                        emptyDescription={t.chart_empty_description}
-                        valueLabel={t.count}
-                    />
-                    <RevenueMarginChart
-                        data={charts.revenue_margin}
-                        title={t.chart_revenue_margin_title}
-                        subtitle={t.chart_revenue_margin_subtitle}
-                        emptyTitle={t.chart_empty_title}
-                        emptyDescription={t.chart_empty_description}
-                        labels={{
-                            revenue: t.legend_revenue,
-                            cost: t.legend_cost,
-                            margin: t.legend_margin,
-                        }}
-                    />
-                    <SchemeBarChart
-                        data={charts.leads_by_scheme}
-                        title={t.chart_leads_by_scheme_title}
-                        subtitle={t.chart_leads_by_scheme_subtitle}
-                        emptyTitle={t.chart_empty_title}
-                        emptyDescription={t.chart_empty_description}
-                        valueLabel={t.count}
-                    />
-                </div>
+                )}
             </section>
+        </div>
+    );
 
+    const chartsPanel = (
+        <section className="space-y-3">
+            <div>
+                <h2 className="text-base font-semibold text-rml-text">
+                    {t.charts_section}
+                </h2>
+                <p className="mt-1 text-sm text-rml-muted">
+                    {t.charts_section_subtitle}
+                </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <LeadVolumeChart
+                    data={charts.lead_volume}
+                    title={t.chart_lead_volume_title}
+                    subtitle={t.chart_lead_volume_subtitle}
+                    emptyTitle={t.chart_empty_title}
+                    emptyDescription={t.chart_empty_description}
+                    labels={{
+                        submitted: t.legend_submitted,
+                        accepted: t.legend_accepted,
+                        rejected: t.legend_rejected,
+                    }}
+                />
+                <DistributionDonutChart
+                    data={charts.leads_by_zone}
+                    title={t.chart_leads_by_zone_title}
+                    subtitle={t.chart_leads_by_zone_subtitle}
+                    emptyTitle={t.chart_empty_title}
+                    emptyDescription={t.chart_empty_description}
+                    valueLabel={t.count}
+                />
+                <RevenueMarginChart
+                    data={charts.revenue_margin}
+                    title={t.chart_revenue_margin_title}
+                    subtitle={t.chart_revenue_margin_subtitle}
+                    emptyTitle={t.chart_empty_title}
+                    emptyDescription={t.chart_empty_description}
+                    labels={{
+                        revenue: t.legend_revenue,
+                        cost: t.legend_cost,
+                        margin: t.legend_margin,
+                    }}
+                />
+                <SchemeBarChart
+                    data={charts.leads_by_scheme}
+                    title={t.chart_leads_by_scheme_title}
+                    subtitle={t.chart_leads_by_scheme_subtitle}
+                    emptyTitle={t.chart_empty_title}
+                    emptyDescription={t.chart_empty_description}
+                    valueLabel={t.count}
+                />
+            </div>
+        </section>
+    );
+
+    const performancePanel = (
+        <div className="space-y-6">
             <section className="space-y-3">
                 <div>
                     <h2 className="text-base font-semibold text-rml-text">
@@ -356,107 +475,154 @@ export default function ReportsIndex({
                     />
                 )}
             </section>
+        </div>
+    );
 
-            <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-                <section className="space-y-3">
-                    <h2 className="text-base font-semibold text-rml-text">
-                        {t.lead_pipeline}
-                    </h2>
-                    {pipelineRows.length === 0 ? (
-                        <p className="text-sm text-rml-muted">{common.empty}</p>
-                    ) : (
-                        <DataTable
-                            data={pipelineRows}
-                            getRowId={(r) => r.status}
-                            columns={[
-                                {
-                                    id: 'status',
-                                    header: common.status,
-                                    cell: (r) => (
-                                        <StatusBadge
-                                            label={leadStatusLabel(
-                                                r.status,
-                                                leadStatuses,
-                                            )}
-                                            tone={leadStatusTone(r.status)}
-                                        />
-                                    ),
-                                },
-                                {
-                                    id: 'count',
-                                    header: t.count,
-                                    cell: (r) => r.count,
-                                },
-                            ]}
+    const tablesPanel = (
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+            <section className="space-y-3">
+                <h2 className="text-base font-semibold text-rml-text">
+                    {t.registrations}
+                </h2>
+                {registrationRows.length === 0 ? (
+                    <p className="text-sm text-rml-muted">{common.empty}</p>
+                ) : (
+                    <DataTable
+                        data={registrationRows}
+                        getRowId={(r) => r.status}
+                        columns={[
+                            {
+                                id: 'status',
+                                header: common.status,
+                                cell: (r) => (
+                                    <StatusBadge
+                                        label={
+                                            statuses[r.status] ?? r.status
+                                        }
+                                        tone={leadStatusTone(r.status)}
+                                    />
+                                ),
+                            },
+                            {
+                                id: 'count',
+                                header: t.count,
+                                cell: (r) => r.count,
+                            },
+                        ]}
+                    />
+                )}
+            </section>
+
+            <section className="space-y-3">
+                <h2 className="text-base font-semibold text-rml-text">
+                    {t.monthly_sold}
+                </h2>
+                {monthlyRows.length === 0 ? (
+                    <p className="text-sm text-rml-muted">{common.empty}</p>
+                ) : (
+                    <DataTable
+                        data={monthlyRows}
+                        getRowId={(r) => r.month}
+                        columns={[
+                            {
+                                id: 'month',
+                                header: t.month,
+                                cell: (r) => r.month,
+                            },
+                            {
+                                id: 'count',
+                                header: t.count,
+                                cell: (r) => r.count,
+                            },
+                        ]}
+                    />
+                )}
+            </section>
+        </div>
+    );
+
+    return (
+        <AppLayout title={t.index_title} subtitle={t.index_subtitle}>
+            <Head title={t.index_title} />
+
+            <div className="space-y-4">
+                <FilterBar
+                    compact
+                    actions={
+                        <>
+                            <Button size="sm" onClick={applyFilters}>
+                                {common.apply}
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={resetFilters}
+                            >
+                                {common.reset}
+                            </Button>
+                        </>
+                    }
+                    endActions={
+                        <>
+                            <a href={route('admin.reports.export.pdf', exportParams())}>
+                                <Button variant="outline" size="sm" type="button">
+                                    {t.export_pdf}
+                                </Button>
+                            </a>
+                            <a href={route('admin.reports.export.csv', exportParams())}>
+                                <Button variant="outline" size="sm" type="button">
+                                    {t.export_csv}
+                                </Button>
+                            </a>
+                        </>
+                    }
+                >
+                    <div className="w-full sm:w-[11rem]">
+                        <FormInput
+                            type="date"
+                            label={t.filter_date_from}
+                            value={dateFrom}
+                            onChange={(event) =>
+                                setDateFrom(event.target.value)
+                            }
                         />
-                    )}
-                </section>
+                    </div>
+                    <div className="w-full sm:w-[11rem]">
+                        <FormInput
+                            type="date"
+                            label={t.filter_date_to}
+                            value={dateTo}
+                            onChange={(event) => setDateTo(event.target.value)}
+                        />
+                    </div>
+                    <div className="w-full sm:w-[12.5rem]">
+                        <Select
+                            label={t.filter_scheme}
+                            aria-label={t.filter_scheme}
+                            value={schemeId}
+                            onChange={(event) =>
+                                setSchemeId(event.target.value)
+                            }
+                            options={schemeOptions}
+                        />
+                    </div>
+                </FilterBar>
 
-                <div className="space-y-6">
-                    <section className="space-y-3">
-                        <h2 className="text-base font-semibold text-rml-text">
-                            {t.registrations}
-                        </h2>
-                        {registrationRows.length === 0 ? (
-                            <p className="text-sm text-rml-muted">
-                                {common.empty}
-                            </p>
-                        ) : (
-                            <DataTable
-                                data={registrationRows}
-                                getRowId={(r) => r.status}
-                                columns={[
-                                    {
-                                        id: 'status',
-                                        header: common.status,
-                                        cell: (r) => (
-                                            <StatusBadge
-                                                label={
-                                                    statuses[r.status] ??
-                                                    r.status
-                                                }
-                                                tone={leadStatusTone(r.status)}
-                                            />
-                                        ),
-                                    },
-                                    {
-                                        id: 'count',
-                                        header: t.count,
-                                        cell: (r) => r.count,
-                                    },
-                                ]}
-                            />
-                        )}
-                    </section>
-
-                    <section className="space-y-3">
-                        <h2 className="text-base font-semibold text-rml-text">
-                            {t.monthly_sold}
-                        </h2>
-                        {monthlyRows.length === 0 ? (
-                            <p className="text-sm text-rml-muted">
-                                {common.empty}
-                            </p>
-                        ) : (
-                            <DataTable
-                                data={monthlyRows}
-                                getRowId={(r) => r.month}
-                                columns={[
-                                    {
-                                        id: 'month',
-                                        header: t.month,
-                                        cell: (r) => r.month,
-                                    },
-                                    {
-                                        id: 'count',
-                                        header: t.count,
-                                        cell: (r) => r.count,
-                                    },
-                                ]}
-                            />
-                        )}
-                    </section>
-                </div>
+                <Tabs
+                    items={[
+                        { id: 'overview', label: t.tab_overview },
+                        { id: 'charts', label: t.tab_charts },
+                        { id: 'performance', label: t.tab_performance },
+                        { id: 'tables', label: t.tab_tables },
+                    ]}
+                    value={activeTab}
+                    onChange={changeTab}
+                >
+                    {activeTab === 'overview' && overviewPanel}
+                    {activeTab === 'charts' && chartsPanel}
+                    {activeTab === 'performance' && performancePanel}
+                    {activeTab === 'tables' && tablesPanel}
+                </Tabs>
             </div>
         </AppLayout>
     );

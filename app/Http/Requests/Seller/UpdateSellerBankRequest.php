@@ -22,4 +22,16 @@ class UpdateSellerBankRequest extends FormRequest
             'payout_method' => ['nullable', 'string', 'max:50'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'bank_account_iban' => __('rml.seller.payments.iban'),
+            'bank_account_name' => __('rml.seller.payments.account_name'),
+            'payout_method' => __('rml.seller.payments.payout_method'),
+        ];
+    }
 }

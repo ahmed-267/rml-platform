@@ -58,8 +58,8 @@ class MessageController extends Controller
         if ($request->filled('search')) {
             $search = '%'.$request->string('search')->toString().'%';
             $query->where(function ($q) use ($search) {
-                $q->where('subject', 'like', $search)
-                    ->orWhere('thread_reference', 'like', $search);
+                $q->where('subject', 'ilike', $search)
+                    ->orWhere('thread_reference', 'ilike', $search);
             });
         }
 

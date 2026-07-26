@@ -61,18 +61,20 @@ class AuditorNavActiveMatchingTest extends TestCase
     {
         $items = [
             ['key' => 'dashboard', 'href' => '/auditor/dashboard'],
-            ['key' => 'assigned', 'href' => '/auditor/assigned-audits'],
-            ['key' => 'leads', 'href' => '/auditor/audits', 'match' => ['/auditor/audits']],
-            ['key' => 'completed', 'href' => '/auditor/completed-audits'],
+            [
+                'key' => 'audits',
+                'href' => '/auditor/audits?tab=my-audits',
+                'match' => ['/auditor/audits', '/auditor/assigned-audits', '/auditor/completed-audits'],
+            ],
             ['key' => 'messages', 'href' => '/auditor/messages'],
             ['key' => 'profile', 'href' => '/auditor/profile'],
         ];
 
         $this->assertSame('dashboard', $this->activeKey($items, '/auditor/dashboard'));
-        $this->assertSame('assigned', $this->activeKey($items, '/auditor/assigned-audits'));
-        $this->assertSame('leads', $this->activeKey($items, '/auditor/audits'));
-        $this->assertSame('leads', $this->activeKey($items, '/auditor/audits/12'));
-        $this->assertSame('completed', $this->activeKey($items, '/auditor/completed-audits'));
+        $this->assertSame('audits', $this->activeKey($items, '/auditor/assigned-audits'));
+        $this->assertSame('audits', $this->activeKey($items, '/auditor/audits'));
+        $this->assertSame('audits', $this->activeKey($items, '/auditor/audits/12'));
+        $this->assertSame('audits', $this->activeKey($items, '/auditor/completed-audits'));
         $this->assertSame('messages', $this->activeKey($items, '/auditor/messages/3'));
         $this->assertSame('profile', $this->activeKey($items, '/auditor/profile'));
     }

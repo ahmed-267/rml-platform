@@ -18,7 +18,8 @@ final class AdminLeadPresenter
         $lead->loadMissing([
             'scheme:id,name,slug',
             'zone:id,code,name,scheme_id',
-            'submittedBy:id,name,email',
+            'submittedBy:id,name,email,phone,approval_status',
+            'submittedBy.roles:id,name',
             'sellerCompany:id,name',
             'evidenceFiles',
             'metricValues',
@@ -68,6 +69,9 @@ final class AdminLeadPresenter
                 'id' => $lead->submittedBy->id,
                 'name' => $lead->submittedBy->name,
                 'email' => $lead->submittedBy->email,
+                'phone' => $lead->submittedBy->phone,
+                'role_label' => $lead->submittedBy->primaryRole()?->label(),
+                'approval_status' => $lead->submittedBy->approval_status?->value,
             ] : null,
             'seller_company' => $lead->sellerCompany ? [
                 'id' => $lead->sellerCompany->id,
@@ -170,8 +174,10 @@ final class AdminLeadPresenter
             'scheme:id,name',
             'zone:id,code',
             'submittedBy:id,name',
-            'sellerCompany:id,name',
+            'sellerCompany:id,name,type',
         ]);
+
+        $hasCompany = $lead->sellerCompany !== null;
 
         return [
             'id' => $lead->id,
@@ -185,6 +191,10 @@ final class AdminLeadPresenter
             'expected_margin' => $lead->expected_margin !== null ? (float) $lead->expected_margin : null,
             'seller_name' => $lead->submittedBy?->name,
             'seller_company' => $lead->sellerCompany?->name,
+            'seller_display' => $hasCompany
+                ? $lead->sellerCompany?->name
+                : $lead->submittedBy?->name,
+            'seller_is_company' => $hasCompany,
             'submitted_at' => $lead->created_at?->toIso8601String(),
             'sold_at' => $lead->sold_at?->toIso8601String(),
         ];

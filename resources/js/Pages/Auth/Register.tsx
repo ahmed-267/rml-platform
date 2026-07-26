@@ -9,7 +9,7 @@ export default function Register() {
     const t = translations.register;
 
     return (
-        <AuthLayout title={t.title} subtitle={t.subtitle} wide>
+        <AuthLayout title={t.title} subtitle={t.subtitle} wide backHref="/">
             <Head title={t.title} />
 
             <div className="grid gap-4 sm:grid-cols-2">

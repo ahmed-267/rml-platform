@@ -13,6 +13,10 @@ import {
     Select,
     SortableHeader,
     StatusBadge,
+    TableActionButton,
+    TableActionLink,
+    TableActions,
+    tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
 import {
@@ -25,6 +29,7 @@ import {
 import { useIsMobile } from '@/hooks/use-media-query';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import type { PageProps } from '@/types';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 
 interface LeadRow {
     id: number;
@@ -37,6 +42,8 @@ interface LeadRow {
     expected_margin: number | null;
     seller_name: string | null;
     seller_company: string | null;
+    seller_display?: string | null;
+    seller_is_company?: boolean;
     submitted_at: string | null;
 }
 
@@ -44,12 +51,14 @@ export default function LeadsBoughtIndex({
     leads,
     filters,
     filterOptions,
+    embedded = false,
 }: {
     leads: Paginator<LeadRow>;
     filters: {
         status?: string | null;
         scheme_id?: string | number | null;
         zone_id?: string | number | null;
+        zone_code?: string | null;
         search?: string | null;
         sort?: string | null;
         direction?: string | null;
@@ -60,6 +69,7 @@ export default function LeadsBoughtIndex({
         schemes: Array<{ id: number; name: string }>;
         zones: Array<{ id: number; code: string; name: string }>;
     };
+    embedded?: boolean;
 }) {
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.admin.leads_bought;
@@ -72,9 +82,7 @@ export default function LeadsBoughtIndex({
     const [schemeId, setSchemeId] = useState(
         filters.scheme_id != null ? String(filters.scheme_id) : '',
     );
-    const [zoneId, setZoneId] = useState(
-        filters.zone_id != null ? String(filters.zone_id) : '',
-    );
+    const [zoneCode, setZoneCode] = useState(filters.zone_code ?? '');
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [auditLeadId, setAuditLeadId] = useState<number | null>(null);
     const [auditOpen, setAuditOpen] = useState(false);
@@ -85,13 +93,15 @@ export default function LeadsBoughtIndex({
     const { page, pageCount, perPage } = paginationMeta(leads);
     const currentPerPage = Number(filters.per_page ?? perPage ?? 10);
 
+    const listHref = route('admin.leads.index');
     const queryParams = (
         overrides: Record<string, string | number | undefined> = {},
     ) => ({
+        tab: 'registered',
         search: search || undefined,
         status: status || undefined,
         scheme_id: schemeId || undefined,
-        zone_id: zoneId || undefined,
+        zone_code: zoneCode || undefined,
         sort: currentSort,
         direction: currentDirection,
         per_page: currentPerPage,
@@ -99,20 +109,23 @@ export default function LeadsBoughtIndex({
     });
 
     const applyFilters = () => {
-        router.get(route('admin.leads-bought.index'), queryParams({ page: 1 }), {
+        router.get(listHref, queryParams({ page: 1 }), {
             preserveState: true,
             replace: true,
         });
-    };
+    }
+
+    useInstantListFilters(applyFilters, search, [status, schemeId, zoneCode]);
+
 
     const resetFilters = () => {
         setSearch('');
         setStatus('');
         setSchemeId('');
-        setZoneId('');
+        setZoneCode('');
         router.get(
-            route('admin.leads-bought.index'),
-            { per_page: currentPerPage },
+            listHref,
+            { tab: 'registered', per_page: currentPerPage },
             { preserveState: true, replace: true },
         );
     };
@@ -124,7 +137,7 @@ export default function LeadsBoughtIndex({
                 : 'asc';
 
         router.get(
-            route('admin.leads-bought.index'),
+            listHref,
             queryParams({
                 sort: column,
                 direction: nextDirection,
@@ -157,9 +170,9 @@ export default function LeadsBoughtIndex({
         router.reload({ only: ['leads'] });
     };
 
-    return (
-        <AppLayout title={t.index_title} subtitle={t.index_subtitle}>
-            <Head title={t.index_title} />
+    const body = (
+        <>
+            {!embedded && <Head title={t.index_title} />}
 
             <FilterBar
                 compact
@@ -170,10 +183,7 @@ export default function LeadsBoughtIndex({
                 onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
-                        <Button size="sm" onClick={applyFilters}>
-                            {common.apply}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={resetFilters}>
+<Button size="sm" variant="ghost" onClick={resetFilters}>
                             {common.reset}
                         </Button>
                     </>
@@ -216,8 +226,8 @@ export default function LeadsBoughtIndex({
                     <Select
                         label={t.filter_zone}
                         aria-label={t.filter_zone}
-                        value={zoneId}
-                        onChange={(e) => setZoneId(e.target.value)}
+                        value={zoneCode}
+                        onChange={(e) => setZoneCode(e.target.value)}
                         options={[
                             {
                                 label: t.all_zones ?? common.all,
@@ -225,7 +235,7 @@ export default function LeadsBoughtIndex({
                             },
                             ...filterOptions.zones.map((z) => ({
                                 label: z.code,
-                                value: String(z.id),
+                                value: z.code,
                             })),
                         ]}
                     />
@@ -270,8 +280,8 @@ export default function LeadsBoughtIndex({
                 <Select
                     label={t.filter_zone}
                     aria-label={t.filter_zone}
-                    value={zoneId}
-                    onChange={(e) => setZoneId(e.target.value)}
+                    value={zoneCode}
+                    onChange={(e) => setZoneCode(e.target.value)}
                     options={[
                         {
                             label: t.all_zones ?? common.all,
@@ -296,7 +306,11 @@ export default function LeadsBoughtIndex({
                                 {row.lead_reference}
                             </span>
                         ),
-                        subtitle: row.seller_name ?? row.seller_company ?? '—',
+                        subtitle:
+                            row.seller_display ??
+                            row.seller_company ??
+                            row.seller_name ??
+                            '—',
                         meta: row.status ? (
                             <StatusBadge
                                 label={leadStatusLabel(row.status, leadStatuses)}
@@ -306,7 +320,7 @@ export default function LeadsBoughtIndex({
                         body: (
                             <div className="space-y-1 text-rml-muted">
                                 <p>
-                                    {t.buying_price}:{' '}
+                                    {t.seller_payout ?? t.buying_price}:{' '}
                                     {formatMoney(row.buying_price)}
                                 </p>
                                 <p>
@@ -316,24 +330,21 @@ export default function LeadsBoughtIndex({
                             </div>
                         ),
                         actions: (
-                            <div className="flex gap-3">
-                                <Link
+                            <TableActions>
+                                <TableActionLink
                                     href={route(
                                         'admin.leads-bought.show',
                                         row.id,
                                     )}
-                                    className="text-sm font-semibold text-rml-primary"
-                                >
-                                    {common.view}
-                                </Link>
-                                <button
-                                    type="button"
-                                    className="text-sm font-semibold text-rml-primary"
+                                    label={common.view}
+                                    icon={tableActionIcons.view}
+                                />
+                                <TableActionButton
+                                    label={t.audit_lead}
+                                    icon={tableActionIcons.audit}
                                     onClick={() => openAudit(row.id)}
-                                >
-                                    {t.audit_lead}
-                                </button>
-                            </div>
+                                />
+                            </TableActions>
                         ),
                     }))}
                 />
@@ -360,9 +371,15 @@ export default function LeadsBoughtIndex({
                         },
                         {
                             id: 'seller',
-                            header: sortableHeader(t.seller, 'seller'),
+                            header: sortableHeader(
+                                t.seller_company ?? t.seller,
+                                'seller',
+                            ),
                             cell: (row) =>
-                                row.seller_company ?? row.seller_name ?? '—',
+                                row.seller_display ??
+                                row.seller_company ??
+                                row.seller_name ??
+                                '—',
                         },
                         {
                             id: 'scheme',
@@ -377,7 +394,7 @@ export default function LeadsBoughtIndex({
                         {
                             id: 'buying_price',
                             header: sortableHeader(
-                                t.buying_price,
+                                t.seller_payout ?? t.buying_price,
                                 'buying_price',
                             ),
                             cell: (row) => formatMoney(row.buying_price),
@@ -416,24 +433,21 @@ export default function LeadsBoughtIndex({
                             id: 'actions',
                             header: common.actions,
                             cell: (row) => (
-                                <div className="flex gap-2">
-                                    <Link
+                                <TableActions>
+                                    <TableActionLink
                                         href={route(
                                             'admin.leads-bought.show',
                                             row.id,
                                         )}
-                                        className="font-semibold text-rml-primary hover:underline"
-                                    >
-                                        {common.view}
-                                    </Link>
-                                    <button
-                                        type="button"
-                                        className="font-semibold text-rml-primary hover:underline"
+                                        label={common.view}
+                                        icon={tableActionIcons.view}
+                                    />
+                                    <TableActionButton
+                                        label={t.audit_lead}
+                                        icon={tableActionIcons.audit}
                                         onClick={() => openAudit(row.id)}
-                                    >
-                                        {t.audit_lead}
-                                    </button>
-                                </div>
+                                    />
+                                </TableActions>
                             ),
                         },
                     ]}
@@ -446,14 +460,14 @@ export default function LeadsBoughtIndex({
                 perPage={currentPerPage}
                 onPerPageChange={(next) =>
                     router.get(
-                        route('admin.leads-bought.index'),
+                        listHref,
                         queryParams({ per_page: next, page: 1 }),
                         { preserveState: true, replace: true },
                     )
                 }
                 onPageChange={(next) =>
                     router.get(
-                        route('admin.leads-bought.index'),
+                        listHref,
                         queryParams({ page: next }),
                         { preserveState: true, replace: true },
                     )
@@ -468,6 +482,16 @@ export default function LeadsBoughtIndex({
                     leadId={auditLeadId}
                 />
             )}
+        </>
+    );
+
+    if (embedded) {
+        return body;
+    }
+
+    return (
+        <AppLayout title={t.index_title} subtitle={t.index_subtitle}>
+            {body}
         </AppLayout>
     );
 }

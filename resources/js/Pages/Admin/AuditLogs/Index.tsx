@@ -12,7 +12,10 @@ import {
     MobileFilterDrawer,
     Modal,
     Pagination,
+    TableActionButton,
+    tableActionIcons,
 } from '@/Components/ui';
+
 import {
     formatDateTime,
     paginationMeta,
@@ -20,6 +23,7 @@ import {
 } from '@/lib/admin-helpers';
 import { useIsMobile } from '@/hooks/use-media-query';
 import type { PageProps } from '@/types';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 
 interface AuditLogRow {
     id: number;
@@ -63,7 +67,10 @@ export default function AuditLogsIndex({
             },
             { preserveState: true, replace: true },
         );
-    };
+    }
+
+    useInstantListFilters(applyFilters, search, [action]);
+
 
     const resetFilters = () => {
         setSearch('');
@@ -141,10 +148,7 @@ export default function AuditLogsIndex({
                 onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
-                        <Button size="sm" onClick={applyFilters}>
-                            {common.apply}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={resetFilters}>
+<Button size="sm" variant="ghost" onClick={resetFilters}>
                             {common.reset}
                         </Button>
                     </>
@@ -189,13 +193,11 @@ export default function AuditLogsIndex({
                             </p>
                         ),
                         actions: (
-                            <button
-                                type="button"
-                                className="text-sm font-semibold text-rml-primary"
+                            <TableActionButton
+                                label={common.details}
+                                icon={tableActionIcons.view}
                                 onClick={() => openDetail(log)}
-                            >
-                                {common.details}
-                            </button>
+                            />
                         ),
                     }))}
                 />
@@ -231,13 +233,11 @@ export default function AuditLogsIndex({
                             id: 'actions',
                             header: common.actions,
                             cell: (r) => (
-                                <button
-                                    type="button"
-                                    className="font-semibold text-rml-primary hover:underline"
+                                <TableActionButton
+                                    label={common.details}
+                                    icon={tableActionIcons.view}
                                     onClick={() => openDetail(r)}
-                                >
-                                    {common.details}
-                                </button>
+                                />
                             ),
                         },
                     ]}

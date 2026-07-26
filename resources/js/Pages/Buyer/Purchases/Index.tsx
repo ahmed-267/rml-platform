@@ -12,6 +12,8 @@ import {
     Select,
     SortableHeader,
     StatusBadge,
+    TableActionLink,
+    tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
 import {
@@ -22,8 +24,13 @@ import {
     type Paginator,
 } from '@/lib/list-helpers';
 import { useIsMobile } from '@/hooks/use-media-query';
-import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
+import { leadStatusLabel } from '@/lib/lead-status';
+import {
+    purchaseFlowStatus,
+    purchaseFlowStatusTone,
+} from '@/lib/purchase-status';
 import type { PageProps } from '@/types';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 
 interface PurchaseRow {
     id: number;
@@ -126,7 +133,10 @@ export default function BuyerPurchasesIndex({
             queryParams({ page: 1 }),
             { preserveState: true, replace: true },
         );
-    };
+    }
+
+    useInstantListFilters(applyFilters, search, [status]);
+
 
     const resetFilters = () => {
         setSearch('');
@@ -179,10 +189,7 @@ export default function BuyerPurchasesIndex({
                 onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
-                        <Button size="sm" onClick={applyFilters}>
-                            {common.apply}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={resetFilters}>
+<Button size="sm" variant="ghost" onClick={resetFilters}>
                             {common.reset}
                         </Button>
                     </>
@@ -245,15 +252,18 @@ export default function BuyerPurchasesIndex({
                             </span>
                         ),
                         subtitle: purchase.scheme ?? undefined,
-                        meta: purchase.status ? (
-                            <StatusBadge
-                                label={leadStatusLabel(
-                                    purchase.status,
-                                    statusLabels,
-                                )}
-                                tone={leadStatusTone(purchase.status)}
-                            />
-                        ) : null,
+                        meta: (() => {
+                            const status = purchaseFlowStatus(purchase);
+                            return (
+                                <StatusBadge
+                                    label={leadStatusLabel(
+                                        status,
+                                        statusLabels,
+                                    )}
+                                    tone={purchaseFlowStatusTone(status)}
+                                />
+                            );
+                        })(),
                         body: (
                             <div className="space-y-1 text-rml-muted">
                                 <p>
@@ -264,15 +274,6 @@ export default function BuyerPurchasesIndex({
                                     {formatMoney(purchase.total_amount)}
                                 </p>
                                 <p>
-                                    {t.payment_status}:{' '}
-                                    {purchase.payment?.status
-                                        ? leadStatusLabel(
-                                              purchase.payment.status,
-                                              statusLabels,
-                                          )
-                                        : '—'}
-                                </p>
-                                <p>
                                     {t.release_status}:{' '}
                                     {purchase.details_released
                                         ? t.released
@@ -281,15 +282,10 @@ export default function BuyerPurchasesIndex({
                             </div>
                         ),
                         actions: (
-                            <Link
-                                href={route(
+                            <TableActionLink href={route(
                                     'buyer.purchases.show',
                                     purchase.id,
-                                )}
-                                className="text-sm font-semibold text-rml-primary"
-                            >
-                                {common.view}
-                            </Link>
+                                )} label={common.view} icon={tableActionIcons.view} />
                         ),
                     }))}
                 />
@@ -326,45 +322,26 @@ export default function BuyerPurchasesIndex({
                         {
                             id: 'status',
                             header: sortableHeader(common.status ?? '', 'status'),
-                            cell: (row) =>
-                                row.status ? (
+                            cell: (row) => {
+                                const status = purchaseFlowStatus(row);
+                                return (
                                     <StatusBadge
                                         label={leadStatusLabel(
-                                            row.status,
+                                            status,
                                             statusLabels,
                                         )}
-                                        tone={leadStatusTone(row.status)}
+                                        tone={purchaseFlowStatusTone(status)}
                                     />
-                                ) : (
-                                    '—'
-                                ),
-                        },
-                        {
-                            id: 'payment_status',
-                            header: sortableHeader(
-                                t.payment_status ?? '',
-                                'payment_status',
-                            ),
-                            cell: (row) =>
-                                row.payment?.status ? (
-                                    <StatusBadge
-                                        label={leadStatusLabel(
-                                            row.payment.status,
-                                            statusLabels,
-                                        )}
-                                        tone={leadStatusTone(
-                                            row.payment.status,
-                                        )}
-                                    />
-                                ) : (
-                                    '—'
-                                ),
+                                );
+                            },
                         },
                         {
                             id: 'release',
                             header: t.release_status,
                             cell: (row) =>
-                                row.details_released ? t.released : t.not_released,
+                                row.details_released
+                                    ? t.released
+                                    : t.not_released,
                         },
                         {
                             id: 'purchased_at',
@@ -383,12 +360,7 @@ export default function BuyerPurchasesIndex({
                             id: 'actions',
                             header: common.actions,
                             cell: (row) => (
-                                <Link
-                                    href={route('buyer.purchases.show', row.id)}
-                                    className="font-semibold text-rml-primary hover:underline"
-                                >
-                                    {common.view}
-                                </Link>
+                                <TableActionLink href={route('buyer.purchases.show', row.id)} label={common.view} icon={tableActionIcons.view} />
                             ),
                         },
                     ]}

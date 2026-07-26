@@ -2,6 +2,8 @@ import { FormEventHandler } from 'react';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import AuthLayout from '@/Layouts/AuthLayout';
 import { Alert, Button, FormInput } from '@/Components/ui';
+import { sanitizePhoneInput } from '@/lib/phone';
+import { useScrollToFirstError } from '@/hooks/use-scroll-to-first-error';
 import type { PageProps } from '@/types';
 
 export default function AcceptStaffInvitation({
@@ -25,6 +27,8 @@ export default function AcceptStaffInvitation({
         password_confirmation: '',
         phone: '',
     });
+
+    useScrollToFirstError(errors);
 
     const submit: FormEventHandler = (event) => {
         event.preventDefault();
@@ -75,9 +79,15 @@ export default function AcceptStaffInvitation({
                 <FormInput
                     label={auth.phone}
                     name="phone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
                     value={data.phone}
                     error={errors.phone}
-                    onChange={(e) => setData('phone', e.target.value)}
+                    hint={translations.validation?.phone_length}
+                    onChange={(e) =>
+                        setData('phone', sanitizePhoneInput(e.target.value))
+                    }
                 />
                 <FormInput
                     label={auth.password}

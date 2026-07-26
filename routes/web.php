@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\DomainFoundationController;
 use App\Http\Controllers\Admin\LeadAuditController;
 use App\Http\Controllers\Admin\LeadBoughtController;
 use App\Http\Controllers\Admin\LeadEvidenceController;
+use App\Http\Controllers\Admin\LeadHubController;
 use App\Http\Controllers\Admin\LeadSoldController;
 use App\Http\Controllers\Admin\MessageController as AdminMessageController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
@@ -16,9 +17,7 @@ use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SellerController as AdminSellerController;
 use App\Http\Controllers\Admin\SettingController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
-use App\Http\Controllers\Auditor\AssignedAuditController;
 use App\Http\Controllers\Auditor\AuditController as AuditorAuditController;
-use App\Http\Controllers\Auditor\CompletedAuditController;
 use App\Http\Controllers\Auditor\DashboardController as AuditorDashboardController;
 use App\Http\Controllers\Auditor\MessageController as AuditorMessageController;
 use App\Http\Controllers\Auditor\ProfileController as AuditorProfileController;
@@ -100,7 +99,12 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             Route::post('/approvals/{user}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
             Route::post('/approvals/{user}/suspend', [ApprovalController::class, 'suspend'])->name('approvals.suspend');
 
-            Route::get('/sellers', [AdminSellerController::class, 'index'])->name('sellers.index');
+            Route::get('/sellers', function (\Illuminate\Http\Request $request) {
+                return redirect()->route('admin.users.index', array_merge(
+                    $request->query(),
+                    ['tab' => 'sellers'],
+                ));
+            })->name('sellers.index');
             Route::get('/sellers/{user}', [AdminSellerController::class, 'show'])->name('sellers.show');
             Route::put('/sellers/{user}', [AdminSellerController::class, 'update'])->name('sellers.update');
             Route::post('/sellers/{user}/approve', [AdminSellerController::class, 'approve'])->name('sellers.approve');
@@ -109,7 +113,12 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             Route::post('/sellers/{user}/reinstate', [AdminSellerController::class, 'reinstate'])->name('sellers.reinstate');
             Route::post('/sellers/{user}/deactivate', [AdminSellerController::class, 'deactivate'])->name('sellers.deactivate');
 
-            Route::get('/buyers', [AdminBuyerController::class, 'index'])->name('buyers.index');
+            Route::get('/buyers', function (\Illuminate\Http\Request $request) {
+                return redirect()->route('admin.users.index', array_merge(
+                    $request->query(),
+                    ['tab' => 'buyers'],
+                ));
+            })->name('buyers.index');
             Route::get('/buyers/{user}', [AdminBuyerController::class, 'show'])->name('buyers.show');
             Route::put('/buyers/{user}', [AdminBuyerController::class, 'update'])->name('buyers.update');
             Route::post('/buyers/{user}/approve', [AdminBuyerController::class, 'approve'])->name('buyers.approve');
@@ -122,15 +131,29 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');
             Route::get('/users/{user}', [AdminUserController::class, 'show'])->name('users.show');
             Route::put('/users/{user}', [AdminUserController::class, 'update'])->name('users.update');
+            Route::delete('/users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
             Route::post('/users/{user}/approve', [AdminUserController::class, 'approve'])->name('users.approve');
             Route::post('/users/{user}/reject', [AdminUserController::class, 'reject'])->name('users.reject');
             Route::post('/users/{user}/suspend', [AdminUserController::class, 'suspend'])->name('users.suspend');
             Route::post('/users/{user}/reinstate', [AdminUserController::class, 'reinstate'])->name('users.reinstate');
+            Route::get('/users/{user}/eligible-audits', [AdminUserController::class, 'eligibleAudits'])->name('users.eligible-audits');
+            Route::post('/users/{user}/assign-audits', [AdminUserController::class, 'assignAudits'])->name('users.assign-audits');
 
-            Route::get('/leads-bought', [LeadBoughtController::class, 'index'])->name('leads-bought.index');
+            Route::get('/leads', [LeadHubController::class, 'index'])->name('leads.index');
+            Route::get('/leads-bought', function (\Illuminate\Http\Request $request) {
+                return redirect()->route('admin.leads.index', array_merge(
+                    $request->query(),
+                    ['tab' => 'registered'],
+                ));
+            })->name('leads-bought.index');
             Route::get('/leads-bought/{lead}', [LeadBoughtController::class, 'show'])->name('leads-bought.show');
 
-            Route::get('/leads-sold', [LeadSoldController::class, 'index'])->name('leads-sold.index');
+            Route::get('/leads-sold', function (\Illuminate\Http\Request $request) {
+                return redirect()->route('admin.leads.index', array_merge(
+                    $request->query(),
+                    ['tab' => 'sold'],
+                ));
+            })->name('leads-sold.index');
             Route::get('/leads-sold/{lead}', [LeadSoldController::class, 'show'])->name('leads-sold.show');
 
             Route::get('/leads/{lead}/audit', [LeadAuditController::class, 'show'])->name('leads.audit.show');
@@ -143,9 +166,15 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             Route::get('/leads/evidence/{evidence}/download', [LeadEvidenceController::class, 'download'])->name('leads.evidence.download');
 
             Route::get('/payments', [AdminPaymentController::class, 'index'])->name('payments.index');
+            Route::put('/payments/{payment}', [AdminPaymentController::class, 'updatePayment'])->name('payments.update');
+            Route::delete('/payments/{payment}', [AdminPaymentController::class, 'destroyPayment'])->name('payments.destroy');
             Route::post('/payments/{payment}/mark-paid', [AdminPaymentController::class, 'markPaid'])->name('payments.mark-paid');
             Route::post('/payments/{payment}/mark-failed', [AdminPaymentController::class, 'markFailed'])->name('payments.mark-failed');
+            Route::put('/payouts/{payout}', [AdminPaymentController::class, 'updatePayout'])->name('payouts.update');
+            Route::delete('/payouts/{payout}', [AdminPaymentController::class, 'destroyPayout'])->name('payouts.destroy');
             Route::post('/payouts/{payout}/mark-paid', [AdminPaymentController::class, 'markPayoutPaid'])->name('payouts.mark-paid');
+            Route::put('/commissions/{commission}', [AdminPaymentController::class, 'updateCommission'])->name('commissions.update');
+            Route::delete('/commissions/{commission}', [AdminPaymentController::class, 'destroyCommission'])->name('commissions.destroy');
             Route::post('/commissions/{commission}/mark-paid', [AdminPaymentController::class, 'markCommissionPaid'])->name('commissions.mark-paid');
             Route::post('/payments/{payment}/cancel', [AdminPaymentController::class, 'cancel'])->name('payments.cancel');
             Route::post('/payments/{payment}/resend-email', [AdminPaymentController::class, 'resendEmail'])->name('payments.resend-email');
@@ -153,7 +182,9 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             Route::post('/invoices/{invoice}/regenerate', [AdminPaymentController::class, 'regenerateInvoice'])->name('invoices.regenerate');
 
             Route::get('/messages', [AdminMessageController::class, 'index'])->name('messages.index');
+            Route::post('/messages', [AdminMessageController::class, 'store'])->name('messages.store');
             Route::get('/messages/{thread}', [AdminMessageController::class, 'show'])->name('messages.show');
+            Route::delete('/messages/{thread}', [AdminMessageController::class, 'destroy'])->name('messages.destroy');
             Route::post('/messages/{thread}/reply', [AdminMessageController::class, 'reply'])->name('messages.reply');
             Route::patch('/messages/{thread}/status', [AdminMessageController::class, 'updateStatus'])->name('messages.status');
 
@@ -172,7 +203,12 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
                 Route::put('/settings/commissions/{commissionRule}', [SettingController::class, 'updateCommission'])->name('settings.commissions.update');
                 Route::delete('/settings/commissions/{commissionRule}', [SettingController::class, 'destroyCommission'])->name('settings.commissions.destroy');
                 Route::put('/settings/templates/{template}', [SettingController::class, 'updateTemplate'])->name('settings.templates.update');
+                Route::post('/settings/templates', [SettingController::class, 'storeTemplate'])->name('settings.templates.store');
+                Route::delete('/settings/templates/{template}', [SettingController::class, 'destroyTemplate'])->name('settings.templates.destroy');
+                Route::put('/settings/templates/{template}/versions/{version}/activate', [SettingController::class, 'activateTemplateVersion'])->name('settings.templates.versions.activate');
+                Route::put('/settings/templates/{template}/versions/{version}/deactivate', [SettingController::class, 'deactivateTemplateVersion'])->name('settings.templates.versions.deactivate');
                 Route::put('/settings/general', [SettingController::class, 'updateGeneral'])->name('settings.general.update');
+                Route::delete('/settings/logs/{auditLog}', [SettingController::class, 'destroyAuditLog'])->name('settings.logs.destroy');
             });
 
             Route::middleware('permission:'.Permissions::VIEW_AUDIT_LOGS)->group(function () {
@@ -210,7 +246,7 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
                 ->name('staff.commission.update');
 
             Route::get('/staff-commissions', function () {
-                return redirect()->route('seller.staff.index', ['tab' => 'commissions']);
+                return redirect()->route('seller.staff.index');
             })
                 ->middleware('permission:'.Permissions::MANAGE_STAFF_COMMISSIONS.'|'.Permissions::MANAGE_SELLER_STAFF)
                 ->name('staff-commissions');
@@ -253,8 +289,12 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             Route::get('/purchases/{purchase}', [BuyerPurchaseController::class, 'show'])->name('purchases.show');
             Route::post('/purchases/{purchase}/whatsapp', [BuyerPurchaseController::class, 'sendWhatsApp'])->name('purchases.whatsapp');
 
+            Route::get('/leads/evidence/{evidence}/view', [LeadEvidenceController::class, 'view'])->name('leads.evidence.view');
+            Route::get('/leads/evidence/{evidence}/download', [LeadEvidenceController::class, 'download'])->name('leads.evidence.download');
+
             Route::get('/payments', [BuyerPaymentController::class, 'index'])->name('payments');
             Route::post('/payments/{payment}/pay', [BuyerPaymentController::class, 'pay'])->name('payments.pay');
+            Route::post('/payments/{payment}/pay-by-card', [BuyerPaymentController::class, 'payByCard'])->name('payments.pay-by-card');
             Route::get('/payments/{payment}/return', [BuyerPaymentController::class, 'returnFromProvider'])->name('payments.return');
             Route::get('/payments/{payment}/success', [BuyerPaymentController::class, 'success'])->name('payments.success');
             Route::get('/payments/{payment}/cancelled', [BuyerPaymentController::class, 'cancelled'])->name('payments.cancelled');
@@ -275,8 +315,12 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
         ->group(function () {
             Route::get('/dashboard', AuditorDashboardController::class)->name('dashboard');
 
-            Route::get('/assigned-audits', [AssignedAuditController::class, 'index'])->name('assigned-audits.index');
-            Route::get('/completed-audits', [CompletedAuditController::class, 'index'])->name('completed-audits.index');
+            Route::get('/assigned-audits', function () {
+                return redirect()->route('auditor.audits.index', ['tab' => 'my-audits']);
+            })->name('assigned-audits.index');
+            Route::get('/completed-audits', function () {
+                return redirect()->route('auditor.audits.index', ['tab' => 'completed']);
+            })->name('completed-audits.index');
 
             Route::get('/audits', [AuditorAuditController::class, 'index'])->name('audits.index');
             Route::get('/audits/{lead}', [AuditorAuditController::class, 'show'])->name('audits.show');
@@ -284,6 +328,9 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             Route::post('/audits/{lead}/recommend-accept', [AuditorAuditController::class, 'recommendAccept'])->name('audits.recommend-accept');
             Route::post('/audits/{lead}/recommend-reject', [AuditorAuditController::class, 'recommendReject'])->name('audits.recommend-reject');
             Route::post('/audits/{lead}/request-info', [AuditorAuditController::class, 'requestInfo'])->name('audits.request-info');
+
+            Route::get('/leads/evidence/{evidence}/view', [LeadEvidenceController::class, 'view'])->name('leads.evidence.view');
+            Route::get('/leads/evidence/{evidence}/download', [LeadEvidenceController::class, 'download'])->name('leads.evidence.download');
 
             Route::get('/messages', [AuditorMessageController::class, 'index'])->name('messages.index');
             Route::post('/messages', [AuditorMessageController::class, 'store'])->name('messages.store');

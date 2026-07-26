@@ -37,4 +37,18 @@ class StoreBuyerMessageRequest extends FormRequest
             'related_purchase_id' => ['nullable', 'integer', 'exists:purchases,id'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'subject' => __('rml.buyer.messages.subject'),
+            'body' => __('rml.buyer.messages.body'),
+            'category' => __('rml.buyer.messages.category'),
+            'related_lead_id' => __('rml.seller.messages.related_lead'),
+            'related_purchase_id' => __('rml.buyer.messages.related_purchase'),
+        ];
+    }
 }

@@ -87,7 +87,7 @@ export default function LeadsSoldShow({ lead }: { lead: SoldLead }) {
 
             <div className="flex items-start gap-3">
                 <BackLink
-                    href={route('admin.leads-sold.index')}
+                    href={route('admin.leads.index', { tab: 'sold' })}
                     label={common.back}
                     className="mt-0.5"
                 />

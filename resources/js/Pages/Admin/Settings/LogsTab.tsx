@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { router } from '@inertiajs/react';
 import {
     Button,
+    ConfirmDialog,
     DataTable,
     Drawer,
     EmptyState,
@@ -11,6 +12,9 @@ import {
     Pagination,
     Select,
     SortableHeader,
+    TableActionButton,
+    TableActions,
+    tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
 import {
@@ -21,6 +25,7 @@ import {
 } from '@/lib/admin-helpers';
 import { useIsMobile } from '@/hooks/use-media-query';
 import type { AuditLogRow } from './types';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 
 type LogFilters = {
     action?: string | null;
@@ -42,6 +47,7 @@ export default function LogsTab({
     filters,
     logUsers,
     logActions,
+    canDeleteLogs = false,
     t,
     auditT,
     common,
@@ -51,6 +57,7 @@ export default function LogsTab({
     filters: LogFilters;
     logUsers: LogUserOption[];
     logActions: string[];
+    canDeleteLogs?: boolean;
     t: Record<string, string>;
     auditT: Record<string, string>;
     common: Record<string, string>;
@@ -63,6 +70,8 @@ export default function LogsTab({
         filters.user_id != null ? String(filters.user_id) : '',
     );
     const [detail, setDetail] = useState<AuditLogRow | null>(null);
+    const [deleteLog, setDeleteLog] = useState<AuditLogRow | null>(null);
+    const [deleteProcessing, setDeleteProcessing] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection =
@@ -104,6 +113,8 @@ export default function LogsTab({
             { preserveState: true, replace: true, preserveScroll: true },
         );
     };
+
+    useInstantListFilters(applyFilters, search, [action, userId]);
 
     const resetFilters = () => {
         setSearch('');
@@ -157,6 +168,35 @@ export default function LogsTab({
             },
         });
     };
+
+    const confirmDelete = () => {
+        if (!deleteLog) {
+            return;
+        }
+        setDeleteProcessing(true);
+        router.delete(route('admin.settings.logs.destroy', deleteLog.id), {
+            onSuccess: () => setDeleteLog(null),
+            onFinish: () => setDeleteProcessing(false),
+        });
+    };
+
+    const logActionsCell = (log: AuditLogRow) => (
+        <TableActions>
+            <TableActionButton
+                label={common.view}
+                icon={tableActionIcons.view}
+                onClick={() => openDetail(log)}
+            />
+            {canDeleteLogs && (
+                <TableActionButton
+                    label={common.delete}
+                    icon={tableActionIcons.delete}
+                    tone="danger"
+                    onClick={() => setDeleteLog(log)}
+                />
+            )}
+        </TableActions>
+    );
 
     if (logs == null) {
         return (
@@ -279,10 +319,7 @@ export default function LogsTab({
                     />
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                    <Button type="submit" size="sm">
-                        {common.apply}
-                    </Button>
-                    <Button
+<Button
                         type="button"
                         size="sm"
                         variant="ghost"
@@ -309,15 +346,7 @@ export default function LogsTab({
                                 {formatDateTime(log.created_at, locale)}
                             </span>
                         ),
-                        actions: (
-                            <button
-                                type="button"
-                                className="text-xs font-semibold text-rml-primary"
-                                onClick={() => openDetail(log)}
-                            >
-                                {common.details}
-                            </button>
-                        ),
+                        actions: logActionsCell(log),
                     }))}
                 />
             ) : (
@@ -350,15 +379,7 @@ export default function LogsTab({
                         {
                             id: 'actions',
                             header: common.actions,
-                            cell: (row) => (
-                                <button
-                                    type="button"
-                                    className="text-xs font-semibold text-rml-primary hover:underline"
-                                    onClick={() => openDetail(row)}
-                                >
-                                    {common.details}
-                                </button>
-                            ),
+                            cell: (row) => logActionsCell(row),
                         },
                     ]}
                 />
@@ -408,6 +429,21 @@ export default function LogsTab({
                     {detailBody}
                 </Modal>
             )}
+
+            <ConfirmDialog
+                open={deleteLog != null}
+                onClose={() => {
+                    if (!deleteProcessing) {
+                        setDeleteLog(null);
+                    }
+                }}
+                onConfirm={confirmDelete}
+                title={t.confirm_delete_log}
+                body={t.confirm_delete_log_body}
+                confirmLabel={common.confirm_yes_delete ?? common.delete}
+                cancelLabel={common.confirm_no_cancel ?? common.cancel}
+                processing={deleteProcessing}
+            />
         </div>
     );
 }

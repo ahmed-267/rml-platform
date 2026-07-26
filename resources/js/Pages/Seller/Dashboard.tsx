@@ -15,6 +15,8 @@ import {
     KpiCard,
     MobileCardList,
     StatusBadge,
+    TableActionLink,
+    tableActionIcons,
 } from '@/Components/ui';
 import { useIsMobile } from '@/hooks/use-media-query';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
@@ -195,12 +197,7 @@ export default function SellerDashboard({
                                 </div>
                             ),
                             actions: (
-                                <Link
-                                    href={route('seller.leads.show', lead.id)}
-                                    className="text-sm font-semibold text-rml-primary"
-                                >
-                                    {common.view}
-                                </Link>
+                                <TableActionLink href={route('seller.leads.show', lead.id)} label={common.view} icon={tableActionIcons.view} />
                             ),
                         }))}
                     />
@@ -260,15 +257,10 @@ export default function SellerDashboard({
                                 id: 'actions',
                                 header: common.actions,
                                 cell: (row) => (
-                                    <Link
-                                        href={route(
+                                    <TableActionLink href={route(
                                             'seller.leads.show',
                                             row.id,
-                                        )}
-                                        className="font-semibold text-rml-primary hover:underline"
-                                    >
-                                        {common.view}
-                                    </Link>
+                                        )} label={common.view} icon={tableActionIcons.view} />
                                 ),
                             },
                         ]}

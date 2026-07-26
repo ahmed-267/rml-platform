@@ -6,6 +6,7 @@ import {
     BackLink,
     Button,
     Checkbox,
+    CountrySelect,
     FileUpload,
     FormInput,
     Select,
@@ -13,8 +14,20 @@ import {
     Textarea,
 } from '@/Components/ui';
 import type { UploadedFileMeta } from '@/Components/ui/FileUpload';
+import { useScrollToFirstError } from '@/hooks/use-scroll-to-first-error';
+import { DEFAULT_COUNTRY } from '@/lib/countries';
+import {
+    isEmptyOrValidPhone,
+    isValidPhone,
+    phoneErrorMessage,
+    phoneMessagesFromTranslations,
+    sanitizePhoneInput,
+} from '@/lib/phone';
 import type { PageProps } from '@/types';
 
+function isValidEmail(value: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
 interface SchemeField {
     id: number;
     key: string;
@@ -162,9 +175,25 @@ export default function SellerLeadsCreate({
     const { translations } = usePage<PageProps>().props;
     const t = translations.seller.leads;
     const common = translations.seller.common;
+    const v = translations.validation;
+
+    const requiredMsg = (field: string) =>
+        (v?.field_required ?? t.field_required ?? ':field is required.').replace(
+            ':field',
+            field,
+        );
+
+    const phoneMessages = phoneMessagesFromTranslations(
+        v,
+        requiredMsg,
+        t.phone,
+    );
 
     const [step, setStep] = useState<StepId>('customer');
     const [stepAlert, setStepAlert] = useState<string | null>(null);
+    const [clientErrors, setClientErrors] = useState<Record<string, string>>(
+        {},
+    );
 
     const initialMetrics = useMemo(() => {
         if (!lead?.metrics) {
@@ -197,7 +226,7 @@ export default function SellerLeadsCreate({
             address_line_2: lead?.address_line_2 ?? '',
             city: lead?.city ?? '',
             postcode: lead?.postcode ?? '',
-            country: lead?.country ?? 'ES',
+            country: lead?.country ?? DEFAULT_COUNTRY,
             property_type: lead?.property_type ?? '',
             epc_rating: lead?.epc_rating ?? '',
             notes: lead?.notes ?? '',
@@ -230,8 +259,10 @@ export default function SellerLeadsCreate({
     const customerComplete =
         hasText(data.customer_first_name) &&
         hasText(data.customer_last_name) &&
-        hasText(data.customer_phone) &&
-        hasText(data.customer_email);
+        isValidPhone(data.customer_phone) &&
+        hasText(data.customer_email) &&
+        isValidEmail(data.customer_email) &&
+        isEmptyOrValidPhone(data.customer_whatsapp);
 
     const propertyComplete =
         hasText(data.address_line_1) &&
@@ -388,6 +419,17 @@ export default function SellerLeadsCreate({
 
     const onSubmit = (event: FormEvent) => {
         event.preventDefault();
+        const nextErrors = validateStep('review');
+        if (Object.keys(nextErrors).length > 0) {
+            setClientErrors(nextErrors);
+            const firstKey = Object.keys(nextErrors)[0];
+            const target = errorStep([firstKey, ...Object.keys(nextErrors)]);
+            if (target) {
+                setStep(target);
+            }
+            setStepAlert(Object.values(nextErrors)[0]);
+            return;
+        }
         if (!canSubmit) {
             return;
         }
@@ -497,16 +539,215 @@ export default function SellerLeadsCreate({
         const target = errorStep(keys);
         if (target) {
             setStep(target);
-            setStepAlert(t.submit_incomplete);
+        }
+
+        const firstKey = keys[0];
+        const firstMessage = (errors as Record<string, string>)[firstKey];
+        if (firstMessage) {
+            setStepAlert(firstMessage);
+            setClientErrors((prev) => ({
+                ...prev,
+                ...Object.fromEntries(
+                    keys.map((key) => [
+                        key,
+                        (errors as Record<string, string>)[key],
+                    ]),
+                ),
+            }));
         }
     }, [errors]);
 
+    useScrollToFirstError({
+        ...clientErrors,
+        ...(errors as Record<string, string | undefined>),
+    });
+
+    const fieldError = (key: string): string | undefined =>
+        clientErrors[key] ??
+        (errors as Record<string, string | undefined>)[key];
+
+    const clearClientError = (key: string) => {
+        setClientErrors((prev) => {
+            if (!prev[key]) {
+                return prev;
+            }
+            const next = { ...prev };
+            delete next[key];
+            return next;
+        });
+    };
+
+    const validateCustomerFields = (): Record<string, string> => {
+        const next: Record<string, string> = {};
+
+        if (!hasText(data.customer_first_name)) {
+            next.customer_first_name = requiredMsg(t.first_name);
+        }
+        if (!hasText(data.customer_last_name)) {
+            next.customer_last_name = requiredMsg(t.last_name);
+        }
+
+        const phoneErr = phoneErrorMessage(data.customer_phone, phoneMessages, {
+            required: true,
+        });
+        if (phoneErr) {
+            next.customer_phone = phoneErr;
+        }
+
+        const whatsappErr = phoneErrorMessage(
+            data.customer_whatsapp,
+            phoneMessages,
+            { required: false },
+        );
+        if (whatsappErr) {
+            next.customer_whatsapp = whatsappErr;
+        }
+
+        if (!hasText(data.customer_email)) {
+            next.customer_email = requiredMsg(t.email);
+        } else if (!isValidEmail(data.customer_email)) {
+            next.customer_email =
+                v?.email_format ??
+                'Enter a valid email address (example: name@company.com).';
+        }
+
+        return next;
+    };
+
+    const validatePropertyFields = (): Record<string, string> => {
+        const next: Record<string, string> = {};
+
+        if (!hasText(data.address_line_1)) {
+            next.address_line_1 = requiredMsg(t.address_1);
+        }
+        if (!hasText(data.city)) {
+            next.city = requiredMsg(t.city);
+        }
+        if (!hasText(data.postcode)) {
+            next.postcode = requiredMsg(t.postcode);
+        }
+        if (!hasText(data.country)) {
+            next.country = requiredMsg(t.country);
+        }
+        if (!hasText(data.property_type)) {
+            next.property_type = requiredMsg(t.property_type);
+        }
+
+        return next;
+    };
+
+    const validateSchemeFields = (): Record<string, string> => {
+        const next: Record<string, string> = {};
+
+        if (!hasText(data.scheme_id)) {
+            next.scheme_id = requiredMsg(t.scheme);
+        }
+
+        schemeFields
+            .filter((field) => field.required)
+            .forEach((field) => {
+                if (isZoneField(field)) {
+                    if (!data.zone_id) {
+                        next.zone_id = requiredMsg(field.label);
+                    }
+                    return;
+                }
+                if (field.key === 'epc_rating') {
+                    if (
+                        !metricFilled(
+                            data.metrics.epc_rating ?? data.epc_rating ?? null,
+                        )
+                    ) {
+                        next.epc_rating = requiredMsg(field.label);
+                    }
+                    return;
+                }
+                if (!metricFilled(data.metrics[field.key] ?? null)) {
+                    next[`metrics.${field.key}`] = requiredMsg(field.label);
+                }
+            });
+
+        if (
+            !selectedScheme?.fields.some(isZoneField) &&
+            (selectedScheme?.zones.length ?? 0) > 0 &&
+            !data.zone_id
+        ) {
+            next.zone_id = requiredMsg(common.zone);
+        }
+
+        if (notesRequired && !hasText(data.notes)) {
+            next.notes = requiredMsg(t.technical_notes ?? t.notes);
+        }
+
+        return next;
+    };
+
+    const validateEvidenceFields = (): Record<string, string> => {
+        const next: Record<string, string> = {};
+        if (!hasPhoto) {
+            next.evidence_photos = requiredMsg(t.evidence_photos);
+        }
+        if (!hasAgreement) {
+            next.evidence_agreement = requiredMsg(t.evidence_agreement);
+        }
+        return next;
+    };
+
+    const validateReviewFields = (): Record<string, string> => {
+        const next: Record<string, string> = {};
+        if (!data.consent) {
+            next.consent = requiredMsg(t.decl_consent);
+        }
+        if (!data.evidence_genuine) {
+            next.evidence_genuine = requiredMsg(t.decl_genuine);
+        }
+        if (!data.info_accurate) {
+            next.info_accurate = requiredMsg(t.decl_accurate);
+        }
+        return next;
+    };
+
+    const validateStep = (id: StepId): Record<string, string> => {
+        switch (id) {
+            case 'customer':
+                return validateCustomerFields();
+            case 'property':
+                return validatePropertyFields();
+            case 'scheme':
+                return validateSchemeFields();
+            case 'evidence':
+                return validateEvidenceFields();
+            case 'review':
+                return {
+                    ...validateCustomerFields(),
+                    ...validatePropertyFields(),
+                    ...validateSchemeFields(),
+                    ...validateEvidenceFields(),
+                    ...validateReviewFields(),
+                };
+            default:
+                return {};
+        }
+    };
+
     const goNext = () => {
-        if (!stepIsComplete(step)) {
-            setStepAlert(t.step_incomplete ?? t.submit_incomplete);
+        const nextErrors = validateStep(step);
+        if (Object.keys(nextErrors).length > 0) {
+            setClientErrors(nextErrors);
+            const firstMessage = Object.values(nextErrors)[0];
+            setStepAlert(firstMessage);
+            window.setTimeout(() => {
+                const firstKey = Object.keys(nextErrors)[0];
+                const el = document.querySelector(
+                    `[name="${firstKey}"]`,
+                ) as HTMLElement | null;
+                el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                el?.focus?.({ preventScroll: true });
+            }, 50);
             return;
         }
 
+        setClientErrors({});
         setStepAlert(null);
         const index = STEPS.indexOf(step);
         if (index < STEPS.length - 1) {
@@ -516,6 +757,7 @@ export default function SellerLeadsCreate({
 
     const goPrevious = () => {
         setStepAlert(null);
+        setClientErrors({});
         const index = STEPS.indexOf(step);
         if (index > 0) {
             setStep(STEPS[index - 1]);
@@ -525,8 +767,9 @@ export default function SellerLeadsCreate({
     const renderField = (field: SchemeField) => {
         const errorKey = `metrics.${field.key}`;
         const error =
-            (errors as Record<string, string>)[errorKey] ??
-            (errors as Record<string, string>)[`metrics.${field.key}`];
+            clientErrors[errorKey] ??
+            fieldError(errorKey) ??
+            (errors as Record<string, string>)[errorKey];
 
         if (isZoneField(field)) {
             return (
@@ -537,10 +780,10 @@ export default function SellerLeadsCreate({
                     required={field.required}
                     value={data.zone_id}
                     placeholder={common.all_zones ?? common.all}
-                    error={error ?? errors.zone_id}
+                    error={error ?? fieldError('zone_id')}
                     options={(selectedScheme?.zones ?? []).map((zone) => ({
                         value: String(zone.id),
-                        label: `${zone.code} — ${zone.name}`,
+                        label: zone.code,
                     }))}
                     onChange={(e) => handleZoneChange(e.target.value)}
                 />
@@ -556,7 +799,7 @@ export default function SellerLeadsCreate({
                     required={field.required}
                     value={data.epc_rating}
                     placeholder={common.all}
-                    error={error ?? errors.epc_rating}
+                    error={error ?? fieldError('epc_rating')}
                     options={selectOptionsFromField(field)}
                     onChange={(e) => {
                         setData('epc_rating', e.target.value);
@@ -674,7 +917,7 @@ export default function SellerLeadsCreate({
                     </Alert>
                 )}
                 {stepAlert && (
-                    <Alert variant="warning" title={t.missing_required}>
+                    <Alert variant="error" title={t.missing_required}>
                         {stepAlert}
                     </Alert>
                 )}
@@ -700,42 +943,89 @@ export default function SellerLeadsCreate({
                                 name="customer_first_name"
                                 required
                                 value={data.customer_first_name}
-                                error={errors.customer_first_name}
-                                onChange={(e) =>
+                                error={fieldError('customer_first_name')}
+                                onChange={(e) => {
+                                    clearClientError('customer_first_name');
                                     setData(
                                         'customer_first_name',
                                         e.target.value,
-                                    )
-                                }
+                                    );
+                                }}
                             />
                             <FormInput
                                 label={t.last_name}
                                 name="customer_last_name"
                                 required
                                 value={data.customer_last_name}
-                                error={errors.customer_last_name}
-                                onChange={(e) =>
-                                    setData('customer_last_name', e.target.value)
-                                }
+                                error={fieldError('customer_last_name')}
+                                onChange={(e) => {
+                                    clearClientError('customer_last_name');
+                                    setData('customer_last_name', e.target.value);
+                                }}
                             />
                             <FormInput
                                 label={t.phone}
                                 name="customer_phone"
+                                type="tel"
+                                inputMode="tel"
+                                autoComplete="tel"
                                 required
                                 value={data.customer_phone}
-                                error={errors.customer_phone}
-                                onChange={(e) =>
-                                    setData('customer_phone', e.target.value)
+                                error={fieldError('customer_phone')}
+                                hint={
+                                    fieldError('customer_phone')
+                                        ? undefined
+                                        : v?.phone_length
                                 }
+                                onChange={(e) => {
+                                    const value = sanitizePhoneInput(
+                                        e.target.value,
+                                    );
+                                    setData('customer_phone', value);
+                                    const msg = phoneErrorMessage(
+                                        value,
+                                        phoneMessages,
+                                        { required: true },
+                                    );
+                                    setClientErrors((prev) => {
+                                        const next = { ...prev };
+                                        if (msg) {
+                                            next.customer_phone = msg;
+                                        } else {
+                                            delete next.customer_phone;
+                                        }
+                                        return next;
+                                    });
+                                }}
                             />
                             <FormInput
                                 label={t.whatsapp_optional ?? t.whatsapp}
                                 name="customer_whatsapp"
+                                type="tel"
+                                inputMode="tel"
+                                autoComplete="tel"
                                 value={data.customer_whatsapp}
-                                error={errors.customer_whatsapp}
-                                onChange={(e) =>
-                                    setData('customer_whatsapp', e.target.value)
-                                }
+                                error={fieldError('customer_whatsapp')}
+                                onChange={(e) => {
+                                    const value = sanitizePhoneInput(
+                                        e.target.value,
+                                    );
+                                    setData('customer_whatsapp', value);
+                                    const msg = phoneErrorMessage(
+                                        value,
+                                        phoneMessages,
+                                        { required: false },
+                                    );
+                                    setClientErrors((prev) => {
+                                        const next = { ...prev };
+                                        if (msg) {
+                                            next.customer_whatsapp = msg;
+                                        } else {
+                                            delete next.customer_whatsapp;
+                                        }
+                                        return next;
+                                    });
+                                }}
                             />
                             <FormInput
                                 label={t.email}
@@ -744,10 +1034,11 @@ export default function SellerLeadsCreate({
                                 required
                                 className="sm:col-span-2"
                                 value={data.customer_email}
-                                error={errors.customer_email}
-                                onChange={(e) =>
-                                    setData('customer_email', e.target.value)
-                                }
+                                error={fieldError('customer_email')}
+                                onChange={(e) => {
+                                    clearClientError('customer_email');
+                                    setData('customer_email', e.target.value);
+                                }}
                             />
                         </div>
                     </section>
@@ -765,7 +1056,7 @@ export default function SellerLeadsCreate({
                                 className="sm:col-span-2"
                                 required
                                 value={data.address_line_1}
-                                error={errors.address_line_1}
+                                error={fieldError('address_line_1')}
                                 onChange={(e) =>
                                     setData('address_line_1', e.target.value)
                                 }
@@ -775,7 +1066,7 @@ export default function SellerLeadsCreate({
                                 name="address_line_2"
                                 className="sm:col-span-2"
                                 value={data.address_line_2}
-                                error={errors.address_line_2}
+                                error={fieldError('address_line_2')}
                                 onChange={(e) =>
                                     setData('address_line_2', e.target.value)
                                 }
@@ -785,7 +1076,7 @@ export default function SellerLeadsCreate({
                                 name="city"
                                 required
                                 value={data.city}
-                                error={errors.city}
+                                error={fieldError('city')}
                                 onChange={(e) =>
                                     setData('city', e.target.value)
                                 }
@@ -795,17 +1086,17 @@ export default function SellerLeadsCreate({
                                 name="postcode"
                                 required
                                 value={data.postcode}
-                                error={errors.postcode}
+                                error={fieldError('postcode')}
                                 onChange={(e) =>
                                     setData('postcode', e.target.value)
                                 }
                             />
-                            <FormInput
+                            <CountrySelect
                                 label={t.country}
                                 name="country"
                                 required
                                 value={data.country}
-                                error={errors.country}
+                                error={fieldError('country')}
                                 onChange={(e) =>
                                     setData('country', e.target.value)
                                 }
@@ -815,7 +1106,7 @@ export default function SellerLeadsCreate({
                                 name="property_type"
                                 required
                                 value={data.property_type}
-                                error={errors.property_type}
+                                error={fieldError('property_type')}
                                 placeholder={common.all}
                                 options={[
                                     {
@@ -859,7 +1150,7 @@ export default function SellerLeadsCreate({
                             name="scheme_id"
                             required
                             value={data.scheme_id}
-                            error={errors.scheme_id}
+                            error={fieldError('scheme_id')}
                             options={schemes.map((scheme) => ({
                                 value: String(scheme.id),
                                 label: scheme.name,
@@ -880,15 +1171,16 @@ export default function SellerLeadsCreate({
                                 <Select
                                     label={common.zone}
                                     name="zone_id"
+                                    required
                                     value={data.zone_id}
-                                    error={errors.zone_id}
+                                    error={fieldError('zone_id')}
                                     placeholder={
                                         common.all_zones ?? common.all
                                     }
                                     options={(selectedScheme?.zones ?? []).map(
                                         (zone) => ({
                                             value: String(zone.id),
-                                            label: `${zone.code} — ${zone.name}`,
+                                            label: zone.code,
                                         }),
                                     )}
                                     onChange={(e) =>
@@ -910,7 +1202,7 @@ export default function SellerLeadsCreate({
                             name="notes"
                             required={notesRequired}
                             value={data.notes}
-                            error={errors.notes}
+                            error={fieldError('notes')}
                             onChange={(e) => setData('notes', e.target.value)}
                         />
                     </section>
@@ -972,7 +1264,7 @@ export default function SellerLeadsCreate({
                                 multiple
                                 accept="image/jpeg,image/png,image/webp,image/heic,.jpg,.jpeg,.png,.webp,.heic"
                                 files={fileMetas(data.evidence_photos)}
-                                error={errors.evidence_photos}
+                                error={fieldError('evidence_photos')}
                                 onFilesSelected={(list) =>
                                     setData('evidence_photos', [
                                         ...data.evidence_photos,
@@ -1000,7 +1292,7 @@ export default function SellerLeadsCreate({
                                         ? fileMetas([data.evidence_agreement])
                                         : []
                                 }
-                                error={errors.evidence_agreement}
+                                error={fieldError('evidence_agreement')}
                                 onFilesSelected={(list) =>
                                     setData(
                                         'evidence_agreement',
@@ -1019,7 +1311,7 @@ export default function SellerLeadsCreate({
                                 multiple
                                 accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
                                 files={fileMetas(data.evidence_eligibility)}
-                                error={errors.evidence_eligibility}
+                                error={fieldError('evidence_eligibility')}
                                 onFilesSelected={(list) =>
                                     setData('evidence_eligibility', [
                                         ...data.evidence_eligibility,
@@ -1049,7 +1341,7 @@ export default function SellerLeadsCreate({
                                         ? fileMetas([data.evidence_video])
                                         : []
                                 }
-                                error={errors.evidence_video}
+                                error={fieldError('evidence_video')}
                                 onFilesSelected={(list) =>
                                     setData('evidence_video', list.item(0))
                                 }
@@ -1135,7 +1427,7 @@ export default function SellerLeadsCreate({
                                 name="consent"
                                 label={t.decl_consent}
                                 checked={data.consent}
-                                error={errors.consent}
+                                error={fieldError('consent')}
                                 onChange={(e) =>
                                     setData('consent', e.target.checked)
                                 }
@@ -1144,7 +1436,7 @@ export default function SellerLeadsCreate({
                                 name="evidence_genuine"
                                 label={t.decl_genuine}
                                 checked={data.evidence_genuine}
-                                error={errors.evidence_genuine}
+                                error={fieldError('evidence_genuine')}
                                 onChange={(e) =>
                                     setData(
                                         'evidence_genuine',
@@ -1156,7 +1448,7 @@ export default function SellerLeadsCreate({
                                 name="info_accurate"
                                 label={t.decl_accurate}
                                 checked={data.info_accurate}
-                                error={errors.info_accurate}
+                                error={fieldError('info_accurate')}
                                 onChange={(e) =>
                                     setData('info_accurate', e.target.checked)
                                 }

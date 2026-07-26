@@ -62,14 +62,14 @@ class DomainDemoSeeder extends Seeder
         $agent = User::query()->where('email', 'agent@rml.test')->firstOrFail();
         $buyer = User::query()->where('email', 'buyer@rml.test')->firstOrFail();
 
-        $greenEnergy = $this->company('Green Energy Spain', CompanyType::Seller, 'Madrid', '28001', $admin);
-        $solarFirst = $this->company('SolarFirst Iberia', CompanyType::Seller, 'Valencia', '46001', $admin);
-        $ecoHomes = $this->company('EcoHomes España', CompanyType::Seller, 'Sevilla', '41001', $admin);
-        $smithSurveys = $this->company('J. Smith Surveys', CompanyType::Seller, 'Barcelona', '08001', $admin, individual: true);
+        $greenEnergy = $this->company('Verde Energía Madrid SL', CompanyType::Seller, 'Madrid', '28001', $admin);
+        $solarFirst = $this->company('Solar Levante Instalaciones', CompanyType::Seller, 'Valencia', '46001', $admin);
+        $ecoHomes = $this->company('EcoHogar Andalucía', CompanyType::Seller, 'Sevilla', '41001', $admin);
+        $smithSurveys = $this->company('Javier Morales EPC Surveys', CompanyType::Seller, 'Barcelona', '08001', $admin, individual: true);
 
-        $warmHomes = $this->company('Warm Homes Spain', CompanyType::Buyer, 'Madrid', '28002', $admin);
-        $this->company('InstallPro Iberia', CompanyType::Buyer, 'Bilbao', '48001', $admin);
-        $this->company('GreenFit Installers', CompanyType::Buyer, 'Málaga', '29001', $admin);
+        $warmHomes = $this->company('CalorHogar Instalaciones SL', CompanyType::Buyer, 'Madrid', '28002', $admin);
+        $this->company('Instalpro Norte SA', CompanyType::Buyer, 'Bilbao', '48001', $admin);
+        $this->company('GreenFit Costa del Sol', CompanyType::Buyer, 'Málaga', '29001', $admin);
 
         SellerProfile::query()->updateOrCreate(
             ['user_id' => $sellerAdmin->id],
@@ -283,6 +283,11 @@ class DomainDemoSeeder extends Seeder
                     'visibility' => EvidenceVisibility::Private,
                     'status' => EvidenceStatus::Uploaded,
                 ],
+            );
+            \App\Support\EvidencePlaceholderStorage::ensurePath(
+                'evidence/'.$lead->lead_reference.'/photo.jpg',
+                'local',
+                'image/jpeg',
             );
 
             if (in_array($def['status'], [

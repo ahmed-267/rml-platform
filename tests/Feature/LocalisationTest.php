@@ -81,13 +81,20 @@ class LocalisationTest extends TestCase
 
         $this->actingAs($admin->fresh())
             ->get('/admin/approvals')
-            ->assertRedirect(route('admin.sellers.index', ['approval_status' => 'pending']));
+            ->assertRedirect(route('admin.users.index', [
+                'tab' => 'sellers',
+                'approval_status' => 'pending',
+            ]));
 
         $this->actingAs($admin->fresh())
-            ->get(route('admin.sellers.index', ['approval_status' => 'pending']))
+            ->get(route('admin.users.index', [
+                'tab' => 'sellers',
+                'approval_status' => 'pending',
+            ]))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->component('Admin/Sellers/Index')
+                ->component('Admin/Users/Index')
+                ->where('tab', 'sellers')
                 ->where('app.locale', 'es')
                 ->where('translations.admin.sellers.index_title', 'Vendedores')
                 ->where('translations.admin.common.approve', 'Aprobar')
@@ -187,10 +194,10 @@ class LocalisationTest extends TestCase
                 ->where('translations.seller.leads.audited_title', 'Leads audités'));
 
         $this->actingAs($seller->fresh())
-            ->get(route('seller.staff.index', ['tab' => 'commissions']))
+            ->get(route('seller.staff.index'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->where('translations.seller.staff.commissions_title', 'Commissions du personnel')
+                ->where('translations.seller.staff.staff_roster', 'Personnel')
                 ->where('translations.seller.staff.title', 'Personnel'));
 
         $this->actingAs($seller->fresh())
@@ -306,7 +313,7 @@ class LocalisationTest extends TestCase
             ->assertRedirect(route('admin.dashboard'));
 
         $this->actingAs($admin->fresh())
-            ->get(route('admin.sellers.index'))
+            ->get(route('admin.users.index', ['tab' => 'sellers']))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->where('app.locale', 'es')
@@ -314,16 +321,16 @@ class LocalisationTest extends TestCase
                 ->where('translations.admin.nav.buyers', 'Compradores'));
 
         $this->actingAs($admin)
-            ->from(route('admin.sellers.index'))
+            ->from(route('admin.users.index', ['tab' => 'sellers']))
             ->post('/locale', ['locale' => 'fr'])
-            ->assertRedirect(route('admin.sellers.index'));
+            ->assertRedirect(route('admin.users.index', ['tab' => 'sellers']));
 
         $this->actingAs($admin->fresh())
-            ->get(route('admin.leads-bought.index'))
+            ->get(route('admin.leads.index', ['tab' => 'registered']))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->where('app.locale', 'fr')
-                ->where('translations.admin.nav.leads_bought', 'Leads achetés'));
+                ->where('translations.admin.nav.leads', 'Leads'));
 
         $this->actingAs($admin->fresh())
             ->get(route('admin.payments.index'))
@@ -387,17 +394,18 @@ class LocalisationTest extends TestCase
             ->assertRedirect(route('auditor.dashboard'));
 
         $this->actingAs($auditor->fresh())
-            ->get(route('auditor.assigned-audits.index'))
+            ->get(route('auditor.audits.index', ['tab' => 'my-audits']))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->where('app.locale', 'es')
-                ->where('translations.auditor.assigned.index_title', 'Auditorías asignadas')
+                ->where('tab', 'my-audits')
+                ->where('translations.auditor.audits_hub.index_title', 'Auditorías')
                 ->where('translations.auditor.nav.messages', 'Mensajes'));
 
         $this->actingAs($auditor)
-            ->from(route('auditor.assigned-audits.index'))
+            ->from(route('auditor.audits.index', ['tab' => 'my-audits']))
             ->post('/locale', ['locale' => 'fr'])
-            ->assertRedirect(route('auditor.assigned-audits.index'));
+            ->assertRedirect(route('auditor.audits.index', ['tab' => 'my-audits']));
 
         $lead = Lead::query()->where('lead_reference', 'LD-1044')->firstOrFail();
 
@@ -411,10 +419,11 @@ class LocalisationTest extends TestCase
                 ->where('translations.auditor.audit.recommend_accept', 'Recommander l’acceptation'));
 
         $this->actingAs($auditor->fresh())
-            ->get(route('auditor.completed-audits.index'))
+            ->get(route('auditor.audits.index', ['tab' => 'completed']))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->where('translations.auditor.completed.index_title', 'Audits terminés'));
+                ->where('tab', 'completed')
+                ->where('translations.auditor.audits_hub.tab_completed', 'Terminés'));
 
         $this->actingAs($auditor->fresh())
             ->get(route('auditor.messages.index'))

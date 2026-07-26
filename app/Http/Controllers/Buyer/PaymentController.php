@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Buyer;
 
 use App\Enums\InvoiceType;
+use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\PurchaseStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
-use App\Models\Purchase;
+use App\Models\PurchaseItem;
 use App\Services\Buyer\BuyerPurchaseService;
+use App\Services\Buyer\LeadReleaseService;
 use App\Services\Payments\PaymentProviderManager;
 use App\Services\Payments\PaymentService;
 use App\Support\CheckoutRedirect;
@@ -17,6 +19,7 @@ use App\Support\ListSort;
 use App\Support\Permissions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
@@ -26,6 +29,7 @@ class PaymentController extends Controller
     public function __construct(
         private readonly BuyerPurchaseService $purchaseService,
         private readonly PaymentService $paymentService,
+        private readonly LeadReleaseService $releaseService,
     ) {}
 
     public function index(Request $request): Response
@@ -84,24 +88,21 @@ class PaymentController extends Controller
             ->withQueryString()
             ->through(fn (Payment $payment) => $this->transformPayment($payment));
 
-        $pendingPurchases = Purchase::query()
-            ->where('buyer_company_id', $companyId)
-            ->where('status', PurchaseStatus::Pending)
-            ->withCount('items')
-            ->get();
-
         $cardConfigured = app(PaymentProviderManager::class)->cardConfigured();
 
         return Inertia::render('Buyer/Payments', [
             'kpis' => [
-                'pending_to_buy' => (int) $pendingPurchases->sum('items_count'),
+                'pending_to_buy' => (int) PurchaseItem::query()
+                    ->whereHas('purchase', fn ($q) => $q
+                        ->where('buyer_company_id', $companyId)
+                        ->where('status', PurchaseStatus::Pending))
+                    ->count(),
                 'pending_payments' => $pendingCount,
-                'leads_purchased' => Purchase::query()
-                    ->where('buyer_company_id', $companyId)
-                    ->where('status', PurchaseStatus::Paid)
-                    ->withCount('items')
-                    ->get()
-                    ->sum('items_count'),
+                'leads_purchased' => (int) PurchaseItem::query()
+                    ->whereHas('purchase', fn ($q) => $q
+                        ->where('buyer_company_id', $companyId)
+                        ->where('status', PurchaseStatus::Paid))
+                    ->count(),
                 'total_spent' => (float) Payment::query()
                     ->where('payer_company_id', $companyId)
                     ->where('status', PaymentStatus::Paid)
@@ -130,17 +131,21 @@ class PaymentController extends Controller
         abort_unless($request->user()?->can('view', $payment), 403);
 
         $purchase = $payment->purchases()->first();
-        abort_unless(
-            in_array($payment->status, [
-                PaymentStatus::Pending,
-                PaymentStatus::Failed,
-                PaymentStatus::Cancelled,
-            ], true),
-            422,
-        );
+
+        if (! in_array($payment->status, [
+            PaymentStatus::Pending,
+            PaymentStatus::Failed,
+            PaymentStatus::Cancelled,
+        ], true)) {
+            return redirect()
+                ->route($purchase ? 'buyer.purchases.show' : 'buyer.payments', $purchase ?? [])
+                ->withErrors(['payment' => __('rml.buyer.purchases.pay_error')]);
+        }
 
         if ($purchase && $purchase->status !== PurchaseStatus::Pending) {
-            abort(422);
+            return redirect()
+                ->route('buyer.purchases.show', $purchase)
+                ->withErrors(['payment' => __('rml.buyer.purchases.pay_error')]);
         }
 
         $result = $this->paymentService->initiate($payment, $request->user());
@@ -158,6 +163,73 @@ class PaymentController extends Controller
         return redirect()
             ->route($purchase ? 'buyer.purchases.show' : 'buyer.payments', $purchase ?? [])
             ->with('success', __('rml.buyer.payments.bank_transfer_ready'));
+    }
+
+    /**
+     * Switch pending manual bank transfer to Stripe Checkout.
+     */
+    public function payByCard(Request $request, Payment $payment): SymfonyResponse
+    {
+        abort_unless($request->user()?->can('view', $payment), 403);
+
+        $purchase = $payment->purchases()->first();
+
+        if (! $purchase || $purchase->status !== PurchaseStatus::Pending) {
+            return redirect()
+                ->route($purchase ? 'buyer.purchases.show' : 'buyer.payments', $purchase ?? [])
+                ->withErrors(['payment' => __('rml.buyer.purchases.pay_error')]);
+        }
+
+        if ($this->releaseService->purchaseIsReleased($purchase)) {
+            return redirect()
+                ->route('buyer.purchases.show', $purchase)
+                ->withErrors(['payment' => __('rml.buyer.purchases.pay_error')]);
+        }
+
+        if ($payment->method !== PaymentMethod::ManualBankTransfer) {
+            return redirect()
+                ->route('buyer.purchases.show', $purchase)
+                ->withErrors(['payment' => __('rml.buyer.purchases.pay_error')]);
+        }
+
+        if (! in_array($payment->status, [
+            PaymentStatus::Pending,
+            PaymentStatus::Failed,
+            PaymentStatus::Cancelled,
+        ], true)) {
+            return redirect()
+                ->route('buyer.purchases.show', $purchase)
+                ->withErrors(['payment' => __('rml.buyer.purchases.pay_error')]);
+        }
+
+        try {
+            $result = $this->paymentService->switchToCardCheckout($payment, $request->user());
+        } catch (ValidationException $e) {
+            return redirect()
+                ->route('buyer.purchases.show', $purchase)
+                ->withErrors($e->errors());
+        }
+
+        if (! empty($result['checkout_url'])) {
+            return CheckoutRedirect::to($result['checkout_url']);
+        }
+
+        // Checkout failed — keep / restore manual transfer state for the buyer.
+        $payment->refresh();
+        if ($payment->method !== PaymentMethod::ManualBankTransfer) {
+            $payment->update([
+                'method' => PaymentMethod::ManualBankTransfer,
+                'provider' => 'manual_bank_transfer',
+                'stripe_checkout_session_id' => null,
+                'stripe_payment_intent_id' => null,
+            ]);
+        }
+
+        return redirect()
+            ->route('buyer.purchases.show', $purchase)
+            ->withErrors([
+                'payment' => $result['error'] ?? __('rml.buyer.purchases.pay_error'),
+            ]);
     }
 
     public function returnFromProvider(Request $request, Payment $payment): RedirectResponse

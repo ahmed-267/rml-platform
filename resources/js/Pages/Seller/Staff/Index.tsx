@@ -8,21 +8,13 @@ import {
     FormInput,
     MobileCardList,
     Modal,
-    Pagination,
-    SortableHeader,
     StatusBadge,
+    TableActionButton,
     Tabs,
+    tableActionIcons,
 } from '@/Components/ui';
-import type { SortDirection } from '@/Components/ui/SortableHeader';
 import { useIsMobile } from '@/hooks/use-media-query';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
-import {
-    nextSortDirection,
-    paginationLabels,
-    paginationMeta,
-    resolveSortDirection,
-    type Paginator,
-} from '@/lib/list-helpers';
 import type { PageProps } from '@/types';
 
 interface StaffMember {
@@ -36,19 +28,6 @@ interface StaffMember {
     leads_submitted: number;
 }
 
-interface CommissionRow {
-    id: number;
-    commission_reference: string | null;
-    lead_reference: string | null;
-    seller_name: string | null;
-    seller_user_id: number | null;
-    percentage: number | null;
-    commission_amount: number | null;
-    status: string | null;
-    due_at: string | null;
-    paid_at: string | null;
-}
-
 interface InvitationRow {
     id: number;
     email: string;
@@ -58,42 +37,21 @@ interface InvitationRow {
     created_at: string | null;
 }
 
-function formatMoney(value: number | null | undefined): string {
-    if (value == null) {
-        return '—';
-    }
-
-    return new Intl.NumberFormat(undefined, {
-        style: 'currency',
-        currency: 'EUR',
-        maximumFractionDigits: 2,
-    }).format(value);
-}
-
 export default function StaffIndex({
     tab,
     staff,
-    commissions,
     invitations,
     can_manage_staff,
     can_manage_commissions,
-    filters,
 }: {
     tab: string;
     staff: StaffMember[];
-    commissions: Paginator<CommissionRow>;
     invitations: InvitationRow[];
     can_manage_staff: boolean;
     can_manage_commissions: boolean;
-    filters: {
-        sort?: string | null;
-        direction?: string | null;
-        per_page?: number | string | null;
-    };
 }) {
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.seller.staff;
-    const payments = translations.seller.payments;
     const common = translations.seller.common;
     const statusLabels = {
         ...translations.statuses,
@@ -101,11 +59,8 @@ export default function StaffIndex({
     };
     const isMobile = useIsMobile();
 
-    const activeTab = ['commissions', 'invite'].includes(tab)
-        ? tab
-        : can_manage_commissions
-          ? 'commissions'
-          : 'invite';
+    const activeTab =
+        tab === 'invite' && can_manage_staff ? 'invite' : 'staff';
 
     const [editingMember, setEditingMember] = useState<StaffMember | null>(
         null,
@@ -119,27 +74,10 @@ export default function StaffIndex({
         email: '',
     });
 
-    const currentSort = filters.sort ?? 'date';
-    const currentDirection: SortDirection = resolveSortDirection(
-        filters.direction,
-    );
-    const { page, pageCount, perPage } = paginationMeta(commissions);
-    const currentPerPage = Number(filters.per_page ?? perPage ?? 10);
-
-    const queryParams = (
-        overrides: Record<string, string | number | undefined> = {},
-    ) => ({
-        tab: activeTab,
-        sort: currentSort,
-        direction: currentDirection,
-        per_page: currentPerPage,
-        ...overrides,
-    });
-
     const changeTab = (nextTab: string) => {
         router.get(
             route('seller.staff.index'),
-            queryParams({ tab: nextTab, page: 1 }),
+            { tab: nextTab },
             {
                 preserveState: true,
                 replace: true,
@@ -147,33 +85,6 @@ export default function StaffIndex({
             },
         );
     };
-
-    const handleSort = (column: string) => {
-        router.get(
-            route('seller.staff.index'),
-            queryParams({
-                sort: column,
-                direction: nextSortDirection(
-                    currentSort,
-                    column,
-                    currentDirection,
-                ),
-            }),
-            { preserveState: true, replace: true },
-        );
-    };
-
-    const sortableHeader = (label: string, column: string) => (
-        <SortableHeader
-            label={label}
-            column={column}
-            currentSort={currentSort}
-            currentDirection={currentDirection}
-            onSort={handleSort}
-            sortAscLabel={common.sort_asc}
-            sortDescLabel={common.sort_desc}
-        />
-    );
 
     const openEditCommission = (member: StaffMember) => {
         setEditingMember(member);
@@ -221,9 +132,7 @@ export default function StaffIndex({
     const pending = invitations.filter((row) => row.status === 'pending');
 
     const tabItems = [
-        ...(can_manage_commissions
-            ? [{ id: 'commissions', label: t.tab_commissions }]
-            : []),
+        { id: 'staff', label: t.staff_roster ?? t.tab_staff_info },
         ...(can_manage_staff
             ? [{ id: 'invite', label: t.tab_invite_staff }]
             : []),
@@ -346,15 +255,13 @@ export default function StaffIndex({
                                       id: 'actions',
                                       header: common.actions,
                                       cell: (row: StaffMember) => (
-                                          <Button
-                                              size="sm"
-                                              variant="outline"
+                                          <TableActionButton
+                                              label={t.edit_commission}
+                                              icon={tableActionIcons.edit}
                                               onClick={() =>
                                                   openEditCommission(row)
                                               }
-                                          >
-                                              {t.edit_commission}
-                                          </Button>
+                                          />
                                       ),
                                   },
                               ]
@@ -365,41 +272,89 @@ export default function StaffIndex({
         </section>
     );
 
-    const pageTitle = t.title;
-    const pageSubtitle = t.subtitle;
+    const inviteSection = (
+        <div className="space-y-4">
+            <section className="rml-card space-y-4 p-4">
+                <form
+                    onSubmit={submitInvite}
+                    className="flex flex-col gap-3 sm:flex-row sm:items-end"
+                >
+                    <div className="min-w-0 flex-1">
+                        <FormInput
+                            label={t.invite_email}
+                            name="email"
+                            type="email"
+                            required
+                            value={inviteForm.data.email}
+                            error={inviteForm.errors.email}
+                            onChange={(e) =>
+                                inviteForm.setData('email', e.target.value)
+                            }
+                        />
+                    </div>
+                    <Button type="submit" disabled={inviteForm.processing}>
+                        {t.invite_send}
+                    </Button>
+                </form>
+            </section>
 
-    return (
-        <AppLayout title={pageTitle} subtitle={pageSubtitle}>
-            <Head title={pageTitle} />
-
-            <Tabs
-                items={tabItems}
-                value={activeTab}
-                onChange={changeTab}
-                className="space-y-3"
-            >
-                {activeTab === 'commissions' && can_manage_commissions && (
-                    <div className="space-y-6">
-                        {staffTable}
-
-                        <section className="space-y-3">
-                            <h2 className="text-sm font-semibold text-rml-text">
-                                {t.commission_history ?? t.tab_commissions}
-                            </h2>
-                        {commissions.data.length === 0 ? (
-                            <EmptyState title={t.empty_commissions} />
-                        ) : isMobile ? (
-                            <MobileCardList
-                                emptyMessage={t.empty_commissions}
-                                items={commissions.data.map((row) => ({
-                                    id: String(row.id),
-                                    title: (
-                                        <span className="font-mono text-sm">
-                                            {row.commission_reference}
-                                        </span>
-                                    ),
-                                    subtitle: row.seller_name ?? undefined,
-                                    meta: row.status ? (
+            <section className="space-y-3">
+                <h2 className="text-base font-semibold text-rml-text">
+                    {t.invite_list}
+                </h2>
+                {pending.length === 0 ? (
+                    <EmptyState title={t.empty_invites} />
+                ) : isMobile ? (
+                    <MobileCardList
+                        emptyMessage={t.empty_invites}
+                        items={pending.map((row) => ({
+                            id: String(row.id),
+                            title: row.email,
+                            meta: row.status ? (
+                                <StatusBadge
+                                    label={leadStatusLabel(
+                                        row.status,
+                                        statusLabels,
+                                    )}
+                                    tone={leadStatusTone(row.status)}
+                                />
+                            ) : null,
+                            body: (
+                                <p className="text-rml-muted">
+                                    {t.expires}:{' '}
+                                    {row.expires_at
+                                        ? new Date(
+                                              row.expires_at,
+                                          ).toLocaleString(app.locale)
+                                        : '—'}
+                                </p>
+                            ),
+                            actions: (
+                                <TableActionButton
+                                    label={t.invite_cancel}
+                                    icon={tableActionIcons.cancel}
+                                    tone="danger"
+                                    onClick={() => cancelInvitation(row.id)}
+                                />
+                            ),
+                        }))}
+                    />
+                ) : (
+                    <DataTable
+                        data={pending}
+                        getRowId={(row) => String(row.id)}
+                        emptyMessage={t.empty_invites}
+                        columns={[
+                            {
+                                id: 'email',
+                                header: t.invite_email,
+                                cell: (row) => row.email,
+                            },
+                            {
+                                id: 'status',
+                                header: common.status,
+                                cell: (row) =>
+                                    row.status ? (
                                         <StatusBadge
                                             label={leadStatusLabel(
                                                 row.status,
@@ -407,291 +362,61 @@ export default function StaffIndex({
                                             )}
                                             tone={leadStatusTone(row.status)}
                                         />
-                                    ) : null,
-                                    body: (
-                                        <div className="space-y-1 text-rml-muted">
-                                            <p>
-                                                {common.lead_id}:{' '}
-                                                {row.lead_reference ?? '—'}
-                                            </p>
-                                            <p>
-                                                {payments.amount}:{' '}
-                                                {formatMoney(
-                                                    row.commission_amount,
-                                                )}
-                                            </p>
-                                        </div>
+                                    ) : (
+                                        '—'
                                     ),
-                                }))}
-                            />
-                        ) : (
-                            <DataTable
-                                data={commissions.data}
-                                getRowId={(row) => String(row.id)}
-                                emptyMessage={t.empty_commissions}
-                                columns={[
-                                    {
-                                        id: 'reference',
-                                        header: sortableHeader(
-                                            payments.reference,
-                                            'reference',
-                                        ),
-                                        cell: (row) => (
-                                            <span className="font-mono text-sm">
-                                                {row.commission_reference}
-                                            </span>
-                                        ),
-                                    },
-                                    {
-                                        id: 'seller',
-                                        header: t.staff_member,
-                                        cell: (row) =>
-                                            row.seller_name ?? '—',
-                                    },
-                                    {
-                                        id: 'lead',
-                                        header: common.lead_id,
-                                        cell: (row) =>
-                                            row.lead_reference ?? '—',
-                                    },
-                                    {
-                                        id: 'amount',
-                                        header: sortableHeader(
-                                            payments.amount,
-                                            'amount',
-                                        ),
-                                        cell: (row) =>
-                                            formatMoney(
-                                                row.commission_amount,
-                                            ),
-                                    },
-                                    {
-                                        id: 'status',
-                                        header: sortableHeader(
-                                            common.status,
-                                            'status',
-                                        ),
-                                        cell: (row) =>
-                                            row.status ? (
-                                                <StatusBadge
-                                                    label={leadStatusLabel(
-                                                        row.status,
-                                                        statusLabels,
-                                                    )}
-                                                    tone={leadStatusTone(
-                                                        row.status,
-                                                    )}
-                                                />
-                                            ) : (
-                                                '—'
-                                            ),
-                                    },
-                                    {
-                                        id: 'due',
-                                        header: sortableHeader(
-                                            payments.due_date,
-                                            'date',
-                                        ),
-                                        cell: (row) =>
-                                            row.due_at
-                                                ? new Date(
-                                                      row.due_at,
-                                                  ).toLocaleDateString(
-                                                      app.locale,
-                                                  )
-                                                : '—',
-                                    },
-                                    {
-                                        id: 'paid',
-                                        header: payments.paid_at,
-                                        cell: (row) =>
-                                            row.paid_at
-                                                ? new Date(
-                                                      row.paid_at,
-                                                  ).toLocaleDateString(
-                                                      app.locale,
-                                                  )
-                                                : '—',
-                                    },
-                                ]}
-                            />
-                        )}
-
-                        <Pagination
-                            page={page}
-                            pageCount={pageCount}
-                            perPage={currentPerPage}
-                            onPerPageChange={(next) =>
-                                router.get(
-                                    route('seller.staff.index'),
-                                    queryParams({
-                                        per_page: next,
-                                        page: 1,
-                                    }),
-                                    {
-                                        preserveState: true,
-                                        replace: true,
-                                    },
-                                )
-                            }
-                            onPageChange={(next) =>
-                                router.get(
-                                    route('seller.staff.index'),
-                                    queryParams({ page: next }),
-                                    { preserveState: true },
-                                )
-                            }
-                            labels={paginationLabels(common)}
-                        />
-                        </section>
-                    </div>
-                )}
-
-                {activeTab === 'invite' && can_manage_staff && (
-                    <div className="space-y-4">
-                        <section className="rml-card space-y-4 p-4">
-                            <form
-                                onSubmit={submitInvite}
-                                className="flex flex-col gap-3 sm:flex-row sm:items-end"
-                            >
-                                <div className="min-w-0 flex-1">
-                                    <FormInput
-                                        label={t.invite_email}
-                                        name="email"
-                                        type="email"
-                                        required
-                                        value={inviteForm.data.email}
-                                        error={inviteForm.errors.email}
-                                        onChange={(e) =>
-                                            inviteForm.setData(
-                                                'email',
-                                                e.target.value,
-                                            )
+                            },
+                            {
+                                id: 'expires',
+                                header: t.expires,
+                                cell: (row) =>
+                                    row.expires_at
+                                        ? new Date(
+                                              row.expires_at,
+                                          ).toLocaleString(app.locale)
+                                        : '—',
+                            },
+                            {
+                                id: 'actions',
+                                header: common.actions,
+                                cell: (row) => (
+                                    <TableActionButton
+                                        label={t.invite_cancel}
+                                        icon={tableActionIcons.cancel}
+                                        tone="danger"
+                                        onClick={() =>
+                                            cancelInvitation(row.id)
                                         }
                                     />
-                                </div>
-                                <Button
-                                    type="submit"
-                                    disabled={inviteForm.processing}
-                                >
-                                    {t.invite_send}
-                                </Button>
-                            </form>
-                        </section>
-
-                        <section className="space-y-3">
-                            <h2 className="text-base font-semibold text-rml-text">
-                                {t.invite_list}
-                            </h2>
-                            {pending.length === 0 ? (
-                                <EmptyState title={t.empty_invites} />
-                            ) : isMobile ? (
-                                <MobileCardList
-                                    emptyMessage={t.empty_invites}
-                                    items={pending.map((row) => ({
-                                        id: String(row.id),
-                                        title: row.email,
-                                        meta: row.status ? (
-                                            <StatusBadge
-                                                label={leadStatusLabel(
-                                                    row.status,
-                                                    statusLabels,
-                                                )}
-                                                tone={leadStatusTone(
-                                                    row.status,
-                                                )}
-                                            />
-                                        ) : null,
-                                        body: (
-                                            <p className="text-rml-muted">
-                                                {t.expires}:{' '}
-                                                {row.expires_at
-                                                    ? new Date(
-                                                          row.expires_at,
-                                                      ).toLocaleString(
-                                                          app.locale,
-                                                      )
-                                                    : '—'}
-                                            </p>
-                                        ),
-                                        actions: (
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() =>
-                                                    cancelInvitation(row.id)
-                                                }
-                                            >
-                                                {t.invite_cancel}
-                                            </Button>
-                                        ),
-                                    }))}
-                                />
-                            ) : (
-                                <DataTable
-                                    data={pending}
-                                    getRowId={(row) => String(row.id)}
-                                    emptyMessage={t.empty_invites}
-                                    columns={[
-                                        {
-                                            id: 'email',
-                                            header: t.invite_email,
-                                            cell: (row) => row.email,
-                                        },
-                                        {
-                                            id: 'status',
-                                            header: common.status,
-                                            cell: (row) =>
-                                                row.status ? (
-                                                    <StatusBadge
-                                                        label={leadStatusLabel(
-                                                            row.status,
-                                                            statusLabels,
-                                                        )}
-                                                        tone={leadStatusTone(
-                                                            row.status,
-                                                        )}
-                                                    />
-                                                ) : (
-                                                    '—'
-                                                ),
-                                        },
-                                        {
-                                            id: 'expires',
-                                            header: t.expires,
-                                            cell: (row) =>
-                                                row.expires_at
-                                                    ? new Date(
-                                                          row.expires_at,
-                                                      ).toLocaleString(
-                                                          app.locale,
-                                                      )
-                                                    : '—',
-                                        },
-                                        {
-                                            id: 'actions',
-                                            header: common.actions,
-                                            cell: (row) => (
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    onClick={() =>
-                                                        cancelInvitation(
-                                                            row.id,
-                                                        )
-                                                    }
-                                                >
-                                                    {t.invite_cancel}
-                                                </Button>
-                                            ),
-                                        },
-                                    ]}
-                                />
-                            )}
-                        </section>
-                    </div>
+                                ),
+                            },
+                        ]}
+                    />
                 )}
-            </Tabs>
+            </section>
+        </div>
+    );
+
+    const pageTitle = t.title;
+    const pageSubtitle = t.subtitle;
+
+    return (
+        <AppLayout title={pageTitle} subtitle={pageSubtitle}>
+            <Head title={pageTitle} />
+
+            {tabItems.length > 1 ? (
+                <Tabs
+                    items={tabItems}
+                    value={activeTab}
+                    onChange={changeTab}
+                    className="space-y-3"
+                >
+                    {activeTab === 'staff' && staffTable}
+                    {activeTab === 'invite' && inviteSection}
+                </Tabs>
+            ) : (
+                staffTable
+            )}
 
             <Modal
                 open={editingMember != null}

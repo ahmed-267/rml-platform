@@ -27,7 +27,10 @@ class ApprovalController extends Controller
             403,
         );
 
-        return redirect()->route('admin.sellers.index', ['approval_status' => 'pending']);
+        return redirect()->route('admin.users.index', [
+            'tab' => 'sellers',
+            'approval_status' => 'pending',
+        ]);
     }
 
     public function approve(Request $request, User $user): RedirectResponse

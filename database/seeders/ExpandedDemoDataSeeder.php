@@ -101,8 +101,8 @@ class ExpandedDemoDataSeeder extends Seeder
         $pricing = new LeadPricingService;
         $auditLog = new AuditLogService;
 
-        $greenEnergy = Company::query()->where('name', 'Green Energy Spain')->firstOrFail();
-        $warmHomes = Company::query()->where('name', 'Warm Homes Spain')->firstOrFail();
+        $greenEnergy = Company::query()->where('name', 'Verde Energía Madrid SL')->firstOrFail();
+        $warmHomes = Company::query()->where('name', 'CalorHogar Instalaciones SL')->firstOrFail();
 
         $iberiaSurveys = $this->company('Iberia Home Surveys', CompanyType::Seller, 'Barcelona', '08002', $admin);
         $ecoCasa = $this->company('EcoCasa Leads', CompanyType::Seller, 'Valencia', '46002', $admin);
@@ -137,7 +137,7 @@ class ExpandedDemoDataSeeder extends Seeder
         $sellerPool = [
             ['user' => $sellerAdmin, 'company' => $greenEnergy],
             ['user' => $sellerStaff, 'company' => $greenEnergy],
-            ['user' => $agent, 'company' => Company::query()->where('name', 'J. Smith Surveys')->firstOrFail()],
+            ['user' => $agent, 'company' => Company::query()->where('name', 'Javier Morales EPC Surveys')->firstOrFail()],
             ...array_map(fn (array $row) => [
                 'user' => $row['user'],
                 'company' => $row['company'],
@@ -809,6 +809,11 @@ class ExpandedDemoDataSeeder extends Seeder
                 'visibility' => EvidenceVisibility::Private,
                 'status' => EvidenceStatus::Uploaded,
             ],
+        );
+        \App\Support\EvidencePlaceholderStorage::ensurePath(
+            'evidence/'.$lead->lead_reference.'/photo.jpg',
+            'local',
+            'image/jpeg',
         );
 
         $this->seedSchemeMetrics($lead, $scheme, $size, $zone?->code);

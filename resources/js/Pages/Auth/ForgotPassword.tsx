@@ -20,7 +20,11 @@ export default function ForgotPassword({ status }: { status?: string }) {
     };
 
     return (
-        <AuthLayout title={t.forgot_title} subtitle={t.forgot_subtitle}>
+        <AuthLayout
+            title={t.forgot_title}
+            subtitle={t.forgot_subtitle}
+            backHref={route('login')}
+        >
             <Head title={t.forgot_title} />
 
             {status && (

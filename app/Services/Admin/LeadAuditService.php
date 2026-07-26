@@ -77,19 +77,28 @@ class LeadAuditService
     {
         $calc = $this->leadPricingService->calculate($lead);
 
+        $suggestedBuying = $lead->buying_price !== null
+            ? (float) $lead->buying_price
+            : $this->leadPricingService->suggestedSellerPayout($lead);
+        $suggestedSelling = $lead->selling_price !== null
+            ? (float) $lead->selling_price
+            : $calc['selling_price'];
+
         return [
             'suggested_selling_price' => $calc['selling_price'],
+            'suggested_buying_price' => $this->leadPricingService->suggestedSellerPayout($lead),
+            'seller_payout_per_m2' => LeadPricingService::SELLER_PAYOUT_PER_M2,
             'price_per_m2' => $calc['price_per_m2'],
             'size_m2' => $calc['size_m2'],
             'zone_code' => $calc['zone_code'],
             'formula' => $calc['formula'],
-            'buying_price' => $lead->buying_price !== null ? (float) $lead->buying_price : null,
-            'selling_price' => $lead->selling_price !== null ? (float) $lead->selling_price : $calc['selling_price'],
+            'buying_price' => $suggestedBuying,
+            'selling_price' => $suggestedSelling,
             'expected_margin' => $lead->expected_margin !== null
                 ? (float) $lead->expected_margin
                 : (
-                    $calc['selling_price'] !== null && $lead->buying_price !== null
-                        ? round((float) $calc['selling_price'] - (float) $lead->buying_price, 2)
+                    $suggestedSelling !== null && $suggestedBuying !== null
+                        ? round((float) $suggestedSelling - (float) $suggestedBuying, 2)
                         : null
                 ),
         ];
@@ -272,16 +281,19 @@ class LeadAuditService
     {
         $preview = $this->pricingPreview($lead);
         $suggested = $preview['suggested_selling_price'];
+        $suggestedBuying = $preview['suggested_buying_price'] ?? $this->leadPricingService->suggestedSellerPayout($lead);
         $buying = array_key_exists('buying_price', $data) && $data['buying_price'] !== null && $data['buying_price'] !== ''
             ? (float) $data['buying_price']
-            : ($lead->buying_price !== null ? (float) $lead->buying_price : ($suggested !== null ? round($suggested * 0.7, 2) : null));
+            : ($lead->buying_price !== null
+                ? (float) $lead->buying_price
+                : ($suggestedBuying !== null ? (float) $suggestedBuying : null));
         $selling = array_key_exists('selling_price', $data) && $data['selling_price'] !== null && $data['selling_price'] !== ''
             ? (float) $data['selling_price']
             : ($suggested !== null ? (float) $suggested : ($lead->selling_price !== null ? (float) $lead->selling_price : null));
 
         $overrideReason = isset($data['override_reason']) ? trim((string) $data['override_reason']) : null;
         $isOverride = ($suggested !== null && $selling !== null && abs($selling - (float) $suggested) > 0.009)
-            || ($buying !== null && $lead->buying_price !== null && abs($buying - (float) $lead->buying_price) > 0.009);
+            || ($suggestedBuying !== null && $buying !== null && abs($buying - (float) $suggestedBuying) > 0.009);
 
         if ($isOverride) {
             if (! $actor->can(Permissions::OVERRIDE_PRICING) && ! $actor->hasRole(UserRole::SuperAdmin->value)) {

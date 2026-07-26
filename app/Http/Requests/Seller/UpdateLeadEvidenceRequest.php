@@ -29,6 +29,19 @@ class UpdateLeadEvidenceRequest extends FormRequest
     }
 
     /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'evidence_photos' => __('rml.seller.leads.evidence_photos'),
+            'evidence_video' => __('rml.seller.leads.evidence_video'),
+            'evidence_agreement' => __('rml.seller.leads.evidence_agreement'),
+            'evidence_eligibility' => __('rml.seller.leads.evidence_eligibility'),
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function uploadedEvidence(): array

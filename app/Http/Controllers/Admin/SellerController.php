@@ -35,6 +35,14 @@ class SellerController extends Controller
             403,
         );
 
+        return Inertia::render('Admin/Sellers/Index', $this->indexProps($request));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function indexProps(Request $request): array
+    {
         $query = User::query()
             ->with(['sellerProfile.company', 'roles'])
             ->whereHas('roles', fn ($q) => $q->whereIn('name', [
@@ -57,9 +65,9 @@ class SellerController extends Controller
         if ($request->filled('search')) {
             $search = '%'.$request->string('search')->toString().'%';
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', $search)
-                    ->orWhere('email', 'like', $search)
-                    ->orWhereHas('sellerProfile.company', fn ($cq) => $cq->where('name', 'like', $search));
+                $q->where('name', 'ilike', $search)
+                    ->orWhere('email', 'ilike', $search)
+                    ->orWhereHas('sellerProfile.company', fn ($cq) => $cq->where('name', 'ilike', $search));
             });
         }
 
@@ -83,7 +91,7 @@ class SellerController extends Controller
             ->withQueryString()
             ->through(fn (User $user) => $this->transformListRow($user));
 
-        return Inertia::render('Admin/Sellers/Index', [
+        return [
             'sellers' => $sellers,
             'filters' => [
                 'approval_status' => $request->input('approval_status'),
@@ -101,7 +109,7 @@ class SellerController extends Controller
                     UserRole::IndividualSellerAgent->value,
                 ],
             ],
-        ]);
+        ];
     }
 
     public function show(Request $request, User $user): Response

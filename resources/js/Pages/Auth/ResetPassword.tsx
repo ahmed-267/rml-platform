@@ -31,7 +31,11 @@ export default function ResetPassword({
     };
 
     return (
-        <AuthLayout title={t.reset_title} subtitle={t.reset_subtitle}>
+        <AuthLayout
+            title={t.reset_title}
+            subtitle={t.reset_subtitle}
+            backHref={route('login')}
+        >
             <Head title={t.reset_title} />
 
             <form onSubmit={submit} className="space-y-4">

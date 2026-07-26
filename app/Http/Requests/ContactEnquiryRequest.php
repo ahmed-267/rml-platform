@@ -24,4 +24,18 @@ class ContactEnquiryRequest extends FormRequest
             'message' => ['required', 'string', 'max:2000'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'name' => __('rml.landing.contact_name'),
+            'email' => __('rml.landing.contact_email'),
+            'enquiry_type' => __('rml.landing.contact_type'),
+            'subject' => __('rml.landing.contact_subject'),
+            'message' => __('rml.landing.contact_message'),
+        ];
+    }
 }

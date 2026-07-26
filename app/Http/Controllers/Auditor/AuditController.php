@@ -25,77 +25,40 @@ use Inertia\Response;
 
 class AuditController extends Controller
 {
+    public const TAB_MY_AUDITS = 'my-audits';
+
+    public const TAB_AUDIT_QUEUE = 'audit-queue';
+
+    public const TAB_COMPLETED = 'completed';
+
     public function __construct(
         private readonly AuditWorkflowService $workflow,
     ) {}
 
     public function index(Request $request): Response
     {
-        $query = $this->workflow->assignedAuditsQuery($request->user())
-            ->whereIn('status', [
-                AuditDecisionStatus::Pending->value,
-                AuditDecisionStatus::InReview->value,
-            ]);
+        $tab = $this->resolveTab($request->input('tab'));
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->string('status')->toString());
-        }
+        $audits = match ($tab) {
+            self::TAB_MY_AUDITS => $this->paginateMyAudits($request),
+            self::TAB_COMPLETED => $this->paginateCompleted($request),
+            default => $this->paginateAuditQueue($request),
+        };
 
-        if ($request->filled('scheme_id')) {
-            $query->whereHas('lead', fn ($q) => $q->where('scheme_id', $request->integer('scheme_id')));
-        }
-
-        if ($request->filled('zone_id')) {
-            $query->whereHas('lead', fn ($q) => $q->where('zone_id', $request->integer('zone_id')));
-        }
-
-        if ($request->filled('evidence')) {
-            if ($request->string('evidence')->toString() === 'missing') {
-                $query->whereHas('lead', fn ($q) => $q->whereDoesntHave('evidenceFiles'));
-            } elseif ($request->string('evidence')->toString() === 'available') {
-                $query->whereHas('lead', fn ($q) => $q->whereHas('evidenceFiles'));
-            }
-        }
-
-        if ($request->filled('search')) {
-            $search = '%'.$request->string('search')->toString().'%';
-            $query->whereHas('lead', fn ($q) => $q->where('lead_reference', 'like', $search));
-        }
-
-        $sortState = ListSort::apply(
-            $query,
-            $request,
-            $this->sortColumns(),
-            'date',
-            'desc',
-        );
-        $perPage = ListPagination::perPage($request);
-
-        $audits = $query
-            ->paginate($perPage)
-            ->withQueryString()
-            ->through(fn (LeadAudit $audit) => AuditorLeadPresenter::listRow($audit->lead, $audit));
+        $sortState = $audits['sort'];
+        $perPage = $audits['per_page'];
 
         return Inertia::render('Auditor/Audits/Index', [
-            'audits' => $audits,
-            'filters' => [
-                'status' => $request->input('status'),
-                'scheme_id' => $request->input('scheme_id'),
-                'zone_id' => $request->input('zone_id'),
-                'evidence' => $request->input('evidence'),
-                'search' => $request->input('search'),
+            'tab' => $tab,
+            'tabCounts' => $this->tabCounts($request),
+            'audits' => $audits['paginator'],
+            'filters' => array_merge($audits['filters'], [
+                'tab' => $tab,
                 'sort' => $sortState['sort'],
                 'direction' => $sortState['direction'],
                 'per_page' => $perPage,
-            ],
-            'filterOptions' => [
-                'statuses' => [
-                    AuditDecisionStatus::Pending->value,
-                    AuditDecisionStatus::InReview->value,
-                ],
-                'schemes' => Scheme::query()->where('active', true)->orderBy('sort_order')->get(['id', 'name']),
-                'zones' => Zone::query()->where('active', true)->orderBy('sort_order')->get(['id', 'code', 'name']),
-            ],
+            ]),
+            'filterOptions' => $audits['filterOptions'],
         ]);
     }
 
@@ -147,7 +110,7 @@ class AuditController extends Controller
         $this->workflow->recommendAccept($request->user(), $lead, $request->validated());
 
         return redirect()
-            ->route('auditor.completed-audits.index')
+            ->route('auditor.audits.index', ['tab' => self::TAB_COMPLETED])
             ->with('success', __('rml.auditor.audit.recommend_accept_flash'));
     }
 
@@ -156,7 +119,7 @@ class AuditController extends Controller
         $this->workflow->recommendReject($request->user(), $lead, $request->validated());
 
         return redirect()
-            ->route('auditor.completed-audits.index')
+            ->route('auditor.audits.index', ['tab' => self::TAB_COMPLETED])
             ->with('success', __('rml.auditor.audit.recommend_reject_flash'));
     }
 
@@ -165,8 +128,244 @@ class AuditController extends Controller
         $this->workflow->requestMoreInformation($request->user(), $lead, $request->validated());
 
         return redirect()
-            ->route('auditor.assigned-audits.index')
+            ->route('auditor.audits.index', ['tab' => self::TAB_MY_AUDITS])
             ->with('success', __('rml.auditor.audit.request_info_flash'));
+    }
+
+    private function resolveTab(mixed $tab): string
+    {
+        $value = is_string($tab) ? $tab : self::TAB_AUDIT_QUEUE;
+
+        return in_array($value, [
+            self::TAB_MY_AUDITS,
+            self::TAB_AUDIT_QUEUE,
+            self::TAB_COMPLETED,
+        ], true) ? $value : self::TAB_AUDIT_QUEUE;
+    }
+
+    /**
+     * @return array{paginator: mixed, filters: array<string, mixed>, filterOptions: array<string, mixed>, sort: array{sort: string, direction: string}, per_page: int}
+     */
+    private function paginateMyAudits(Request $request): array
+    {
+        $query = $this->workflow->assignedAuditsQuery($request->user())
+            ->whereIn('status', [
+                AuditDecisionStatus::Pending->value,
+                AuditDecisionStatus::InReview->value,
+                AuditDecisionStatus::NeedsMoreInformation->value,
+            ]);
+
+        $this->applyActiveFilters($query, $request);
+
+        $sortState = ListSort::apply($query, $request, $this->sortColumns(), 'date', 'desc');
+        $perPage = ListPagination::perPage($request);
+
+        $paginator = $query
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(fn (LeadAudit $audit) => AuditorLeadPresenter::listRow($audit->lead, $audit));
+
+        return [
+            'paginator' => $paginator,
+            'filters' => [
+                'status' => $request->input('status'),
+                'scheme_id' => $request->input('scheme_id'),
+                'zone_id' => $request->input('zone_id'),
+                'evidence' => $request->input('evidence'),
+                'search' => $request->input('search'),
+            ],
+            'filterOptions' => [
+                'statuses' => [
+                    AuditDecisionStatus::Pending->value,
+                    AuditDecisionStatus::InReview->value,
+                    AuditDecisionStatus::NeedsMoreInformation->value,
+                ],
+                'schemes' => $this->schemeOptions(),
+                'zones' => $this->zoneOptions(),
+            ],
+            'sort' => $sortState,
+            'per_page' => $perPage,
+        ];
+    }
+
+    /**
+     * @return array{paginator: mixed, filters: array<string, mixed>, filterOptions: array<string, mixed>, sort: array{sort: string, direction: string}, per_page: int}
+     */
+    private function paginateAuditQueue(Request $request): array
+    {
+        $query = $this->workflow->assignedAuditsQuery($request->user())
+            ->whereIn('status', [
+                AuditDecisionStatus::Pending->value,
+                AuditDecisionStatus::InReview->value,
+            ]);
+
+        $this->applyActiveFilters($query, $request);
+
+        $sortState = ListSort::apply($query, $request, $this->sortColumns(), 'date', 'desc');
+        $perPage = ListPagination::perPage($request);
+
+        $paginator = $query
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(fn (LeadAudit $audit) => AuditorLeadPresenter::listRow($audit->lead, $audit));
+
+        return [
+            'paginator' => $paginator,
+            'filters' => [
+                'status' => $request->input('status'),
+                'scheme_id' => $request->input('scheme_id'),
+                'zone_id' => $request->input('zone_id'),
+                'evidence' => $request->input('evidence'),
+                'search' => $request->input('search'),
+            ],
+            'filterOptions' => [
+                'statuses' => [
+                    AuditDecisionStatus::Pending->value,
+                    AuditDecisionStatus::InReview->value,
+                ],
+                'schemes' => $this->schemeOptions(),
+                'zones' => $this->zoneOptions(),
+            ],
+            'sort' => $sortState,
+            'per_page' => $perPage,
+        ];
+    }
+
+    /**
+     * @return array{paginator: mixed, filters: array<string, mixed>, filterOptions: array<string, mixed>, sort: array{sort: string, direction: string}, per_page: int}
+     */
+    private function paginateCompleted(Request $request): array
+    {
+        $query = $this->workflow->assignedAuditsQuery($request->user())
+            ->whereIn('status', [
+                AuditDecisionStatus::RecommendedAccept->value,
+                AuditDecisionStatus::RecommendedReject->value,
+                AuditDecisionStatus::Accepted->value,
+                AuditDecisionStatus::Rejected->value,
+                AuditDecisionStatus::NeedsMoreInformation->value,
+            ])
+            ->whereNotNull('completed_at');
+
+        if ($request->filled('recommendation')) {
+            $query->where('status', $request->string('recommendation')->toString());
+        }
+
+        if ($request->filled('scheme_id')) {
+            $query->whereHas('lead', fn ($q) => $q->where('scheme_id', $request->integer('scheme_id')));
+        }
+
+        if ($request->filled('zone_id')) {
+            $query->whereHas('lead', fn ($q) => $q->where('zone_id', $request->integer('zone_id')));
+        }
+
+        if ($request->filled('search')) {
+            $search = '%'.$request->string('search')->toString().'%';
+            $query->whereHas('lead', fn ($q) => $q->where('lead_reference', 'ilike', $search));
+        }
+
+        $sortState = ListSort::apply($query, $request, $this->completedSortColumns(), 'date', 'desc');
+        $perPage = ListPagination::perPage($request);
+
+        $paginator = $query
+            ->paginate($perPage)
+            ->withQueryString()
+            ->through(fn (LeadAudit $audit) => [
+                ...AuditorLeadPresenter::listRow($audit->lead, $audit),
+                'recommendation' => $audit->status?->value,
+                'final_decision' => in_array($audit->status?->value, [
+                    AuditDecisionStatus::Accepted->value,
+                    AuditDecisionStatus::Rejected->value,
+                ], true) ? $audit->status?->value : null,
+                'completed_at' => $audit->completed_at?->toIso8601String(),
+            ]);
+
+        return [
+            'paginator' => $paginator,
+            'filters' => [
+                'recommendation' => $request->input('recommendation'),
+                'scheme_id' => $request->input('scheme_id'),
+                'zone_id' => $request->input('zone_id'),
+                'search' => $request->input('search'),
+            ],
+            'filterOptions' => [
+                'recommendations' => [
+                    AuditDecisionStatus::RecommendedAccept->value,
+                    AuditDecisionStatus::RecommendedReject->value,
+                    AuditDecisionStatus::NeedsMoreInformation->value,
+                    AuditDecisionStatus::Accepted->value,
+                    AuditDecisionStatus::Rejected->value,
+                ],
+                'schemes' => $this->schemeOptions(),
+                'zones' => $this->zoneOptions(),
+            ],
+            'sort' => $sortState,
+            'per_page' => $perPage,
+        ];
+    }
+
+    /**
+     * @return array{my-audits: int, audit-queue: int, completed: int}
+     */
+    private function tabCounts(Request $request): array
+    {
+        $base = $this->workflow->assignedAuditsQuery($request->user());
+
+        return [
+            self::TAB_MY_AUDITS => (clone $base)->whereIn('status', [
+                AuditDecisionStatus::Pending->value,
+                AuditDecisionStatus::InReview->value,
+                AuditDecisionStatus::NeedsMoreInformation->value,
+            ])->count(),
+            self::TAB_AUDIT_QUEUE => (clone $base)->whereIn('status', [
+                AuditDecisionStatus::Pending->value,
+                AuditDecisionStatus::InReview->value,
+            ])->count(),
+            self::TAB_COMPLETED => (clone $base)->whereIn('status', [
+                AuditDecisionStatus::RecommendedAccept->value,
+                AuditDecisionStatus::RecommendedReject->value,
+                AuditDecisionStatus::Accepted->value,
+                AuditDecisionStatus::Rejected->value,
+                AuditDecisionStatus::NeedsMoreInformation->value,
+            ])->whereNotNull('completed_at')->count(),
+        ];
+    }
+
+    private function applyActiveFilters(Builder $query, Request $request): void
+    {
+        if ($request->filled('status')) {
+            $query->where('status', $request->string('status')->toString());
+        }
+
+        if ($request->filled('scheme_id')) {
+            $query->whereHas('lead', fn ($q) => $q->where('scheme_id', $request->integer('scheme_id')));
+        }
+
+        if ($request->filled('zone_id')) {
+            $query->whereHas('lead', fn ($q) => $q->where('zone_id', $request->integer('zone_id')));
+        }
+
+        if ($request->filled('evidence')) {
+            if ($request->string('evidence')->toString() === 'missing') {
+                $query->whereHas('lead', fn ($q) => $q->whereDoesntHave('evidenceFiles'));
+            } elseif ($request->string('evidence')->toString() === 'available') {
+                $query->whereHas('lead', fn ($q) => $q->whereHas('evidenceFiles'));
+            }
+        }
+
+        if ($request->filled('search')) {
+            $search = '%'.$request->string('search')->toString().'%';
+            $query->whereHas('lead', fn ($q) => $q->where('lead_reference', 'ilike', $search));
+        }
+    }
+
+    private function schemeOptions()
+    {
+        return Scheme::query()->where('active', true)->orderBy('sort_order')->get(['id', 'name']);
+    }
+
+    private function zoneOptions()
+    {
+        return Zone::query()->where('active', true)->orderBy('sort_order')->get(['id', 'code', 'name']);
     }
 
     /**
@@ -206,6 +405,17 @@ class AuditController extends Controller
                     ->limit(1),
                 $direction,
             ),
+        ];
+    }
+
+    /**
+     * @return array<string, string|\Closure(Builder, string): void>
+     */
+    private function completedSortColumns(): array
+    {
+        return [
+            ...$this->sortColumns(),
+            'date' => 'completed_at',
         ];
     }
 }

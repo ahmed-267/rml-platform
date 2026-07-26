@@ -1,8 +1,14 @@
-import { FormEvent } from 'react';
+import { FormEvent, useState } from 'react';
 import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
-import { Button, FormInput, StatusBadge } from '@/Components/ui';
+import { Button, FormInput, Select, StatusBadge } from '@/Components/ui';
+import { useScrollToFirstError } from '@/hooks/use-scroll-to-first-error';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
+import {
+    phoneErrorMessage,
+    phoneMessagesFromTranslations,
+    sanitizePhoneInput,
+} from '@/lib/phone';
 import type { PageProps } from '@/types';
 
 interface SellerProfileProps {
@@ -21,6 +27,12 @@ interface SellerProfileProps {
     payout_method: string | null;
 }
 
+const LOCALE_OPTIONS = [
+    { value: 'en', label: '🇬🇧 English' },
+    { value: 'es', label: '🇪🇸 Español' },
+    { value: 'fr', label: '🇫🇷 Français' },
+];
+
 export default function SellerProfile({
     profile,
 }: {
@@ -32,6 +44,21 @@ export default function SellerProfile({
     const staff = translations.seller.staff;
     const statuses = translations.statuses;
     const roles = translations.roles;
+
+    const isCompanyAdmin = profile.role === 'seller_company_admin';
+    const showCompany = isCompanyAdmin && profile.company != null;
+    const [clientErrors, setClientErrors] = useState<Record<string, string>>(
+        {},
+    );
+    const phoneMessages = phoneMessagesFromTranslations(
+        translations.validation,
+        (field) =>
+            (
+                translations.validation?.field_required ??
+                ':field is required.'
+            ).replace(':field', field),
+        t.phone,
+    );
 
     const {
         data,
@@ -47,8 +74,21 @@ export default function SellerProfile({
         locale: profile.locale ?? 'en',
     });
 
+    const fieldError = (key: string) =>
+        clientErrors[key] ?? (errors as Record<string, string | undefined>)[key];
+
+    useScrollToFirstError({ ...clientErrors, ...errors });
+
     const submit = (event: FormEvent) => {
         event.preventDefault();
+        const phoneErr = phoneErrorMessage(data.phone, phoneMessages, {
+            required: false,
+        });
+        if (phoneErr) {
+            setClientErrors({ phone: phoneErr });
+            return;
+        }
+        setClientErrors({});
         put(route('seller.profile.update'));
     };
 
@@ -104,7 +144,10 @@ export default function SellerProfile({
                     )}
                 </dl>
 
-                <form onSubmit={submit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <form
+                    onSubmit={submit}
+                    className="grid grid-cols-1 gap-4 sm:grid-cols-2"
+                >
                     <FormInput
                         label={t.name}
                         name="name"
@@ -125,15 +168,41 @@ export default function SellerProfile({
                     <FormInput
                         label={t.phone}
                         name="phone"
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
                         value={data.phone}
-                        error={errors.phone}
-                        onChange={(e) => setData('phone', e.target.value)}
+                        error={fieldError('phone')}
+                        hint={
+                            fieldError('phone')
+                                ? undefined
+                                : translations.validation?.phone_length
+                        }
+                        onChange={(e) => {
+                            const value = sanitizePhoneInput(e.target.value);
+                            setData('phone', value);
+                            const msg = phoneErrorMessage(
+                                value,
+                                phoneMessages,
+                                { required: false },
+                            );
+                            setClientErrors((prev) => {
+                                const next = { ...prev };
+                                if (msg) {
+                                    next.phone = msg;
+                                } else {
+                                    delete next.phone;
+                                }
+                                return next;
+                            });
+                        }}
                     />
-                    <FormInput
+                    <Select
                         label={translations.common.language}
                         name="locale"
                         value={data.locale}
                         error={errors.locale}
+                        options={LOCALE_OPTIONS}
                         onChange={(e) => setData('locale', e.target.value)}
                     />
                     <div className="flex items-center gap-3 sm:col-span-2">
@@ -147,18 +216,20 @@ export default function SellerProfile({
                 </form>
             </section>
 
-            <section className="rml-card space-y-4 p-5 sm:p-6">
-                <h2 className="text-base font-semibold text-rml-text">
-                    {t.company}
-                </h2>
-                <FormInput
-                    label={t.company_name}
-                    name="company_name"
-                    value={profile.company?.name ?? ''}
-                    disabled
-                    hint={t.readonly_company}
-                />
-            </section>
+            {showCompany && (
+                <section className="rml-card space-y-4 p-5 sm:p-6">
+                    <h2 className="text-base font-semibold text-rml-text">
+                        {t.company}
+                    </h2>
+                    <FormInput
+                        label={t.company_name}
+                        name="company_name"
+                        value={profile.company?.name ?? ''}
+                        disabled
+                        hint={t.readonly_company}
+                    />
+                </section>
+            )}
 
             <section className="rml-card space-y-4 p-5 sm:p-6">
                 <h2 className="text-base font-semibold text-rml-text">

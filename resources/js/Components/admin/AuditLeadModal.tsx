@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { router, useForm, usePage } from '@inertiajs/react';
 import {
     AuditChecklist,
@@ -6,8 +6,14 @@ import {
     Drawer,
     FormInput,
     Modal,
+    TableActionButton,
+    TableActionLink,
+    TableActions,
     Textarea,
+    tableActionIcons,
+    Select,
 } from '@/Components/ui';
+import { cn } from '@/lib/cn';
 import { useIsMobile } from '@/hooks/use-media-query';
 import { formatDate, formatMoney } from '@/lib/admin-helpers';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
@@ -23,6 +29,8 @@ export interface AuditChecklistItemPayload {
 
 export interface AuditPricingPayload {
     suggested_selling_price: number | null;
+    suggested_buying_price?: number | null;
+    seller_payout_per_m2?: number | null;
     price_per_m2: number | null;
     size_m2: number | null;
     zone_code: string | null;
@@ -67,10 +75,20 @@ export interface AuditLeadPayload {
     submitted_at?: string | null;
 }
 
+export interface AuditAuditorOption {
+    id: number;
+    name: string;
+    email: string;
+    active_assigned_count: number;
+}
+
 export interface AuditPayload {
     checklist: AuditChecklistItemPayload[];
     pricing: AuditPricingPayload;
     lead: AuditLeadPayload;
+    assigned_auditor_id?: number | null;
+    can_assign_auditor?: boolean;
+    auditors?: AuditAuditorOption[];
 }
 
 export interface AuditLeadModalProps {
@@ -82,6 +100,58 @@ export interface AuditLeadModalProps {
 }
 
 type DecisionMode = 'accept' | 'reject' | 'request_info' | null;
+
+function AuditPanel({
+    title,
+    description,
+    children,
+    className,
+}: {
+    title: string;
+    description?: string;
+    children: ReactNode;
+    className?: string;
+}) {
+    return (
+        <section
+            className={cn(
+                'rounded-2xl border border-rml-border bg-rml-background/60 p-4 sm:p-5',
+                className,
+            )}
+        >
+            <header className="mb-4 space-y-1">
+                <h3 className="text-sm font-semibold tracking-tight text-rml-text">
+                    {title}
+                </h3>
+                {description ? (
+                    <p className="text-xs text-rml-muted">{description}</p>
+                ) : null}
+            </header>
+            <div className="space-y-3">{children}</div>
+        </section>
+    );
+}
+
+function AuditField({
+    label,
+    children,
+    className,
+}: {
+    label: string;
+    children: ReactNode;
+    className?: string;
+}) {
+    return (
+        <div className={cn('min-w-0', className)}>
+            <dt className="text-xs font-medium uppercase tracking-wide text-rml-muted">
+                {label}
+            </dt>
+            <dd className="mt-1 text-sm font-medium text-rml-text">
+                {children}
+            </dd>
+        </div>
+    );
+}
 
 function Shell({
     open,
@@ -159,6 +229,16 @@ export function AuditLeadModal({
     const common = translations.admin.common;
     const leadStatuses = translations.lead_statuses;
     const isMobile = useIsMobile();
+    const checklistSectionRef = useRef<HTMLDivElement | null>(null);
+    const pricingSectionRef = useRef<HTMLDivElement | null>(null);
+    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+    const scrollToSection = (ref: { current: HTMLDivElement | null }) => {
+        const node = ref.current;
+        if (!node) return;
+        node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
 
     const [decision, setDecision] = useState<DecisionMode>(null);
     const [checklistState, setChecklistState] = useState<
@@ -172,6 +252,8 @@ export function AuditLeadModal({
     );
     const [loadingAudit, setLoadingAudit] = useState(false);
     const [loadError, setLoadError] = useState<string | null>(null);
+    const [selectedAuditorId, setSelectedAuditorId] = useState<string>('');
+    const [assigning, setAssigning] = useState(false);
 
     const { data, setData, errors, reset, clearErrors } = useForm({
         audit_notes: '',
@@ -255,6 +337,18 @@ export function AuditLeadModal({
     }, [open, audit, leadId]);
 
     useEffect(() => {
+        if (!loadedAudit) {
+            setSelectedAuditorId('');
+            return;
+        }
+        setSelectedAuditorId(
+            loadedAudit.assigned_auditor_id
+                ? String(loadedAudit.assigned_auditor_id)
+                : '',
+        );
+    }, [loadedAudit]);
+
+    useEffect(() => {
         if (!loadedAudit || !open) {
             return;
         }
@@ -310,6 +404,35 @@ export function AuditLeadModal({
         );
     }, [loadedAudit, checklistState]);
 
+    const requiredChecklistComplete = useMemo(() => {
+        if (!loadedAudit || loadedAudit.checklist.length === 0) {
+            return true;
+        }
+        const required = loadedAudit.checklist.filter((item) => item.required);
+        const items = required.length > 0 ? required : loadedAudit.checklist;
+        return items.every((item) => checklistState[String(item.id)]);
+    }, [loadedAudit, checklistState]);
+
+    const pricingComplete = useMemo(() => {
+        const buy = String(data.buying_price ?? '').trim();
+        const sell = String(data.selling_price ?? '').trim();
+        return buy !== '' && sell !== '' && Number(buy) >= 0 && Number(sell) > 0;
+    }, [data.buying_price, data.selling_price]);
+
+    const canAcceptLead = requiredChecklistComplete && pricingComplete;
+
+    const leadStatus = loadedAudit?.lead?.status ?? null;
+    const canRejectLead =
+        leadStatus !== 'sold' &&
+        leadStatus !== 'cancelled' &&
+        leadStatus !== 'listed';
+    const canRequestInfoLead =
+        leadStatus !== 'sold' && leadStatus !== 'cancelled';
+    // Rejected leads can still be rejected again (update reason) or accepted.
+    const showRejectAction = canRejectLead || leadStatus === 'rejected';
+    const showAcceptAction =
+        leadStatus !== 'sold' && leadStatus !== 'cancelled';
+
     const checkedCount = useMemo(
         () => Object.values(checklistState).filter(Boolean).length,
         [checklistState],
@@ -330,6 +453,16 @@ export function AuditLeadModal({
         setChecklistError(null);
     };
 
+    const handleCheckAll = (checked: boolean) => {
+        if (!loadedAudit) return;
+        const next = Object.fromEntries(
+            loadedAudit.checklist.map((item) => [String(item.id), checked]),
+        );
+        setChecklistState(next);
+        setData('checklist', buildChecklistPayload(next));
+        setChecklistError(null);
+    };
+
     const finishSuccess = () => {
         setSubmitting(false);
         reset();
@@ -341,9 +474,16 @@ export function AuditLeadModal({
     const submitAccept = (event?: FormEvent) => {
         event?.preventDefault();
 
-        if (!checklistComplete) {
+        if (!requiredChecklistComplete) {
             setChecklistError(t.checklist_incomplete);
             setDecision(null);
+            scrollToSection(checklistSectionRef);
+            return;
+        }
+        if (!pricingComplete) {
+            setChecklistError(t.sections_incomplete ?? t.checklist_incomplete);
+            setDecision(null);
+            scrollToSection(pricingSectionRef);
             return;
         }
 
@@ -365,9 +505,11 @@ export function AuditLeadModal({
                     setSubmitting(false);
                     if (formErrors.checklist) {
                         setChecklistError(formErrors.checklist);
+                        scrollToSection(checklistSectionRef);
                     }
-                    if (formErrors.override_reason) {
+                    if (formErrors.buying_price || formErrors.selling_price || formErrors.override_reason) {
                         setDecision('accept');
+                        scrollToSection(pricingSectionRef);
                     }
                 },
                 onFinish: () => setSubmitting(false),
@@ -417,6 +559,32 @@ export function AuditLeadModal({
         );
     };
 
+    const submitAssignAuditor = (event: FormEvent) => {
+        event.preventDefault();
+        if (!selectedAuditorId) {
+            return;
+        }
+        setAssigning(true);
+        router.post(
+            route('admin.leads.audit.assign', leadId),
+            { auditor_user_id: Number(selectedAuditorId) },
+            {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setLoadedAudit((prev) =>
+                        prev
+                            ? {
+                                  ...prev,
+                                  assigned_auditor_id: Number(selectedAuditorId),
+                              }
+                            : prev,
+                    );
+                },
+                onFinish: () => setAssigning(false),
+            },
+        );
+    };
+
     const lead = loadedAudit?.lead;
     const pricing = loadedAudit?.pricing;
     const ready = !loadingAudit && !!loadedAudit && !!lead;
@@ -424,8 +592,15 @@ export function AuditLeadModal({
     const footer = (
         <div className="flex w-full flex-col gap-3">
             {decision === 'accept' && ready && (
-                <form onSubmit={submitAccept} className="space-y-2">
-                    <p className="text-sm text-rml-text">{t.accept_confirm}</p>
+                <form onSubmit={submitAccept} className="space-y-3 rounded-xl border border-rml-primary/30 bg-rml-primary-light/40 p-3">
+                    <div className="space-y-1">
+                        <p className="text-sm font-semibold text-rml-text">
+                            {t.accept_confirm}
+                        </p>
+                        <p className="text-sm text-rml-muted">
+                            {t.accept_confirm_body ?? t.accept_confirm}
+                        </p>
+                    </div>
                     <div className="flex flex-wrap justify-end gap-2">
                         <Button
                             type="button"
@@ -437,9 +612,9 @@ export function AuditLeadModal({
                         </Button>
                         <Button
                             type="submit"
-                            disabled={submitting || !checklistComplete}
+                            disabled={submitting || !canAcceptLead}
                         >
-                            {t.accept}
+                            {t.accept_confirm_action ?? t.accept}
                         </Button>
                     </div>
                 </form>
@@ -524,32 +699,47 @@ export function AuditLeadModal({
                     >
                         {common.cancel}
                     </Button>
-                    <Button
-                        variant="outline"
-                        onClick={() => setDecision('request_info')}
-                        disabled={submitting || !ready}
-                    >
-                        {t.request_info}
-                    </Button>
-                    <Button
-                        variant="danger"
-                        onClick={() => setDecision('reject')}
-                        disabled={submitting || !ready}
-                    >
-                        {t.reject}
-                    </Button>
-                    <Button
-                        onClick={() => {
-                            if (!checklistComplete) {
-                                setChecklistError(t.checklist_incomplete);
-                                return;
-                            }
-                            setDecision('accept');
-                        }}
-                        disabled={submitting || !ready}
-                    >
-                        {t.accept}
-                    </Button>
+                    {canRequestInfoLead && (
+                        <Button
+                            variant="outline"
+                            onClick={() => setDecision('request_info')}
+                            disabled={submitting || !ready}
+                        >
+                            {t.request_info}
+                        </Button>
+                    )}
+                    {showRejectAction && (
+                        <Button
+                            variant="danger"
+                            onClick={() => setDecision('reject')}
+                            disabled={submitting || !ready}
+                        >
+                            {t.reject}
+                        </Button>
+                    )}
+                    {showAcceptAction && (
+                        <Button
+                            onClick={() => {
+                                if (!requiredChecklistComplete) {
+                                    setChecklistError(t.checklist_incomplete);
+                                    scrollToSection(checklistSectionRef);
+                                    return;
+                                }
+                                if (!pricingComplete) {
+                                    setChecklistError(
+                                        t.sections_incomplete ??
+                                            t.checklist_incomplete,
+                                    );
+                                    scrollToSection(pricingSectionRef);
+                                    return;
+                                }
+                                setDecision('accept');
+                            }}
+                            disabled={submitting || !ready || !canAcceptLead}
+                        >
+                            {t.accept}
+                        </Button>
+                    )}
                 </div>
             )}
         </div>
@@ -624,13 +814,13 @@ export function AuditLeadModal({
                         </Button>
                     </div>
                 ) : (
-                    <div className="max-h-[65vh] space-y-6 overflow-y-auto pr-1">
-                        <section className="space-y-3">
-                            <h3 className="text-sm font-semibold text-rml-text">
-                                {t.summary}
-                            </h3>
+                    <div
+                        ref={scrollContainerRef}
+                        className="max-h-[65vh] space-y-4 overflow-y-auto py-1 pr-1"
+                    >
+                        <AuditPanel title={t.summary}>
                             <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-mono text-sm font-medium">
+                                <span className="font-mono text-sm font-semibold">
                                     {lead.lead_reference}
                                 </span>
                                 {lead.status && (
@@ -643,155 +833,168 @@ export function AuditLeadModal({
                                     />
                                 )}
                             </div>
-                            <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                                <div>
-                                    <dt className="text-rml-muted">
-                                        {common.scheme}
-                                    </dt>
-                                    <dd>{lead.scheme?.name ?? '—'}</dd>
-                                </div>
-                                <div>
-                                    <dt className="text-rml-muted">
-                                        {common.zone}
-                                    </dt>
-                                    <dd>{lead.zone?.code ?? '—'}</dd>
-                                </div>
-                                <div>
-                                    <dt className="text-rml-muted">
-                                        {common.date}
-                                    </dt>
-                                    <dd>
-                                        {formatDate(
-                                            lead.created_at ??
-                                                lead.submitted_at ??
-                                                null,
-                                            app.locale,
-                                        )}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt className="text-rml-muted">
-                                        {t.buying_price}
-                                    </dt>
-                                    <dd>
-                                        {formatMoney(
-                                            lead.buying_price ??
-                                                pricing?.buying_price,
-                                        )}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt className="text-rml-muted">
-                                        {t.selling_price}
-                                    </dt>
-                                    <dd>
-                                        {formatMoney(
-                                            lead.selling_price ??
-                                                pricing?.selling_price,
-                                        )}
-                                    </dd>
-                                </div>
+                            <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                                <AuditField label={common.scheme}>
+                                    {lead.scheme?.name ?? '—'}
+                                </AuditField>
+                                <AuditField label={common.zone}>
+                                    {lead.zone?.code ?? '—'}
+                                </AuditField>
+                                <AuditField label={common.date}>
+                                    {formatDate(
+                                        lead.created_at ??
+                                            lead.submitted_at ??
+                                            null,
+                                        app.locale,
+                                    )}
+                                </AuditField>
+                                <AuditField
+                                    label={t.seller_payout ?? t.buying_price}
+                                >
+                                    {formatMoney(
+                                        lead.buying_price ??
+                                            pricing?.buying_price,
+                                    )}
+                                </AuditField>
+                                <AuditField label={t.selling_price}>
+                                    {formatMoney(
+                                        lead.selling_price ??
+                                            pricing?.selling_price,
+                                    )}
+                                </AuditField>
                             </dl>
-                        </section>
+                        </AuditPanel>
 
-                        <section className="space-y-3">
-                            <h3 className="text-sm font-semibold text-rml-text">
-                                {t.customer}
-                            </h3>
-                            <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                                <div>
-                                    <dt className="text-rml-muted">
-                                        {common.name}
-                                    </dt>
-                                    <dd>
-                                        {`${lead.customer_first_name} ${lead.customer_last_name}`.trim()}
-                                    </dd>
-                                </div>
-                                <div>
-                                    <dt className="text-rml-muted">
-                                        {common.phone}
-                                    </dt>
-                                    <dd>{lead.customer_phone}</dd>
-                                </div>
-                                <div>
-                                    <dt className="text-rml-muted">
-                                        {common.email}
-                                    </dt>
-                                    <dd>{lead.customer_email ?? '—'}</dd>
-                                </div>
-                                <div className="sm:col-span-2">
-                                    <dt className="text-rml-muted">
-                                        {common.details}
-                                    </dt>
-                                    <dd>
-                                        {[
-                                            lead.address_line_1,
-                                            lead.city,
-                                            lead.postcode,
-                                        ]
-                                            .filter(Boolean)
-                                            .join(', ') || '—'}
-                                    </dd>
-                                </div>
+                        {loadedAudit.can_assign_auditor ? (
+                            <AuditPanel
+                                title={t.assign_auditor ?? 'Assign auditor'}
+                                description={
+                                    t.assign_auditor_hint ??
+                                    'Pick Internal Auditor for this lead.'
+                                }
+                            >
+                                <form
+                                    onSubmit={submitAssignAuditor}
+                                    className="flex flex-col gap-3 sm:flex-row sm:items-end"
+                                >
+                                    <div className="min-w-0 flex-1">
+                                        <Select
+                                            label={t.auditor ?? 'Auditor'}
+                                            value={selectedAuditorId}
+                                            onChange={(e) =>
+                                                setSelectedAuditorId(
+                                                    e.target.value,
+                                                )
+                                            }
+                                            options={[
+                                                {
+                                                    label:
+                                                        t.select_auditor ??
+                                                        'Select auditor',
+                                                    value: '',
+                                                },
+                                                ...(
+                                                    loadedAudit.auditors ?? []
+                                                ).map((auditor) => ({
+                                                    label: `${auditor.name} · ${auditor.email} · ${auditor.active_assigned_count} ${t.active_assigned_short ?? 'active'}`,
+                                                    value: String(auditor.id),
+                                                })),
+                                            ]}
+                                        />
+                                    </div>
+                                    <Button
+                                        type="submit"
+                                        size="sm"
+                                        disabled={
+                                            assigning ||
+                                            !selectedAuditorId ||
+                                            Number(selectedAuditorId) ===
+                                                loadedAudit.assigned_auditor_id
+                                        }
+                                    >
+                                        {t.assign ?? common.save}
+                                    </Button>
+                                </form>
+                            </AuditPanel>
+                        ) : null}
+
+                        <AuditPanel title={t.customer}>
+                            <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                                <AuditField label={common.name}>
+                                    {`${lead.customer_first_name} ${lead.customer_last_name}`.trim()}
+                                </AuditField>
+                                <AuditField label={common.phone}>
+                                    {lead.customer_phone}
+                                </AuditField>
+                                <AuditField
+                                    label={common.email}
+                                    className="sm:col-span-2"
+                                >
+                                    {lead.customer_email ?? '—'}
+                                </AuditField>
+                                <AuditField
+                                    label={common.details}
+                                    className="sm:col-span-2"
+                                >
+                                    {[
+                                        lead.address_line_1,
+                                        lead.city,
+                                        lead.postcode,
+                                    ]
+                                        .filter(Boolean)
+                                        .join(', ') || '—'}
+                                </AuditField>
                             </dl>
-                        </section>
+                        </AuditPanel>
 
-                        <section className="space-y-3">
-                            <h3 className="text-sm font-semibold text-rml-text">
-                                {t.seller_details ?? common.company}
-                            </h3>
-                            <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                                <div>
-                                    <dt className="text-rml-muted">
-                                        {common.name}
-                                    </dt>
-                                    <dd>{lead.seller?.name ?? '—'}</dd>
-                                </div>
-                                <div>
-                                    <dt className="text-rml-muted">
-                                        {common.company}
-                                    </dt>
-                                    <dd>
-                                        {lead.seller_company?.name ?? '—'}
-                                    </dd>
-                                </div>
-                                <div className="sm:col-span-2">
-                                    <dt className="text-rml-muted">
-                                        {common.email}
-                                    </dt>
-                                    <dd>{lead.seller?.email ?? '—'}</dd>
-                                </div>
+                        <AuditPanel
+                            title={t.seller_details ?? common.company}
+                        >
+                            <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                                <AuditField label={common.name}>
+                                    {lead.seller?.name ?? '—'}
+                                </AuditField>
+                                <AuditField label={common.company}>
+                                    {lead.seller_company?.name ?? '—'}
+                                </AuditField>
+                                <AuditField
+                                    label={common.email}
+                                    className="sm:col-span-2"
+                                >
+                                    {lead.seller?.email ?? '—'}
+                                </AuditField>
                             </dl>
-                        </section>
+                        </AuditPanel>
 
-                        <section className="space-y-3">
-                            <h3 className="text-sm font-semibold text-rml-text">
-                                {t.evidence}
-                            </h3>
+                        <AuditPanel title={t.evidence}>
                             {lead.evidence.length === 0 ? (
                                 <p className="text-sm text-rml-muted">—</p>
                             ) : (
-                                <ul className="divide-y divide-rml-border rounded-lg border border-rml-border">
+                                <ul className="space-y-2">
                                     {lead.evidence.map((file) => (
                                         <li
                                             key={file.id}
-                                            className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
+                                            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rml-border bg-white px-3.5 py-3"
                                         >
                                             <div className="min-w-0">
-                                                <p className="truncate font-medium text-rml-text">
+                                                <p className="truncate text-sm font-medium text-rml-text">
                                                     {file.original_name ??
                                                         file.file_type}
                                                 </p>
-                                                <p className="text-xs text-rml-muted">
+                                                <p className="mt-0.5 text-xs text-rml-muted">
                                                     {file.mime_type ?? '—'}
                                                 </p>
                                             </div>
-                                            <div className="flex shrink-0 gap-2">
+                                            <TableActions>
                                                 {file.view_url && (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        type="button"
+                                                    <TableActionButton
+                                                        label={
+                                                            t.view_file ??
+                                                            common.view
+                                                        }
+                                                        icon={
+                                                            tableActionIcons.view
+                                                        }
                                                         onClick={() => {
                                                             if (file.is_image) {
                                                                 setPreviewUrl(
@@ -805,89 +1008,91 @@ export function AuditLeadModal({
                                                                 );
                                                             }
                                                         }}
-                                                    >
-                                                        {t.view_file ??
-                                                            common.view}
-                                                    </Button>
+                                                    />
                                                 )}
                                                 {file.download_url && (
-                                                    <a
+                                                    <TableActionLink
                                                         href={file.download_url}
-                                                        className="inline-flex"
-                                                    >
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            type="button"
-                                                        >
-                                                            {t.download_file ??
-                                                                common.view}
-                                                        </Button>
-                                                    </a>
+                                                        label={
+                                                            t.download_file ??
+                                                            'Download'
+                                                        }
+                                                        icon={
+                                                            tableActionIcons.download
+                                                        }
+                                                        external
+                                                    />
                                                 )}
-                                            </div>
+                                            </TableActions>
                                         </li>
                                     ))}
                                 </ul>
                             )}
-                        </section>
+                        </AuditPanel>
 
-                        <AuditChecklist
-                            items={checklistItems}
-                            onChange={handleChecklistChange}
+                        <div ref={checklistSectionRef}>
+                        <AuditPanel
                             title={t.checklist_title}
-                            subtitle={t.checklist_subtitle}
-                        />
-                        <p className="text-xs text-rml-muted">
-                            {t.checklist_progress
-                                ?.replace(':done', String(checkedCount))
-                                .replace(
-                                    ':total',
-                                    String(loadedAudit.checklist.length),
-                                ) ??
-                                `${checkedCount}/${loadedAudit.checklist.length}`}
-                        </p>
-                        {(checklistError || errors.checklist) && (
-                            <p className="text-sm text-rml-red">
-                                {checklistError ?? errors.checklist}
+                            description={t.checklist_subtitle}
+                        >
+                            <AuditChecklist
+                                items={checklistItems}
+                                onChange={handleChecklistChange}
+                                onCheckAll={() => handleCheckAll(true)}
+                                onUncheckAll={() => handleCheckAll(false)}
+                                checkAllLabel={t.check_all}
+                                uncheckAllLabel={t.uncheck_all}
+                            />
+                            <p className="text-xs text-rml-muted">
+                                {t.checklist_progress
+                                    ?.replace(':done', String(checkedCount))
+                                    .replace(
+                                        ':total',
+                                        String(loadedAudit.checklist.length),
+                                    ) ??
+                                    `${checkedCount}/${loadedAudit.checklist.length}`}
                             </p>
-                        )}
-                        <p className="text-xs text-rml-muted">
-                            {checklistComplete
-                                ? t.checklist_complete
-                                : t.checklist_incomplete}
-                        </p>
+                            {(checklistError || errors.checklist) && (
+                                <p className="text-sm text-rml-red">
+                                    {checklistError ?? errors.checklist}
+                                </p>
+                            )}
+                            <p className="text-xs text-rml-muted">
+                                {canAcceptLead
+                                    ? t.checklist_complete
+                                    : t.checklist_incomplete}
+                            </p>
+                        </AuditPanel>
+                        </div>
 
                         {pricing && (
-                            <section className="space-y-3 rounded-xl border border-rml-border bg-rml-background/50 p-4">
-                                <h3 className="text-sm font-semibold text-rml-text">
-                                    {t.pricing}
-                                </h3>
-                                <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                                    <div>
-                                        <dt className="text-rml-muted">
-                                            {t.suggested_price}
-                                        </dt>
-                                        <dd>
-                                            {formatMoney(
-                                                pricing.suggested_selling_price,
-                                            )}
-                                        </dd>
-                                    </div>
-                                    <div>
-                                        <dt className="text-rml-muted">
-                                            {t.expected_margin}
-                                        </dt>
-                                        <dd>
-                                            {formatMoney(
-                                                pricing.expected_margin,
-                                            )}
-                                        </dd>
-                                    </div>
+                            <div ref={pricingSectionRef}>
+                            <AuditPanel title={t.pricing}>
+                                <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                                    <AuditField label={t.suggested_price}>
+                                        {formatMoney(
+                                            pricing.suggested_selling_price,
+                                        )}
+                                    </AuditField>
+                                    <AuditField
+                                        label={
+                                            t.suggested_buying ??
+                                            t.seller_payout ??
+                                            t.buying_price
+                                        }
+                                    >
+                                        {formatMoney(
+                                            pricing.suggested_buying_price ??
+                                                pricing.buying_price,
+                                        )}
+                                    </AuditField>
+                                    <AuditField label={t.expected_margin}>
+                                        {formatMoney(pricing.expected_margin)}
+                                    </AuditField>
                                 </dl>
                                 <div className="grid gap-3 sm:grid-cols-2">
                                     <FormInput
-                                        label={t.buying_price}
+                                        label={t.seller_payout ?? t.buying_price}
                                         name="buying_price"
                                         type="number"
                                         step="0.01"
@@ -927,18 +1132,20 @@ export function AuditLeadModal({
                                         )
                                     }
                                 />
-                            </section>
+                            </AuditPanel>
+                            </div>
                         )}
 
-                        <Textarea
-                            label={t.audit_notes}
-                            name="audit_notes"
-                            value={data.audit_notes}
-                            error={errors.audit_notes}
-                            onChange={(e) =>
-                                setData('audit_notes', e.target.value)
-                            }
-                        />
+                        <AuditPanel title={t.audit_notes}>
+                            <Textarea
+                                name="audit_notes"
+                                value={data.audit_notes}
+                                error={errors.audit_notes}
+                                onChange={(e) =>
+                                    setData('audit_notes', e.target.value)
+                                }
+                            />
+                        </AuditPanel>
                     </div>
                 )}
             </Shell>

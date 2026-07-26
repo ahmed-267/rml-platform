@@ -111,7 +111,7 @@ export default function BuyersShow({
 
             <div className="flex items-start gap-3">
                 <BackLink
-                    href={route('admin.buyers.index')}
+                    href={route('admin.users.index', { tab: 'buyers' })}
                     label={common.back}
                     className="mt-0.5"
                 />

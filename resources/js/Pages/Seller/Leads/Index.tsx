@@ -12,6 +12,9 @@ import {
     Select,
     SortableHeader,
     StatusBadge,
+    TableActionLink,
+    TableActions,
+    tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
 import { useIsMobile } from '@/hooks/use-media-query';
@@ -29,6 +32,7 @@ import {
     type SellerPayoutSummary,
 } from '@/lib/seller-payout';
 import type { PageProps } from '@/types';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 
 interface SellerLeadRow {
     id: number;
@@ -38,6 +42,11 @@ interface SellerLeadRow {
     customer_last_name: string;
     scheme: { id: number; name: string; slug: string } | null;
     zone: { id: number; code: string; name: string } | null;
+    submitted_by?: {
+        id: number | null;
+        name: string | null;
+        label: 'me' | 'admin' | 'staff';
+    } | null;
     created_at: string | null;
     payout?: SellerPayoutSummary | null;
 }
@@ -45,6 +54,7 @@ interface SellerLeadRow {
 interface Filters {
     status?: string | null;
     scheme_id?: string | number | null;
+    zone_code?: string | null;
     zone_id?: string | number | null;
     search?: string | null;
     sort?: string | null;
@@ -79,18 +89,34 @@ export default function SellerLeadsIndex({
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.seller.leads;
     const common = translations.seller.common;
+    const staffT = translations.seller.staff;
     const payoutLabels = sellerPayoutLabels(translations);
     const leadStatuses = translations.lead_statuses;
     const isMobile = useIsMobile();
+
+    const submittedByLabel = (
+        lead: SellerLeadRow,
+    ): string | null => {
+        if (!lead.submitted_by) {
+            return null;
+        }
+        if (lead.submitted_by.label === 'me') {
+            return staffT.submitted_by_me ?? 'Submitted by me';
+        }
+        if (lead.submitted_by.label === 'admin') {
+            return staffT.submitted_by_admin ?? 'Admin';
+        }
+        return lead.submitted_by.name ?? staffT.staff_member ?? '—';
+    };
+
+    const showSubmittedBy = leads.data.some((lead) => lead.submitted_by != null);
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
     const [schemeId, setSchemeId] = useState(
         filters.scheme_id != null ? String(filters.scheme_id) : '',
     );
-    const [zoneId, setZoneId] = useState(
-        filters.zone_id != null ? String(filters.zone_id) : '',
-    );
+    const [zoneCode, setZoneCode] = useState(filters.zone_code ?? '');
     const [filtersOpen, setFiltersOpen] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
@@ -106,7 +132,7 @@ export default function SellerLeadsIndex({
         search: search || undefined,
         status: status || undefined,
         scheme_id: schemeId || undefined,
-        zone_id: zoneId || undefined,
+        zone_code: zoneCode || undefined,
         sort: currentSort,
         direction: currentDirection,
         per_page: currentPerPage,
@@ -118,13 +144,16 @@ export default function SellerLeadsIndex({
             preserveState: true,
             replace: true,
         });
-    };
+    }
+
+    useInstantListFilters(applyFilters, search, [status, schemeId, zoneCode]);
+
 
     const resetFilters = () => {
         setSearch('');
         setStatus('');
         setSchemeId('');
-        setZoneId('');
+        setZoneCode('');
         router.get(
             route('seller.leads.index'),
             { sort: 'date', direction: 'desc', per_page: 10 },
@@ -159,8 +188,10 @@ export default function SellerLeadsIndex({
         />
     );
 
-    const zoneOptions = filterOptions.zones.filter(
-        (zone) => !schemeId || String(zone.scheme_id) === schemeId,
+    const zoneOptions = Array.from(
+        new Map(
+            filterOptions.zones.map((zone) => [zone.code, zone]),
+        ).values(),
     );
 
     return (
@@ -186,10 +217,7 @@ export default function SellerLeadsIndex({
                 onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
-                        <Button size="sm" onClick={applyFilters}>
-                            {common.apply}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={resetFilters}>
+<Button size="sm" variant="ghost" onClick={resetFilters}>
                             {common.reset}
                         </Button>
                     </>
@@ -217,7 +245,6 @@ export default function SellerLeadsIndex({
                         value={schemeId}
                         onChange={(e) => {
                             setSchemeId(e.target.value);
-                            setZoneId('');
                         }}
                         options={[
                             { value: '', label: common.all_schemes },
@@ -232,13 +259,13 @@ export default function SellerLeadsIndex({
                     <Select
                         label={t.filter_zone}
                         aria-label={t.filter_zone}
-                        value={zoneId}
-                        onChange={(e) => setZoneId(e.target.value)}
+                        value={zoneCode}
+                        onChange={(e) => setZoneCode(e.target.value)}
                         options={[
                             { value: '', label: common.all_zones },
                             ...zoneOptions.map((zone) => ({
-                                value: String(zone.id),
-                                label: `${zone.code} — ${zone.name}`,
+                                value: zone.code,
+                                label: zone.code,
                             })),
                         ]}
                     />
@@ -270,7 +297,6 @@ export default function SellerLeadsIndex({
                     value={schemeId}
                     onChange={(e) => {
                         setSchemeId(e.target.value);
-                        setZoneId('');
                     }}
                     options={[
                         { value: '', label: common.all_schemes },
@@ -283,13 +309,13 @@ export default function SellerLeadsIndex({
                 <Select
                     label={t.filter_zone}
                     aria-label={t.filter_zone}
-                    value={zoneId}
-                    onChange={(e) => setZoneId(e.target.value)}
+                    value={zoneCode}
+                    onChange={(e) => setZoneCode(e.target.value)}
                     options={[
                         { value: '', label: common.all_zones },
                         ...zoneOptions.map((zone) => ({
-                            value: String(zone.id),
-                            label: `${zone.code} — ${zone.name}`,
+                            value: zone.code,
+                            label: zone.code,
                         })),
                     ]}
                 />
@@ -325,6 +351,13 @@ export default function SellerLeadsIndex({
                                 <p>
                                     {common.zone}: {lead.zone?.code ?? '—'}
                                 </p>
+                                {showSubmittedBy && (
+                                    <p>
+                                        {staffT.submitted_by ??
+                                            staffT.staff_member}
+                                        : {submittedByLabel(lead) ?? '—'}
+                                    </p>
+                                )}
                                 <p>
                                     {payoutLabels.column}:{' '}
                                     {sellerPayoutTableLabel(
@@ -344,25 +377,25 @@ export default function SellerLeadsIndex({
                             </div>
                         ),
                         actions: (
-                            <div className="flex gap-3">
-                                <Link
+                            <TableActions>
+                                <TableActionLink
                                     href={route('seller.leads.show', lead.id)}
-                                    className="text-sm font-semibold text-rml-primary"
-                                >
-                                    {common.view}
-                                </Link>
+                                    label={common.view}
+                                    icon={tableActionIcons.view}
+                                />
                                 {lead.status === 'draft' && (
-                                    <Link
+                                    <TableActionLink
                                         href={route(
                                             'seller.leads.edit',
                                             lead.id,
                                         )}
-                                        className="text-sm font-semibold text-rml-primary"
-                                    >
-                                        {t.continue_draft ?? t.edit_draft}
-                                    </Link>
+                                        label={
+                                            t.continue_draft ?? t.edit_draft
+                                        }
+                                        icon={tableActionIcons.edit}
+                                    />
                                 )}
-                            </div>
+                            </TableActions>
                         ),
                     }))}
                 />
@@ -386,6 +419,18 @@ export default function SellerLeadsIndex({
                             header: common.customer,
                             cell: (row) => customerName(row),
                         },
+                        ...(showSubmittedBy
+                            ? [
+                                  {
+                                      id: 'submitted_by',
+                                      header:
+                                          staffT.submitted_by ??
+                                          staffT.staff_member,
+                                      cell: (row: SellerLeadRow) =>
+                                          submittedByLabel(row) ?? '—',
+                                  },
+                              ]
+                            : []),
                         {
                             id: 'scheme',
                             header: sortableHeader(common.scheme, 'scheme'),
@@ -439,28 +484,28 @@ export default function SellerLeadsIndex({
                             id: 'actions',
                             header: common.actions,
                             cell: (row) => (
-                                <div className="flex gap-3">
-                                    <Link
+                                <TableActions>
+                                    <TableActionLink
                                         href={route(
                                             'seller.leads.show',
                                             row.id,
                                         )}
-                                        className="font-semibold text-rml-primary hover:underline"
-                                    >
-                                        {common.view}
-                                    </Link>
+                                        label={common.view}
+                                        icon={tableActionIcons.view}
+                                    />
                                     {row.status === 'draft' && (
-                                        <Link
+                                        <TableActionLink
                                             href={route(
                                                 'seller.leads.edit',
                                                 row.id,
                                             )}
-                                            className="font-semibold text-rml-primary hover:underline"
-                                        >
-                                            {t.continue_draft ?? t.edit_draft}
-                                        </Link>
+                                            label={
+                                                t.continue_draft ?? t.edit_draft
+                                            }
+                                            icon={tableActionIcons.edit}
+                                        />
                                     )}
-                                </div>
+                                </TableActions>
                             ),
                         },
                     ]}

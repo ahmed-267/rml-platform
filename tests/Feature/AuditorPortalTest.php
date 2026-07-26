@@ -47,17 +47,26 @@ class AuditorPortalTest extends TestCase
 
         $this->actingAs($auditor)
             ->get(route('auditor.assigned-audits.index'))
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page
-                ->component('Auditor/AssignedAudits/Index')
-                ->where('translations.auditor.assigned.index_title', 'Assigned Audits'));
+            ->assertRedirect(route('auditor.audits.index', ['tab' => 'my-audits']));
 
         $this->actingAs($auditor)
-            ->get(route('auditor.audits.index'))
+            ->get(route('auditor.audits.index', ['tab' => 'my-audits']))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Auditor/Audits/Index')
-                ->where('translations.auditor.leads.index_title', 'Audit Leads'));
+                ->where('tab', 'my-audits')
+                ->where('translations.auditor.audits_hub.index_title', 'Audits'));
+
+        $this->actingAs($auditor)
+            ->get(route('auditor.audits.index', ['tab' => 'audit-queue']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Auditor/Audits/Index')
+                ->where('tab', 'audit-queue'));
+
+        $this->actingAs($auditor)
+            ->get(route('auditor.completed-audits.index'))
+            ->assertRedirect(route('auditor.audits.index', ['tab' => 'completed']));
     }
 
     public function test_auditor_cannot_access_seller_buyer_or_restricted_admin_routes(): void
@@ -121,7 +130,7 @@ class AuditorPortalTest extends TestCase
                 'audit_notes' => 'Recommend accept',
                 'checklist' => $checklist,
             ])
-            ->assertRedirect(route('auditor.completed-audits.index'));
+            ->assertRedirect(route('auditor.audits.index', ['tab' => 'completed']));
 
         $audit = LeadAudit::query()->where('lead_id', $lead->id)->latest('id')->firstOrFail();
         $this->assertSame(AuditDecisionStatus::RecommendedAccept, $audit->status);

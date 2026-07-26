@@ -22,7 +22,7 @@ interface ThreadDetail {
     category: string | null;
     status: string | null;
     created_by: { id: number; name: string; email: string } | null;
-    assigned_to: string | null;
+    assigned_to: { id: number; name: string; email: string } | null;
     related_lead_id: number | null;
     related_lead_reference: string | null;
     messages: MessageRow[];
@@ -91,6 +91,11 @@ export default function MessagesShow({ thread }: { thread: ThreadDetail }) {
                     {thread.created_by && (
                         <span className="text-sm text-rml-muted">
                             {t.created_by}: {thread.created_by.name}
+                        </span>
+                    )}
+                    {thread.assigned_to && (
+                        <span className="text-sm text-rml-muted">
+                            {t.recipient}: {thread.assigned_to.name}
                         </span>
                     )}
                     {thread.related_lead_reference && (

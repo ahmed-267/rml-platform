@@ -261,22 +261,15 @@ class SchemeSeeder extends Seeder
             [
                 'name' => 'Seller Company Default',
                 'applies_to' => CommissionAppliesTo::SellerCompany,
-                'percentage' => 10.00,
-                'notes' => 'Due after lead sold and buyer payment confirmed.',
-                'active' => true,
-            ],
-            [
-                'name' => 'Seller Staff Default',
-                'applies_to' => CommissionAppliesTo::SellerStaff,
-                'percentage' => 3.00,
-                'notes' => 'Due after lead sold and buyer payment confirmed.',
+                'rate_per_m2' => 2.00,
+                'notes' => 'Seller payout rate per m² after lead sold and buyer payment confirmed.',
                 'active' => true,
             ],
             [
                 'name' => 'Individual Agent Default',
                 'applies_to' => CommissionAppliesTo::IndividualAgent,
-                'percentage' => 7.00,
-                'notes' => 'Due after lead sold and buyer payment confirmed.',
+                'rate_per_m2' => 2.00,
+                'notes' => 'Agent payout rate per m² after lead sold and buyer payment confirmed.',
                 'active' => true,
             ],
         ];
@@ -286,7 +279,8 @@ class SchemeSeeder extends Seeder
                 ['name' => $rule['name']],
                 [
                     'applies_to' => $rule['applies_to'],
-                    'percentage' => $rule['percentage'],
+                    'rate_per_m2' => $rule['rate_per_m2'],
+                    'percentage' => null,
                     'active' => $rule['active'],
                     'notes' => $rule['notes'],
                 ],
@@ -294,7 +288,11 @@ class SchemeSeeder extends Seeder
         }
 
         CommissionRule::query()
-            ->whereIn('name', ['Premium Seller Company', 'Legacy Agent Rule'])
+            ->whereIn('name', [
+                'Premium Seller Company',
+                'Legacy Agent Rule',
+                'Seller Staff Default',
+            ])
             ->delete();
 
         // Deactivate legacy global checklist — schemes now own their audit items.
@@ -448,7 +446,7 @@ class SchemeSeeder extends Seeder
             ['settings.scheme_created', Scheme::class, $insulation->id, null, ['name' => $insulation->name]],
             ['settings.scheme_updated', Scheme::class, $glazing->id, ['description' => 'Draft'], ['description' => $glazing->description]],
             ['settings.pricing_updated', PricingRule::class, PricingRule::query()->where('scheme_id', $insulation->id)->value('id'), ['price_per_m2' => 2.80], ['price_per_m2' => 3.00]],
-            ['settings.commission_updated', CommissionRule::class, CommissionRule::query()->where('name', 'Seller Company Default')->value('id'), ['percentage' => 8], ['percentage' => 10]],
+            ['settings.commission_updated', CommissionRule::class, CommissionRule::query()->where('name', 'Seller Company Default')->value('id'), ['rate_per_m2' => 1.5], ['rate_per_m2' => 2]],
             ['settings.general_updated', null, null, ['company_name' => 'RML'], ['company_name' => 'RML Energy Saving']],
             ['settings.template_updated', TemplateDocument::class, TemplateDocument::query()->where('type', TemplateDocumentType::SellerAgreement->value)->value('id'), null, ['name' => 'Seller Agreement']],
             ['lead.sold', null, null, null, ['note' => 'Demo lead sold after buyer payment']],

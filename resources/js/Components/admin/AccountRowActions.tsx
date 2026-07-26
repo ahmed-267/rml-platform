@@ -1,11 +1,23 @@
 import { useState } from 'react';
-import { Link, router } from '@inertiajs/react';
-import { Button, Modal } from '@/Components/ui';
+import { router } from '@inertiajs/react';
+import type { LucideIcon } from 'lucide-react';
+import {
+    Button,
+    Modal,
+    TableActionButton,
+    TableActionLink,
+    TableActions,
+    tableActionIcons,
+} from '@/Components/ui';
+import type { TableActionTone } from '@/Components/ui/TableActions';
 import type { ApprovalStatus } from '@/types';
 import { cn } from '@/lib/cn';
 
 export type AccountActionLabels = {
     view: string;
+    edit?: string;
+    delete?: string;
+    assign?: string;
     approve: string;
     reject: string;
     suspend: string;
@@ -23,6 +35,9 @@ export type AccountActionLabels = {
     approveTitle?: string;
     approveBody?: string;
     approveConfirm?: string;
+    deleteTitle?: string;
+    deleteBody?: string;
+    deleteConfirm?: string;
 };
 
 type Props = {
@@ -30,14 +45,20 @@ type Props = {
     targetName: string;
     companyName?: string | null;
     viewHref?: string;
+    editHref?: string;
+    onEdit?: () => void;
+    onAssign?: () => void;
+    deleteRoute?: string;
     approveRoute?: string;
     rejectRoute?: string;
     suspendRoute?: string;
     reinstateRoute?: string;
     labels: AccountActionLabels;
     canManage?: boolean;
+    canDelete?: boolean;
+    canAssign?: boolean;
     showView?: boolean;
-    variant?: 'links' | 'buttons';
+    variant?: 'links' | 'buttons' | 'icons';
     className?: string;
 };
 
@@ -55,18 +76,24 @@ export function AccountRowActions({
     targetName,
     companyName,
     viewHref,
+    editHref,
+    onEdit,
+    onAssign,
+    deleteRoute,
     approveRoute,
     rejectRoute,
     suspendRoute,
     reinstateRoute,
     labels,
     canManage = true,
+    canDelete = false,
+    canAssign = false,
     showView = true,
-    variant = 'links',
+    variant = 'icons',
     className,
 }: Props) {
     const [modal, setModal] = useState<
-        'reject' | 'suspend' | 'reinstate' | 'approve' | null
+        'reject' | 'suspend' | 'reinstate' | 'approve' | 'delete' | null
     >(null);
     const [processing, setProcessing] = useState(false);
 
@@ -74,9 +101,6 @@ export function AccountRowActions({
         name: targetName,
         company: companyName?.trim() || targetName,
     };
-
-    const linkClass =
-        'text-xs font-semibold whitespace-nowrap hover:underline disabled:opacity-50';
 
     const run = (callback: () => void) => {
         setProcessing(true);
@@ -141,11 +165,22 @@ export function AccountRowActions({
         );
     };
 
+    const submitDelete = () => {
+        if (!deleteRoute) return;
+        run(() =>
+            router.delete(deleteRoute, {
+                onSuccess: closeModal,
+                onFinish: () => setProcessing(false),
+            }),
+        );
+    };
+
     const renderAction = (
         key: string,
         label: string,
         onClick: () => void,
-        tone: 'primary' | 'danger' | 'warning',
+        tone: TableActionTone,
+        icon: LucideIcon,
     ) => {
         if (variant === 'buttons') {
             return (
@@ -168,42 +203,54 @@ export function AccountRowActions({
         }
 
         return (
-            <button
+            <TableActionButton
                 key={key}
-                type="button"
-                className={cn(
-                    linkClass,
-                    tone === 'danger' && 'text-rml-red',
-                    tone === 'warning' && 'text-rml-amber',
-                    tone === 'primary' && 'text-rml-primary',
-                )}
+                label={label}
+                icon={icon}
+                tone={tone}
                 disabled={processing}
                 onClick={onClick}
-            >
-                {label}
-            </button>
+            />
         );
     };
 
     return (
         <>
-            <div className={cn('flex flex-wrap items-center gap-2', className)}>
-                {showView &&
-                    viewHref &&
-                    (variant === 'buttons' ? (
-                        <Link href={viewHref}>
-                            <Button size="sm" variant="outline">
-                                {labels.view}
-                            </Button>
-                        </Link>
+            <TableActions className={cn(className)}>
+                {showView && viewHref && (
+                    <TableActionLink
+                        href={viewHref}
+                        label={labels.view}
+                        icon={tableActionIcons.view}
+                    />
+                )}
+
+                {(onEdit || editHref) &&
+                    (editHref && !onEdit ? (
+                        <TableActionLink
+                            href={editHref}
+                            label={labels.edit ?? labels.view}
+                            icon={tableActionIcons.edit}
+                        />
                     ) : (
-                        <Link
-                            href={viewHref}
-                            className={cn(linkClass, 'text-rml-primary')}
-                        >
-                            {labels.view}
-                        </Link>
+                        renderAction(
+                            'edit',
+                            labels.edit ?? 'Edit',
+                            () => onEdit?.(),
+                            'default',
+                            tableActionIcons.edit,
+                        )
                     ))}
+
+                {canAssign &&
+                    onAssign &&
+                    renderAction(
+                        'assign',
+                        labels.assign ?? 'Assign audit',
+                        onAssign,
+                        'default',
+                        tableActionIcons.assign,
+                    )}
 
                 {canManage &&
                     status === 'pending' &&
@@ -218,7 +265,8 @@ export function AccountRowActions({
                                 submitApprove();
                             }
                         },
-                        'primary',
+                        'success',
+                        tableActionIcons.approve,
                     )}
 
                 {canManage &&
@@ -229,6 +277,7 @@ export function AccountRowActions({
                         labels.reject,
                         () => setModal('reject'),
                         'danger',
+                        tableActionIcons.reject,
                     )}
 
                 {canManage &&
@@ -239,6 +288,7 @@ export function AccountRowActions({
                         labels.suspend,
                         () => setModal('suspend'),
                         'warning',
+                        tableActionIcons.suspend,
                     )}
 
                 {canManage &&
@@ -248,9 +298,20 @@ export function AccountRowActions({
                         'reinstate',
                         labels.reinstate,
                         () => setModal('reinstate'),
-                        'primary',
+                        'success',
+                        tableActionIcons.reinstate,
                     )}
-            </div>
+
+                {canDelete &&
+                    deleteRoute &&
+                    renderAction(
+                        'delete',
+                        labels.delete ?? 'Delete',
+                        () => setModal('delete'),
+                        'danger',
+                        tableActionIcons.delete,
+                    )}
+            </TableActions>
 
             <Modal
                 open={modal === 'approve'}
@@ -351,6 +412,36 @@ export function AccountRowActions({
             >
                 <p className="text-sm text-rml-muted">
                     {fillTemplate(labels.reinstateBody, vars)}
+                </p>
+            </Modal>
+
+            <Modal
+                open={modal === 'delete'}
+                onClose={closeModal}
+                title={labels.deleteTitle ?? labels.delete ?? 'Delete'}
+                size="sm"
+                footer={
+                    <>
+                        <Button variant="ghost" size="sm" onClick={closeModal}>
+                            {labels.cancel}
+                        </Button>
+                        <Button
+                            variant="danger"
+                            size="sm"
+                            disabled={processing}
+                            onClick={submitDelete}
+                        >
+                            {labels.deleteConfirm ?? labels.delete ?? 'Delete'}
+                        </Button>
+                    </>
+                }
+            >
+                <p className="text-sm text-rml-muted">
+                    {fillTemplate(
+                        labels.deleteBody ??
+                            'Permanently delete :name? This cannot be undone.',
+                        vars,
+                    )}
                 </p>
             </Modal>
         </>

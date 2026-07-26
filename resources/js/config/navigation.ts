@@ -50,11 +50,25 @@ const buyerNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
     { label: 'Dashboard', labelKey: 'dashboard', href: '/admin/dashboard' },
-    { label: 'Users', labelKey: 'users', href: '/admin/users', permission: 'manage_users' },
-    { label: 'Sellers', labelKey: 'sellers', href: '/admin/sellers' },
-    { label: 'Leads Bought', labelKey: 'leads_bought', href: '/admin/leads-bought' },
-    { label: 'Buyers', labelKey: 'buyers', href: '/admin/buyers' },
-    { label: 'Leads Sold', labelKey: 'leads_sold', href: '/admin/leads-sold' },
+    {
+        label: 'Users',
+        labelKey: 'users',
+        href: '/admin/users',
+        permission: [
+            'manage_users',
+            'manage_sellers',
+            'manage_buyers',
+            'accept_reject_leads',
+            'audit_leads',
+        ],
+        match: ['/admin/sellers', '/admin/buyers'],
+    },
+    {
+        label: 'Leads',
+        labelKey: 'leads',
+        href: '/admin/leads',
+        match: ['/admin/leads-bought', '/admin/leads-sold'],
+    },
     { label: 'Payments', labelKey: 'payments', href: '/admin/payments' },
     { label: 'Messages / Issues', labelKey: 'messages', href: '/admin/messages' },
     { label: 'Reports', labelKey: 'reports', href: '/admin/reports' },
@@ -65,20 +79,10 @@ const adminNav: NavItem[] = [
 const auditorNav: NavItem[] = [
     { label: 'Dashboard', labelKey: 'dashboard', href: '/auditor/dashboard' },
     {
-        label: 'Assigned Audits',
-        labelKey: 'assigned_audits',
-        href: '/auditor/assigned-audits',
-    },
-    {
-        label: 'Audit Leads',
-        labelKey: 'audit_leads',
-        href: '/auditor/audits',
-        match: ['/auditor/audits'],
-    },
-    {
-        label: 'Completed Audits',
-        labelKey: 'completed_audits',
-        href: '/auditor/completed-audits',
+        label: 'Audits',
+        labelKey: 'audits',
+        href: '/auditor/audits?tab=my-audits',
+        match: ['/auditor/audits', '/auditor/assigned-audits', '/auditor/completed-audits'],
     },
     { label: 'Messages', labelKey: 'messages', href: '/auditor/messages' },
     { label: 'Profile', labelKey: 'profile', href: '/auditor/profile' },

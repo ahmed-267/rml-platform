@@ -117,8 +117,19 @@ export interface CommissionRuleRow {
     name: string;
     applies_to: string | null;
     percentage: number | null;
+    rate_per_m2: number | null;
     active: boolean;
     notes: string | null;
+}
+
+export interface TemplateVersionRow {
+    id: number;
+    version: number | string;
+    content: string | null;
+    active: boolean;
+    effective_from: string | null;
+    created_at: string | null;
+    is_active: boolean;
 }
 
 export interface TemplateRow {
@@ -126,8 +137,10 @@ export interface TemplateRow {
     type: string | null;
     name: string;
     description: string | null;
-    active_version: string | null;
+    active_version: string | number | null;
+    active_version_id?: number | null;
     content?: string | null;
+    versions?: TemplateVersionRow[];
 }
 
 export interface AuditLogRow {
@@ -387,7 +400,6 @@ export function buildSchemeSubmitData(form: SchemeFormData) {
 
 export const COMMISSION_APPLIES_TO = [
     'seller_company',
-    'seller_staff',
     'individual_agent',
 ] as const;
 

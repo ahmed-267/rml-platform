@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\LeadEvidenceFile;
+use App\Support\EvidencePlaceholderStorage;
 use App\Support\LeadEvidenceAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -34,7 +35,13 @@ class LeadEvidenceController extends Controller
     private function stream(LeadEvidenceFile $evidence, string $disposition): StreamedResponse
     {
         $disk = $evidence->disk ?: 'local';
-        abort_unless(Storage::disk($disk)->exists($evidence->path), 404);
+
+        if (! Storage::disk($disk)->exists($evidence->path)) {
+            // Demo/seed rows often lack physical files — materialize a placeholder locally.
+            EvidencePlaceholderStorage::ensureOnDisk($evidence);
+        }
+
+        abort_unless(Storage::disk($disk)->exists($evidence->path), 404, __('rml.documents.evidence_missing'));
 
         $filename = $evidence->original_name ?: basename($evidence->path);
 

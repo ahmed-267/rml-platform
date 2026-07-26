@@ -6,6 +6,7 @@ use App\Models\Lead;
 use App\Models\LeadAudit;
 use App\Models\LeadEvidenceFile;
 use App\Models\User;
+use App\Support\Permissions;
 
 final class SellerLeadPresenter
 {
@@ -23,12 +24,31 @@ final class SellerLeadPresenter
             'zone:id,code,name,scheme_id',
             'evidenceFiles',
             'metricValues',
+            'submittedBy:id,name',
             'audits' => fn ($q) => $q->latest('id'),
         ]);
 
         /** @var LeadAudit|null $latestAudit */
         $latestAudit = $lead->audits->first();
         $viewer ??= auth()->user();
+
+        $canSeeSubmitter = $viewer instanceof User
+            && $viewer->can(Permissions::VIEW_COMPANY_LEADS);
+
+        $submittedBy = null;
+        if ($canSeeSubmitter) {
+            $submitter = $lead->submittedBy;
+            $isViewer = $submitter && $viewer && $submitter->id === $viewer->id;
+            $isCompanyAdminSubmitter = $submitter?->hasRole('seller_company_admin') ?? false;
+
+            $submittedBy = [
+                'id' => $submitter?->id,
+                'name' => $submitter?->name,
+                'label' => $isViewer
+                    ? 'me'
+                    : ($isCompanyAdminSubmitter ? 'admin' : 'staff'),
+            ];
+        }
 
         return [
             'id' => $lead->id,
@@ -60,6 +80,7 @@ final class SellerLeadPresenter
                 'code' => $lead->zone->code,
                 'name' => $lead->zone->name,
             ] : null,
+            'submitted_by' => $submittedBy,
             'metrics' => $lead->metricValues
                 ->mapWithKeys(fn ($metric) => [$metric->key => $metric->value])
                 ->all(),
@@ -94,8 +115,17 @@ final class SellerLeadPresenter
 
         $user = auth()->user();
         if ($user && LeadEvidenceAccess::canView($user, $file)) {
-            $meta['view_url'] = route('seller.leads.evidence.view', $file);
-            $meta['download_url'] = route('seller.leads.evidence.download', $file);
+            [$viewRoute, $downloadRoute] = match ($user->portal()) {
+                'admin' => ['admin.leads.evidence.view', 'admin.leads.evidence.download'],
+                'auditor' => ['auditor.leads.evidence.view', 'auditor.leads.evidence.download'],
+                'buyer' => ['buyer.leads.evidence.view', 'buyer.leads.evidence.download'],
+                default => ['seller.leads.evidence.view', 'seller.leads.evidence.download'],
+            };
+
+            if (\Illuminate\Support\Facades\Route::has($viewRoute)) {
+                $meta['view_url'] = route($viewRoute, $file);
+                $meta['download_url'] = route($downloadRoute, $file);
+            }
         }
 
         return $meta;

@@ -26,7 +26,10 @@ class MessageController extends Controller
         abort_unless($request->user()?->can('viewAny', MessageThread::class), 403);
 
         $query = MessageThread::query()
-            ->where('created_by_user_id', $request->user()->id)
+            ->where(function ($q) use ($request) {
+                $q->where('created_by_user_id', $request->user()->id)
+                    ->orWhere('assigned_to_user_id', $request->user()->id);
+            })
             ->with([
                 'messages' => fn ($q) => $q->latest()->limit(1),
                 'relatedLead:id,lead_reference',
@@ -39,8 +42,8 @@ class MessageController extends Controller
         if ($request->filled('search')) {
             $search = '%'.$request->string('search')->toString().'%';
             $query->where(function ($q) use ($search) {
-                $q->where('thread_reference', 'like', $search)
-                    ->orWhere('subject', 'like', $search);
+                $q->where('thread_reference', 'ilike', $search)
+                    ->orWhere('subject', 'ilike', $search);
             });
         }
 

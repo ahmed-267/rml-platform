@@ -300,7 +300,8 @@ export default function SellersShow({
             )}
             <div className="mt-2">
                 <Link
-                    href={route('admin.leads-bought.index', {
+                    href={route('admin.leads.index', {
+                        tab: 'registered',
                         search: seller.email,
                     })}
                     className="text-xs font-semibold text-rml-primary hover:underline"
@@ -457,7 +458,7 @@ export default function SellersShow({
 
             <div className="flex items-start gap-3">
                 <BackLink
-                    href={route('admin.sellers.index')}
+                    href={route('admin.users.index', { tab: 'sellers' })}
                     label={common.back}
                     className="mt-0.5"
                 />

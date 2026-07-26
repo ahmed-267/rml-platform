@@ -64,6 +64,11 @@ class User extends Authenticatable
         return $this->hasMany(Lead::class, 'submitted_by_user_id');
     }
 
+    public function assignedAudits(): HasMany
+    {
+        return $this->hasMany(LeadAudit::class, 'auditor_user_id');
+    }
+
     public function companiesApproved(): HasMany
     {
         return $this->hasMany(Company::class, 'approved_by');

@@ -14,6 +14,8 @@
         .kpi { width: 100%; margin-bottom: 8px; }
         .kpi td { border: none; padding: 4px 8px 4px 0; }
         .brand { color: #16a34a; font-weight: bold; font-size: 12px; margin-bottom: 8px; }
+        .chart { margin: 8px 0 12px; text-align: center; }
+        .chart svg { max-width: 100%; }
     </style>
 </head>
 <body>
@@ -38,6 +40,9 @@
     </table>
 
     <h2>{{ __('rml.admin.reports.lead_pipeline') }}</h2>
+    @if(!empty($charts['pipeline']))
+        <div class="chart">{!! $charts['pipeline'] !!}</div>
+    @endif
     <table>
         <thead>
             <tr>
@@ -56,6 +61,9 @@
     </table>
 
     <h2>{{ __('rml.admin.reports.revenue_margin') }}</h2>
+    @if(!empty($charts['revenue_margin']))
+        <div class="chart">{!! $charts['revenue_margin'] !!}</div>
+    @endif
     <table>
         <thead>
             <tr>
@@ -77,7 +85,15 @@
         </tbody>
     </table>
 
+    @if(!empty($charts['scheme']))
+        <h2>{{ __('rml.admin.reports.chart_leads_by_scheme_title') }}</h2>
+        <div class="chart">{!! $charts['scheme'] !!}</div>
+    @endif
+
     <h2>{{ __('rml.admin.reports.seller_performance') }}</h2>
+    @if(!empty($charts['sellers']))
+        <div class="chart">{!! $charts['sellers'] !!}</div>
+    @endif
     <table>
         <thead>
             <tr>
@@ -100,6 +116,9 @@
     </table>
 
     <h2>{{ __('rml.admin.reports.buyer_performance') }}</h2>
+    @if(!empty($charts['buyers']))
+        <div class="chart">{!! $charts['buyers'] !!}</div>
+    @endif
     <table>
         <thead>
             <tr>

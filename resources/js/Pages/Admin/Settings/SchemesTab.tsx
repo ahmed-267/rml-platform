@@ -11,7 +11,10 @@ import {
     Modal,
     Select,
     StatusBadge,
+    TableActionButton,
+    TableActions,
     Textarea,
+    tableActionIcons,
 } from '@/Components/ui';
 import { cn } from '@/lib/cn';
 import { useIsMobile } from '@/hooks/use-media-query';
@@ -1232,29 +1235,24 @@ export default function SchemesTab({
     };
 
     const actionButtons = (scheme: SchemeRow) => (
-        <div className="flex gap-2 whitespace-nowrap">
-            <button
-                type="button"
-                className="text-xs font-semibold text-rml-primary hover:underline"
+        <TableActions>
+            <TableActionButton
+                label={common.view}
+                icon={tableActionIcons.view}
                 onClick={() => openView(scheme)}
-            >
-                {common.view}
-            </button>
-            <button
-                type="button"
-                className="text-xs font-semibold text-rml-primary hover:underline"
+            />
+            <TableActionButton
+                label={common.edit}
+                icon={tableActionIcons.edit}
                 onClick={() => openEdit(scheme)}
-            >
-                {common.edit}
-            </button>
-            <button
-                type="button"
-                className="text-xs font-semibold text-rml-red hover:underline"
+            />
+            <TableActionButton
+                label={common.delete}
+                icon={tableActionIcons.delete}
+                tone="danger"
                 onClick={() => setDeleteScheme(scheme)}
-            >
-                {common.delete}
-            </button>
-        </div>
+            />
+        </TableActions>
     );
 
     return (

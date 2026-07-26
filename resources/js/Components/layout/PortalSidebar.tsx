@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { LogOut } from 'lucide-react';
+import { ExternalLink, LogOut } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import RmlLogo from '@/Components/branding/RmlLogo';
 import { isNavItemActive, type NavItem } from '@/config/navigation';
@@ -19,9 +19,10 @@ export function PortalSidebar({
     onNavigate,
 }: PortalSidebarProps) {
     const { translations } = usePage<PageProps>().props;
-    const homeHref = items[0]?.href ?? '/dashboard';
-    const footerBrand = translations.brand.footer_brand;
+    const footerBrand = translations.brand?.footer_brand ?? 'RML Energy Saving';
     const logOutLabel = translations.common?.log_out ?? 'Log out';
+    const homeSiteLabel =
+        translations.common?.public_site ?? 'Back to public site';
 
     const handleLogout = () => {
         onNavigate?.();
@@ -36,7 +37,13 @@ export function PortalSidebar({
             )}
         >
             <div className="flex h-16 items-center border-b border-white/10 px-5">
-                <Link href={homeHref} onClick={onNavigate} className="inline-flex">
+                <Link
+                    href="/"
+                    prefetch
+                    onClick={onNavigate}
+                    className="inline-flex"
+                    aria-label={homeSiteLabel}
+                >
                     <RmlLogo showWordmark variant="light" />
                 </Link>
             </div>
@@ -49,6 +56,7 @@ export function PortalSidebar({
                         <Link
                             key={`${item.labelKey ?? item.label}:${item.href}`}
                             href={item.href}
+                            prefetch
                             onClick={onNavigate}
                             aria-current={active ? 'page' : undefined}
                             className={cn(
@@ -65,6 +73,15 @@ export function PortalSidebar({
                 })}
             </nav>
             <div className="space-y-3 border-t border-white/10 px-3 py-4">
+                <Link
+                    href="/"
+                    prefetch
+                    onClick={onNavigate}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-900/30 transition hover:from-emerald-400 hover:to-teal-400"
+                >
+                    <ExternalLink className="h-4 w-4 shrink-0" aria-hidden />
+                    <span>{homeSiteLabel}</span>
+                </Link>
                 <button
                     type="button"
                     onClick={handleLogout}

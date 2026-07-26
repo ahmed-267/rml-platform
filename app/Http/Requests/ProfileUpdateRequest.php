@@ -28,4 +28,15 @@ class ProfileUpdateRequest extends FormRequest
             ],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'name' => __('rml.profile.name'),
+            'email' => __('rml.profile.email'),
+        ];
+    }
 }

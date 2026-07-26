@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests\Admin;
 
-use App\Enums\CommissionAppliesTo;
 use App\Support\Permissions;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -22,8 +21,9 @@ class UpdateCommissionRequest extends FormRequest
     {
         return [
             'name' => ['sometimes', 'string', 'max:255'],
-            'applies_to' => ['sometimes', 'string', Rule::in(CommissionAppliesTo::values())],
-            'percentage' => ['sometimes', 'numeric', 'min:0', 'max:100'],
+            'applies_to' => ['sometimes', 'string', Rule::in(StoreCommissionRequest::creatableAppliesTo())],
+            'rate_per_m2' => ['sometimes', 'numeric', 'min:0'],
+            'percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'active' => ['sometimes', 'boolean'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ];

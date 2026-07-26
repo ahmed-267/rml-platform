@@ -36,4 +36,17 @@ class StoreSellerMessageRequest extends FormRequest
             'related_lead_id' => ['nullable', 'integer', 'exists:leads,id'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'subject' => __('rml.seller.messages.subject'),
+            'body' => __('rml.seller.messages.body'),
+            'category' => __('rml.seller.messages.category'),
+            'related_lead_id' => __('rml.seller.messages.related_lead'),
+        ];
+    }
 }

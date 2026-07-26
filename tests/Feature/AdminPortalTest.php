@@ -180,7 +180,7 @@ class AdminPortalTest extends TestCase
         $original = $lead->status;
 
         $this->actingAs($admin)
-            ->from(route('admin.leads-bought.index'))
+            ->from(route('admin.leads.index', ['tab' => 'registered']))
             ->post(route('admin.leads.audit.accept', $lead), [
                 'buying_price' => 200,
                 'selling_price' => 300,
@@ -241,7 +241,8 @@ class AdminPortalTest extends TestCase
         $admin = User::query()->where('email', 'admin@rml.test')->firstOrFail();
 
         $this->actingAs($admin)
-            ->get(route('admin.leads-bought.index', [
+            ->get(route('admin.leads.index', [
+                'tab' => 'registered',
                 'search' => 'LD-',
                 'sort' => 'reference',
                 'direction' => 'asc',
@@ -250,7 +251,8 @@ class AdminPortalTest extends TestCase
             ]))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->component('Admin/LeadsBought/Index')
+                ->component('Admin/Leads/Index')
+                ->where('tab', 'registered')
                 ->where('filters.sort', 'reference')
                 ->where('filters.direction', 'asc')
                 ->where('filters.per_page', 25)
@@ -262,14 +264,16 @@ class AdminPortalTest extends TestCase
         $admin = User::query()->where('email', 'admin@rml.test')->firstOrFail();
 
         $this->actingAs($admin)
-            ->get(route('admin.leads-sold.index', [
+            ->get(route('admin.leads.index', [
+                'tab' => 'sold',
                 'sort' => 'margin',
                 'direction' => 'desc',
                 'per_page' => 10,
             ]))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->component('Admin/LeadsSold/Index')
+                ->component('Admin/Leads/Index')
+                ->where('tab', 'sold')
                 ->where('filters.sort', 'margin')
                 ->where('filters.direction', 'desc')
                 ->where('filters.per_page', 10));
@@ -280,14 +284,15 @@ class AdminPortalTest extends TestCase
         $admin = User::query()->where('email', 'admin@rml.test')->firstOrFail();
 
         $this->actingAs($admin)
-            ->get(route('admin.leads-bought.index', [
+            ->get(route('admin.leads.index', [
+                'tab' => 'registered',
                 'sort' => 'customer_email;drop table',
                 'direction' => 'asc',
                 'per_page' => 10,
             ]))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->component('Admin/LeadsBought/Index')
+                ->component('Admin/Leads/Index')
                 ->where('filters.sort', 'date')
                 ->where('filters.direction', 'asc')
                 ->where('filters.per_page', 10));
@@ -446,13 +451,57 @@ class AdminPortalTest extends TestCase
         $admin = User::query()->where('email', 'admin@rml.test')->firstOrFail();
 
         $this->actingAs($admin)
-            ->get(route('admin.leads-bought.index'))
+            ->get(route('admin.leads.index', ['tab' => 'registered']))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('Admin/LeadsBought/Index'));
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Leads/Index')
+                ->where('tab', 'registered'));
+
+        $this->actingAs($admin)
+            ->get(route('admin.leads.index', ['tab' => 'sold']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Leads/Index')
+                ->where('tab', 'sold'));
+
+        $this->actingAs($admin)
+            ->get(route('admin.leads-bought.index'))
+            ->assertRedirect(route('admin.leads.index', ['tab' => 'registered']));
 
         $this->actingAs($admin)
             ->get(route('admin.leads-sold.index'))
+            ->assertRedirect(route('admin.leads.index', ['tab' => 'sold']));
+    }
+
+    public function test_users_hub_tabs_and_legacy_redirects(): void
+    {
+        $admin = User::query()->where('email', 'admin@rml.test')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('admin.users.index', ['tab' => 'sellers']))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('Admin/LeadsSold/Index'));
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Users/Index')
+                ->where('tab', 'sellers')
+                ->has('sellers'));
+
+        $this->actingAs($admin)
+            ->get(route('admin.users.index', ['tab' => 'buyers']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Users/Index')
+                ->where('tab', 'buyers')
+                ->has('buyers'));
+
+        $this->actingAs($admin)
+            ->get(route('admin.sellers.index', ['approval_status' => 'pending']))
+            ->assertRedirect(route('admin.users.index', [
+                'approval_status' => 'pending',
+                'tab' => 'sellers',
+            ]));
+
+        $this->actingAs($admin)
+            ->get(route('admin.buyers.index'))
+            ->assertRedirect(route('admin.users.index', ['tab' => 'buyers']));
     }
 }

@@ -31,7 +31,7 @@ class LeadController extends Controller
         $this->authorizeViewAny($request);
 
         $query = SellerLeadScope::forUser($request->user())
-            ->with(['scheme:id,name', 'zone:id,code', 'evidenceFiles']);
+            ->with(['scheme:id,name', 'zone:id,code', 'evidenceFiles', 'submittedBy:id,name']);
 
         if ($request->filled('status')) {
             $query->whereIn('status', LeadStatusPresentation::expand($request->string('status')->toString()));
@@ -41,16 +41,19 @@ class LeadController extends Controller
             $query->where('scheme_id', $request->integer('scheme_id'));
         }
 
-        if ($request->filled('zone_id')) {
+        if ($request->filled('zone_code')) {
+            $zoneCode = $request->string('zone_code')->toString();
+            $query->whereHas('zone', fn ($q) => $q->where('code', $zoneCode));
+        } elseif ($request->filled('zone_id')) {
             $query->where('zone_id', $request->integer('zone_id'));
         }
 
         if ($request->filled('search')) {
             $search = '%'.$request->string('search')->toString().'%';
             $query->where(function ($q) use ($search) {
-                $q->where('lead_reference', 'like', $search)
-                    ->orWhere('customer_first_name', 'like', $search)
-                    ->orWhere('customer_last_name', 'like', $search);
+                $q->where('lead_reference', 'ilike', $search)
+                    ->orWhere('customer_first_name', 'ilike', $search)
+                    ->orWhere('customer_last_name', 'ilike', $search);
             });
         }
 
@@ -94,6 +97,7 @@ class LeadController extends Controller
             'filters' => [
                 'status' => $request->input('status'),
                 'scheme_id' => $request->input('scheme_id'),
+                'zone_code' => $request->input('zone_code'),
                 'zone_id' => $request->input('zone_id'),
                 'search' => $request->input('search'),
                 'sort' => $sortState['sort'],
@@ -102,7 +106,19 @@ class LeadController extends Controller
             ],
             'filterOptions' => [
                 'schemes' => Scheme::query()->where('active', true)->orderBy('sort_order')->get(['id', 'name']),
-                'zones' => Zone::query()->where('active', true)->orderBy('sort_order')->get(['id', 'code', 'name', 'scheme_id']),
+                'zones' => Zone::query()
+                    ->where('active', true)
+                    ->orderBy('code')
+                    ->get(['id', 'code', 'name', 'scheme_id'])
+                    ->unique('code')
+                    ->values()
+                    ->map(fn (Zone $zone) => [
+                        'id' => $zone->id,
+                        'code' => $zone->code,
+                        'name' => $zone->name,
+                        'scheme_id' => $zone->scheme_id,
+                    ])
+                    ->all(),
                 'statuses' => LeadStatusPresentation::visibleValues(includeDraft: true),
             ],
         ]);

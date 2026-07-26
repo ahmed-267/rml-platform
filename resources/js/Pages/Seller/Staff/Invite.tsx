@@ -8,6 +8,8 @@ import {
     FormInput,
     MobileCardList,
     StatusBadge,
+    TableActionButton,
+    tableActionIcons,
 } from '@/Components/ui';
 import { useIsMobile } from '@/hooks/use-media-query';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
@@ -111,13 +113,12 @@ export default function StaffInvite({
                                 </p>
                             ),
                             actions: (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
+                                <TableActionButton
+                                    label={t.invite_cancel}
+                                    icon={tableActionIcons.cancel}
+                                    tone="danger"
                                     onClick={() => cancelInvitation(row.id)}
-                                >
-                                    {t.invite_cancel}
-                                </Button>
+                                />
                             ),
                         }))}
                     />
@@ -162,15 +163,14 @@ export default function StaffInvite({
                                 id: 'actions',
                                 header: common.actions,
                                 cell: (row) => (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
+                                    <TableActionButton
+                                        label={t.invite_cancel}
+                                        icon={tableActionIcons.cancel}
+                                        tone="danger"
                                         onClick={() =>
                                             cancelInvitation(row.id)
                                         }
-                                    >
-                                        {t.invite_cancel}
-                                    </Button>
+                                    />
                                 ),
                             },
                         ]}

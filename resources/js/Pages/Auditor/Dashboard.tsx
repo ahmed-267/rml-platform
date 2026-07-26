@@ -14,6 +14,8 @@ import {
     KpiCard,
     MobileCardList,
     StatusBadge,
+    TableActionLink,
+    tableActionIcons,
 } from '@/Components/ui';
 import { useIsMobile } from '@/hooks/use-media-query';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
@@ -109,15 +111,27 @@ export default function AuditorDashboard({
                     {t.dashboard.quick_actions}
                 </h2>
                 <div className="flex flex-wrap gap-2">
-                    <Link href={route('auditor.assigned-audits.index')}>
+                    <Link
+                        href={route('auditor.audits.index', {
+                            tab: 'my-audits',
+                        })}
+                    >
                         <Button type="button">{t.dashboard.action_assigned}</Button>
                     </Link>
-                    <Link href={route('auditor.audits.index')}>
+                    <Link
+                        href={route('auditor.audits.index', {
+                            tab: 'audit-queue',
+                        })}
+                    >
                         <Button type="button" variant="outline">
                             {t.dashboard.action_in_review}
                         </Button>
                     </Link>
-                    <Link href={route('auditor.completed-audits.index')}>
+                    <Link
+                        href={route('auditor.audits.index', {
+                            tab: 'completed',
+                        })}
+                    >
                         <Button type="button" variant="outline">
                             {t.dashboard.action_completed}
                         </Button>
@@ -233,13 +247,12 @@ function AuditListSection({
                             />
                         ),
                         actions: (
-                            <Link
+                            <TableActionLink
                                 href={route('auditor.audits.show', row.id)}
-                                className="text-sm font-semibold text-rml-primary"
+                                label={openLabel}
+                                icon={tableActionIcons.audit}
                                 onClick={(e) => e.stopPropagation()}
-                            >
-                                {openLabel}
-                            </Link>
+                            />
                         ),
                     }))}
                     onItemClick={(id) =>
@@ -290,12 +303,11 @@ function AuditListSection({
                         id: 'action',
                         header: '',
                         cell: (r) => (
-                            <Link
+                            <TableActionLink
                                 href={route('auditor.audits.show', r.id)}
-                                className="text-sm font-semibold text-rml-primary hover:underline"
-                            >
-                                {openLabel}
-                            </Link>
+                                label={openLabel}
+                                icon={tableActionIcons.audit}
+                            />
                         ),
                     },
                 ]}

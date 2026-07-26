@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Enums\TemplateDocumentType;
 use App\Http\Requests\Admin\StoreCommissionRequest;
 use App\Http\Requests\Admin\StoreSchemeRequest;
+use App\Http\Requests\Admin\StoreTemplateRequest;
 use App\Http\Requests\Admin\UpdateCommissionRequest;
 use App\Http\Requests\Admin\UpdateGeneralSettingsRequest;
 use App\Http\Requests\Admin\UpdatePricingRequest;
@@ -46,10 +48,17 @@ class SettingController extends Controller
         $this->authorize('viewAny', TemplateDocument::class);
 
         $tab = $request->string('tab')->toString();
-        if (! in_array($tab, ['schemes', 'commissions', 'general', 'logs'], true)) {
+        $validTabs = ['schemes', 'commissions', 'general', 'agreements', 'terms', 'gdpr', 'logs'];
+        if (! in_array($tab, $validTabs, true)) {
             $tab = 'schemes';
         }
 
+        $visibleCommissionRules = CommissionRule::query()
+            ->where('applies_to', '!=', 'seller_staff')
+            ->orderByDesc('id')
+            ->get();
+
+        // Tab counts need schemes + commission_rules on every visit; skip heavy general/templates unless open.
         $payload = [
             'tab' => $tab,
             'schemes' => Scheme::query()
@@ -61,67 +70,14 @@ class SettingController extends Controller
                 ->orderBy('sort_order')
                 ->get()
                 ->map(fn (Scheme $scheme) => $this->transformScheme($scheme)),
-            'zones' => Zone::query()
-                ->with('scheme:id,name')
-                ->orderBy('sort_order')
-                ->get()
-                ->map(fn (Zone $zone) => [
-                    'id' => $zone->id,
-                    'scheme_id' => $zone->scheme_id,
-                    'scheme_name' => $zone->scheme?->name,
-                    'code' => $zone->code,
-                    'name' => $zone->name,
-                    'description' => $zone->description,
-                    'active' => $zone->active,
-                    'sort_order' => $zone->sort_order,
-                ]),
-            'pricing_rules' => PricingRule::query()
-                ->with(['scheme:id,name', 'zone:id,code'])
-                ->latest('id')
-                ->get()
-                ->map(fn (PricingRule $rule) => [
-                    'id' => $rule->id,
-                    'scheme_id' => $rule->scheme_id,
-                    'scheme_name' => $rule->scheme?->name,
-                    'zone_id' => $rule->zone_id,
-                    'zone_code' => $rule->zone?->code,
-                    'price_per_m2' => $rule->price_per_m2 !== null ? (float) $rule->price_per_m2 : null,
-                    'basic_price' => $rule->basic_price !== null ? (float) $rule->basic_price : null,
-                    'zone_factor' => $rule->zone_factor !== null ? (float) $rule->zone_factor : null,
-                    'size_factor' => $rule->size_factor !== null ? (float) $rule->size_factor : null,
-                    'distance_factor' => $rule->distance_factor !== null ? (float) $rule->distance_factor : null,
-                    'active' => $rule->active,
-                    'effective_from' => $rule->effective_from?->toDateString(),
-                    'effective_to' => $rule->effective_to?->toDateString(),
-                ]),
-            'commission_rules' => CommissionRule::query()
-                ->orderByDesc('id')
-                ->get()
-                ->map(fn (CommissionRule $rule) => [
-                    'id' => $rule->id,
-                    'name' => $rule->name,
-                    'applies_to' => $rule->applies_to?->value,
-                    'percentage' => $rule->percentage !== null ? (float) $rule->percentage : null,
-                    'active' => $rule->active,
-                    'notes' => $rule->notes,
-                ]),
-            'templates' => TemplateDocument::query()
-                ->with([
-                    'activeVersion:id,template_document_id,version,effective_from,content',
-                ])
-                ->orderBy('type')
-                ->get()
-                ->map(fn (TemplateDocument $doc) => [
-                    'id' => $doc->id,
-                    'type' => $doc->type?->value,
-                    'name' => $doc->name,
-                    'description' => $doc->description,
-                    'active_version' => $doc->activeVersion?->version,
-                    'active_version_id' => $doc->active_version_id,
-                    'content' => $doc->activeVersion?->content,
-                ]),
-            'general' => $this->generalSettings(),
+            'zones' => [],
+            'pricing_rules' => [],
+            'commission_rules' => $visibleCommissionRules
+                ->map(fn (CommissionRule $rule) => $this->transformCommissionRule($rule)),
+            'templates' => [],
+            'general' => $tab === 'general' ? $this->generalSettings() : [],
             'logs' => null,
+            'can_delete_logs' => $request->user()?->hasRole('super_admin') ?? false,
             'log_filters' => [
                 'action' => $request->input('action'),
                 'search' => $request->input('search'),
@@ -133,6 +89,10 @@ class SettingController extends Controller
             'log_users' => [],
             'log_actions' => [],
         ];
+
+        if (in_array($tab, ['agreements', 'terms', 'gdpr'], true)) {
+            $payload['templates'] = $this->templatesForTab($tab);
+        }
 
         if ($tab === 'logs' && $request->user()?->can('viewAny', AuditLog::class)) {
             $logsResult = $this->paginatedLogs($request);
@@ -376,7 +336,7 @@ class SettingController extends Controller
             'settings.commission_created',
             $rule,
             null,
-            $rule->only(['name', 'applies_to', 'percentage', 'active', 'notes']),
+            $rule->only(['name', 'applies_to', 'percentage', 'rate_per_m2', 'active', 'notes']),
             $request->user(),
         );
 
@@ -387,14 +347,14 @@ class SettingController extends Controller
 
     public function updateCommission(UpdateCommissionRequest $request, CommissionRule $commissionRule): RedirectResponse
     {
-        $old = $commissionRule->only(['name', 'applies_to', 'percentage', 'active', 'notes']);
+        $old = $commissionRule->only(['name', 'applies_to', 'percentage', 'rate_per_m2', 'active', 'notes']);
         $commissionRule->update($request->validated());
 
         $this->auditLogService->log(
             'settings.commission_updated',
             $commissionRule,
             $old,
-            $commissionRule->only(['name', 'applies_to', 'percentage', 'active', 'notes']),
+            $commissionRule->only(['name', 'applies_to', 'percentage', 'rate_per_m2', 'active', 'notes']),
             $request->user(),
         );
 
@@ -407,7 +367,7 @@ class SettingController extends Controller
             abort(403);
         }
 
-        $old = $commissionRule->only(['name', 'applies_to', 'percentage', 'active', 'notes']);
+        $old = $commissionRule->only(['name', 'applies_to', 'percentage', 'rate_per_m2', 'active', 'notes']);
 
         if ($request->boolean('deactivate_only', true)) {
             $commissionRule->update(['active' => false]);
@@ -415,7 +375,7 @@ class SettingController extends Controller
                 'settings.commission_deactivated',
                 $commissionRule,
                 $old,
-                $commissionRule->only(['name', 'applies_to', 'percentage', 'active', 'notes']),
+                $commissionRule->only(['name', 'applies_to', 'percentage', 'rate_per_m2', 'active', 'notes']),
                 $request->user(),
             );
 
@@ -441,9 +401,11 @@ class SettingController extends Controller
         $template->save();
 
         if ($request->filled('content')) {
+            $nextVersion = ((int) $template->versions()->max('version')) + 1;
+
             $version = TemplateVersion::query()->create([
                 'template_document_id' => $template->id,
-                'version' => $request->input('version', now()->format('Y.m.d.His')),
+                'version' => $nextVersion,
                 'content' => $request->string('content')->toString(),
                 'created_by_user_id' => $request->user()->id,
                 'active' => true,
@@ -451,6 +413,9 @@ class SettingController extends Controller
             ]);
 
             if ($request->boolean('activate', true)) {
+                $template->versions()
+                    ->where('id', '!=', $version->id)
+                    ->update(['active' => false]);
                 $template->update(['active_version_id' => $version->id]);
             }
         }
@@ -464,6 +429,160 @@ class SettingController extends Controller
         );
 
         return back()->with('success', __('rml.admin.settings.template_updated_flash'));
+    }
+
+    public function storeTemplate(StoreTemplateRequest $request): RedirectResponse
+    {
+        $data = $request->validated();
+
+        $template = DB::transaction(function () use ($data, $request) {
+            $document = TemplateDocument::query()->create([
+                'type' => $data['type'],
+                'name' => $data['name'],
+                'description' => $data['description'] ?? null,
+            ]);
+
+            $version = TemplateVersion::query()->create([
+                'template_document_id' => $document->id,
+                'version' => 1,
+                'content' => $data['content'],
+                'created_by_user_id' => $request->user()->id,
+                'active' => true,
+                'effective_from' => now()->toDateString(),
+            ]);
+
+            $document->update(['active_version_id' => $version->id]);
+
+            return $document;
+        });
+
+        $this->auditLogService->log(
+            'settings.template_created',
+            $template,
+            null,
+            $template->only(['type', 'name', 'description', 'active_version_id']),
+            $request->user(),
+        );
+
+        return redirect()
+            ->route('admin.settings.index', ['tab' => $this->templateTabForType($template->type?->value)])
+            ->with('success', __('rml.admin.settings.template_created_flash'));
+    }
+
+    public function destroyTemplate(Request $request, TemplateDocument $template): RedirectResponse
+    {
+        if (! ($request->user()?->can(Permissions::MANAGE_SETTINGS) || $request->user()?->hasRole('super_admin'))) {
+            abort(403);
+        }
+
+        $tab = $this->templateTabForType($template->type?->value);
+        $snapshot = $template->only(['type', 'name', 'description', 'active_version_id']);
+
+        DB::transaction(function () use ($template) {
+            $template->versions()->delete();
+            $template->delete();
+        });
+
+        $this->auditLogService->log(
+            'settings.template_deleted',
+            null,
+            $snapshot,
+            null,
+            $request->user(),
+        );
+
+        return redirect()
+            ->route('admin.settings.index', ['tab' => $tab])
+            ->with('success', __('rml.admin.settings.template_deleted_flash'));
+    }
+
+    public function activateTemplateVersion(Request $request, TemplateDocument $template, TemplateVersion $version): RedirectResponse
+    {
+        if (! ($request->user()?->can(Permissions::MANAGE_SETTINGS) || $request->user()?->hasRole('super_admin'))) {
+            abort(403);
+        }
+
+        if ($version->template_document_id !== $template->id) {
+            abort(404);
+        }
+
+        $old = $template->only(['active_version_id']);
+
+        DB::transaction(function () use ($template, $version) {
+            $template->versions()->update(['active' => false]);
+            $version->update(['active' => true]);
+            $template->update(['active_version_id' => $version->id]);
+        });
+
+        $template->refresh();
+
+        $this->auditLogService->log(
+            'settings.template_version_activated',
+            $template,
+            $old,
+            $template->only(['active_version_id']),
+            $request->user(),
+        );
+
+        return back()->with('success', __('rml.admin.settings.template_version_activated_flash'));
+    }
+
+    public function deactivateTemplateVersion(Request $request, TemplateDocument $template, TemplateVersion $version): RedirectResponse
+    {
+        if (! ($request->user()?->can(Permissions::MANAGE_SETTINGS) || $request->user()?->hasRole('super_admin'))) {
+            abort(403);
+        }
+
+        if ($version->template_document_id !== $template->id) {
+            abort(404);
+        }
+
+        $old = $template->only(['active_version_id']);
+
+        DB::transaction(function () use ($template, $version) {
+            $version->update(['active' => false]);
+
+            if ($template->active_version_id === $version->id) {
+                $template->update(['active_version_id' => null]);
+            }
+        });
+
+        $template->refresh();
+
+        $this->auditLogService->log(
+            'settings.template_version_deactivated',
+            $template,
+            $old,
+            $template->only(['active_version_id']),
+            $request->user(),
+        );
+
+        return back()->with('success', __('rml.admin.settings.template_version_deactivated_flash'));
+    }
+
+    public function destroyAuditLog(Request $request, AuditLog $auditLog): RedirectResponse
+    {
+        if (! $request->user()?->hasRole('super_admin')) {
+            abort(403);
+        }
+
+        $snapshot = [
+            'action' => $auditLog->action,
+            'entity_type' => $auditLog->entity_type,
+            'entity_id' => $auditLog->entity_id,
+        ];
+
+        $auditLog->delete();
+
+        $this->auditLogService->log(
+            'settings.audit_log_deleted',
+            null,
+            $snapshot,
+            null,
+            $request->user(),
+        );
+
+        return back()->with('success', __('rml.admin.settings.audit_log_deleted_flash'));
     }
 
     public function updateGeneral(UpdateGeneralSettingsRequest $request): RedirectResponse
@@ -481,6 +600,101 @@ class SettingController extends Controller
         );
 
         return back()->with('success', __('rml.admin.settings.general_updated_flash'));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function transformCommissionRule(CommissionRule $rule): array
+    {
+        return [
+            'id' => $rule->id,
+            'name' => $rule->name,
+            'applies_to' => $rule->applies_to?->value,
+            'percentage' => $rule->percentage !== null ? (float) $rule->percentage : null,
+            'rate_per_m2' => $rule->rate_per_m2 !== null ? (float) $rule->rate_per_m2 : null,
+            'active' => $rule->active,
+            'notes' => $rule->notes,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function templatesForTab(string $tab): array
+    {
+        $types = match ($tab) {
+            'agreements' => [
+                TemplateDocumentType::SellerAgreement->value,
+                TemplateDocumentType::BuyerAgreement->value,
+                TemplateDocumentType::HomeownerAgreement->value,
+                TemplateDocumentType::EligibilityRequirements->value,
+                TemplateDocumentType::HomeownerConsent->value,
+            ],
+            'terms' => [
+                TemplateDocumentType::SellerTerms->value,
+                TemplateDocumentType::BuyerTerms->value,
+            ],
+            'gdpr' => [
+                TemplateDocumentType::SellerGdpr->value,
+                TemplateDocumentType::BuyerGdpr->value,
+            ],
+            default => [],
+        };
+
+        return TemplateDocument::query()
+            ->with([
+                'activeVersion:id,template_document_id,version,effective_from,content,active',
+                'versions' => fn ($query) => $query
+                    ->select(['id', 'template_document_id', 'version', 'content', 'active', 'effective_from', 'created_at'])
+                    ->orderByDesc('version'),
+            ])
+            ->whereIn('type', $types)
+            ->orderBy('type')
+            ->get()
+            ->map(fn (TemplateDocument $doc) => $this->transformTemplate($doc))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function transformTemplate(TemplateDocument $doc): array
+    {
+        return [
+            'id' => $doc->id,
+            'type' => $doc->type?->value,
+            'name' => $doc->name,
+            'description' => $doc->description,
+            'active_version' => $doc->activeVersion?->version,
+            'active_version_id' => $doc->active_version_id,
+            'content' => $doc->activeVersion?->content,
+            'versions' => $doc->versions->map(fn (TemplateVersion $version) => [
+                'id' => $version->id,
+                'version' => $version->version,
+                'content' => $version->content,
+                'active' => $version->active,
+                'effective_from' => $version->effective_from?->toDateString(),
+                'created_at' => $version->created_at?->toIso8601String(),
+                'is_active' => $doc->active_version_id === $version->id,
+            ])->values()->all(),
+        ];
+    }
+
+    private function templateTabForType(?string $type): string
+    {
+        if ($type === null) {
+            return 'agreements';
+        }
+
+        return match ($type) {
+            TemplateDocumentType::SellerTerms->value,
+            TemplateDocumentType::BuyerTerms->value => 'terms',
+            TemplateDocumentType::SellerGdpr->value,
+            TemplateDocumentType::BuyerGdpr->value => 'gdpr',
+            default => 'agreements',
+        };
     }
 
     /**
@@ -688,7 +902,7 @@ class SettingController extends Controller
         $query = AuditLog::query()->with('user:id,name,email');
 
         if ($request->filled('action')) {
-            $query->where('action', 'like', '%'.$request->string('action')->toString().'%');
+            $query->where('action', 'ilike', '%'.$request->string('action')->toString().'%');
         }
 
         if ($request->filled('user_id')) {
@@ -698,9 +912,9 @@ class SettingController extends Controller
         if ($request->filled('search')) {
             $search = '%'.$request->string('search')->toString().'%';
             $query->where(function ($q) use ($search) {
-                $q->where('action', 'like', $search)
-                    ->orWhere('entity_type', 'like', $search)
-                    ->orWhereHas('user', fn ($uq) => $uq->where('name', 'like', $search));
+                $q->where('action', 'ilike', $search)
+                    ->orWhere('entity_type', 'ilike', $search)
+                    ->orWhereHas('user', fn ($uq) => $uq->where('name', 'ilike', $search));
             });
         }
 

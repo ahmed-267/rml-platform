@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\DistanceService;
 use App\Services\LeadPricingService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
 class LeadAvailabilityService
 {
@@ -65,6 +66,32 @@ class LeadAvailabilityService
     }
 
     /**
+     * Batch-check availability for many lead IDs (one query).
+     *
+     * @param  iterable<int|string>  $leadIds
+     * @return array<int, true> keyed by lead id
+     */
+    public function availableIdSet(iterable $leadIds): array
+    {
+        $ids = collect($leadIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        if ($ids === []) {
+            return [];
+        }
+
+        return $this->availableQuery()
+            ->whereIn('id', $ids)
+            ->pluck('id')
+            ->mapWithKeys(fn ($id) => [(int) $id => true])
+            ->all();
+    }
+
+    /**
      * @param  array<string, mixed>  $filters
      */
     public function findAvailableForBuyer(User $buyer, array $filters = []): Builder
@@ -98,7 +125,7 @@ class LeadAvailabilityService
 
         if (! empty($filters['search'])) {
             $search = trim((string) $filters['search']);
-            $query->where('lead_reference', 'like', '%'.$search.'%');
+            $query->where('lead_reference', 'ilike', '%'.$search.'%');
         }
 
         $minDistance = $filters['min_distance'] ?? null;
@@ -106,44 +133,97 @@ class LeadAvailabilityService
         $minPrice = $filters['min_price'] ?? null;
         $maxPrice = $filters['max_price'] ?? null;
 
-        if (
-            ($minDistance !== null && $minDistance !== '')
-            || ($maxDistance !== null && $maxDistance !== '')
-            || ($minPrice !== null && $minPrice !== '')
-            || ($maxPrice !== null && $maxPrice !== '')
-        ) {
-            $leadIds = (clone $query)->pluck('id');
-            $matchedIds = Lead::query()
-                ->whereIn('id', $leadIds)
-                ->with(['scheme', 'zone'])
-                ->get()
-                ->filter(function (Lead $lead) use ($company, $minDistance, $maxDistance, $minPrice, $maxPrice) {
-                    $distance = $this->distanceService->forLead($lead, $company);
-                    $pricing = $this->leadPricingService->calculate($lead);
-                    $price = $lead->selling_price !== null
-                        ? (float) $lead->selling_price
-                        : ($pricing['selling_price'] ?? null);
+        $hasDistanceFilter = ($minDistance !== null && $minDistance !== '')
+            || ($maxDistance !== null && $maxDistance !== '');
+        $hasPriceFilter = ($minPrice !== null && $minPrice !== '')
+            || ($maxPrice !== null && $maxPrice !== '');
 
-                    if ($minDistance !== null && $minDistance !== '' && ($distance === null || $distance < (float) $minDistance)) {
-                        return false;
+        if ($hasDistanceFilter) {
+            $query->where(function (Builder $distanceQuery) use ($minDistance, $maxDistance) {
+                $distanceQuery->where(function (Builder $stored) use ($minDistance, $maxDistance) {
+                    $stored->whereNotNull('distance_km');
+                    if ($minDistance !== null && $minDistance !== '') {
+                        $stored->where('distance_km', '>=', (float) $minDistance);
                     }
-
-                    if ($maxDistance !== null && $maxDistance !== '' && ($distance === null || $distance > (float) $maxDistance)) {
-                        return false;
+                    if ($maxDistance !== null && $maxDistance !== '') {
+                        $stored->where('distance_km', '<=', (float) $maxDistance);
                     }
+                })->orWhere(function (Builder $computed) {
+                    $computed->whereNull('distance_km')
+                        ->whereNotNull('latitude')
+                        ->whereNotNull('longitude');
+                });
+            });
+        }
 
-                    if ($minPrice !== null && $minPrice !== '' && ($price === null || $price < (float) $minPrice)) {
-                        return false;
+        if ($hasPriceFilter) {
+            $query->where(function (Builder $priceQuery) use ($minPrice, $maxPrice) {
+                $priceQuery->where(function (Builder $stored) use ($minPrice, $maxPrice) {
+                    $stored->whereNotNull('selling_price');
+                    if ($minPrice !== null && $minPrice !== '') {
+                        $stored->where('selling_price', '>=', (float) $minPrice);
                     }
-
-                    if ($maxPrice !== null && $maxPrice !== '' && ($price === null || $price > (float) $maxPrice)) {
-                        return false;
+                    if ($maxPrice !== null && $maxPrice !== '') {
+                        $stored->where('selling_price', '<=', (float) $maxPrice);
                     }
+                })->orWhereNull('selling_price');
+            });
+        }
 
-                    return true;
-                })
-                ->pluck('id')
-                ->all();
+        if ($hasDistanceFilter || $hasPriceFilter) {
+            $this->leadPricingService->warmRulesCache();
+            $matchedIds = [];
+
+            (clone $query)
+                ->select([
+                    'id',
+                    'scheme_id',
+                    'zone_id',
+                    'size_m2',
+                    'selling_price',
+                    'distance_km',
+                    'latitude',
+                    'longitude',
+                ])
+                ->orderBy('id')
+                ->chunkById(250, function (Collection $leads) use (
+                    &$matchedIds,
+                    $company,
+                    $minDistance,
+                    $maxDistance,
+                    $minPrice,
+                    $maxPrice,
+                    $hasDistanceFilter,
+                    $hasPriceFilter,
+                ) {
+                    foreach ($leads as $lead) {
+                        if ($hasDistanceFilter) {
+                            $distance = $this->distanceService->forLead($lead, $company);
+                            if ($minDistance !== null && $minDistance !== '' && ($distance === null || $distance < (float) $minDistance)) {
+                                continue;
+                            }
+                            if ($maxDistance !== null && $maxDistance !== '' && ($distance === null || $distance > (float) $maxDistance)) {
+                                continue;
+                            }
+                        }
+
+                        if ($hasPriceFilter) {
+                            $pricing = $this->leadPricingService->calculate($lead);
+                            $price = $lead->selling_price !== null
+                                ? (float) $lead->selling_price
+                                : ($pricing['selling_price'] ?? null);
+
+                            if ($minPrice !== null && $minPrice !== '' && ($price === null || $price < (float) $minPrice)) {
+                                continue;
+                            }
+                            if ($maxPrice !== null && $maxPrice !== '' && ($price === null || $price > (float) $maxPrice)) {
+                                continue;
+                            }
+                        }
+
+                        $matchedIds[] = (int) $lead->id;
+                    }
+                });
 
             $query->whereIn('id', $matchedIds === [] ? [0] : $matchedIds);
         }

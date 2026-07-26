@@ -21,6 +21,8 @@
 
     html {
         @apply scroll-smooth;
+        /* Offset in-page anchors so sticky public navbar does not cover headings */
+        scroll-padding-top: 4.5rem;
     }
 
     body {
@@ -33,7 +35,10 @@
         }
 
         .animate-\[rml-float_5s_ease-in-out_infinite\],
-        .animate-rml-float {
+        .animate-rml-float,
+        .animate-\[rml-stage-in_380ms_ease-out\],
+        .animate-\[rml-stage-in_400ms_ease-out\],
+        .animate-\[rml-stage-in_420ms_ease-out\] {
             animation: none !important;
         }
     }

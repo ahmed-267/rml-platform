@@ -51,9 +51,9 @@ class AuditedLeadController extends Controller
         if ($request->filled('search')) {
             $search = '%'.$request->string('search')->toString().'%';
             $query->where(function ($q) use ($search) {
-                $q->where('lead_reference', 'like', $search)
-                    ->orWhere('customer_first_name', 'like', $search)
-                    ->orWhere('customer_last_name', 'like', $search);
+                $q->where('lead_reference', 'ilike', $search)
+                    ->orWhere('customer_first_name', 'ilike', $search)
+                    ->orWhere('customer_last_name', 'ilike', $search);
             });
         }
 

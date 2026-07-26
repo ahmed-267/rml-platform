@@ -1,18 +1,24 @@
 import {
-    CheckCircle2,
-    ClipboardCheck,
-    Euro,
-    FileText,
+    BadgeCheck,
+    Banknote,
+    CircleDollarSign,
+    HandCoins,
+    Hourglass,
     Inbox,
-    MessageSquare,
-    ShoppingCart,
-    TrendingUp,
-    Wallet,
+    Layers,
+    MessageCircleWarning,
+    Percent,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
-import { EmptyState, KpiCard, StatusBadge } from '@/Components/ui';
+import {
+    EmptyState,
+    KpiCard,
+    StatusBadge,
+    TableActionLink,
+    tableActionIcons,
+} from '@/Components/ui';
 import { formatMoney } from '@/lib/admin-helpers';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import { cn } from '@/lib/cn';
@@ -72,6 +78,12 @@ export default function AdminDashboard({
         profit_margin: number;
         open_issues: number;
         acceptance_rate: number;
+        sold_rate?: number;
+        awaiting_rate?: number;
+        margin_rate?: number;
+        pending_payments_count?: number;
+        pending_payouts_count?: number;
+        pending_approvals?: number;
     };
     pipeline_counts: Record<string, number>;
     awaiting_audit_leads: AwaitingAuditLead[];
@@ -114,56 +126,88 @@ export default function AdminDashboard({
                     className="p-4"
                     label={t.kpi_total_submitted}
                     value={kpis.total_submitted}
-                    icon={FileText}
+                    hint={t.kpi_hint_active_pipeline}
+                    icon={Layers}
                     tone="info"
                 />
                 <KpiCard
                     className="p-4"
                     label={t.kpi_awaiting_validation}
                     value={kpis.awaiting_validation}
-                    icon={ClipboardCheck}
+                    hint={
+                        kpis.awaiting_rate != null
+                            ? `${kpis.awaiting_rate}% ${t.kpi_hint_of_pipeline}`
+                            : undefined
+                    }
+                    icon={Hourglass}
                     tone="warning"
                 />
                 <KpiCard
                     className="p-4"
                     label={t.kpi_leads_sold}
                     value={kpis.leads_sold}
-                    icon={ShoppingCart}
+                    hint={
+                        kpis.sold_rate != null
+                            ? `${kpis.sold_rate}% ${t.kpi_hint_conversion}`
+                            : undefined
+                    }
+                    icon={BadgeCheck}
                     tone="success"
                 />
                 <KpiCard
                     className="p-4"
                     label={t.kpi_acceptance_rate}
                     value={`${kpis.acceptance_rate}%`}
-                    icon={CheckCircle2}
+                    hint={t.kpi_hint_acceptance}
+                    icon={Percent}
                     tone="default"
                 />
                 <KpiCard
                     className="p-4"
                     label={t.kpi_buyer_payments_paid}
                     value={formatMoney(kpis.buyer_payments_paid_sum)}
-                    icon={Wallet}
+                    hint={
+                        kpis.pending_payments_count != null
+                            ? `${kpis.pending_payments_count} ${t.kpi_hint_pending_payments}`
+                            : undefined
+                    }
+                    icon={Banknote}
                     tone="info"
                 />
                 <KpiCard
                     className="p-4"
                     label={t.kpi_seller_payouts_paid}
                     value={formatMoney(kpis.seller_payouts_paid_sum)}
-                    icon={Euro}
+                    hint={
+                        kpis.pending_payouts_count != null
+                            ? `${kpis.pending_payouts_count} ${t.kpi_hint_pending_payouts}`
+                            : undefined
+                    }
+                    icon={HandCoins}
                     tone="default"
                 />
                 <KpiCard
                     className="p-4"
                     label={t.kpi_profit_margin}
                     value={formatMoney(kpis.profit_margin)}
-                    icon={TrendingUp}
+                    hint={
+                        kpis.margin_rate != null
+                            ? `${kpis.margin_rate}% ${t.kpi_hint_margin_rate}`
+                            : undefined
+                    }
+                    icon={CircleDollarSign}
                     tone="success"
                 />
                 <KpiCard
                     className="p-4"
                     label={t.kpi_open_issues}
                     value={kpis.open_issues}
-                    icon={MessageSquare}
+                    hint={
+                        kpis.pending_approvals != null && kpis.pending_approvals > 0
+                            ? `${kpis.pending_approvals} ${t.kpi_hint_pending_approvals}`
+                            : t.kpi_hint_open_threads
+                    }
+                    icon={MessageCircleWarning}
                     tone="warning"
                 />
             </div>
@@ -174,7 +218,7 @@ export default function AdminDashboard({
                     <div className="mb-3 flex items-start justify-between gap-3">
                         <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                                <ClipboardCheck className="h-4 w-4 shrink-0 text-rml-amber" />
+                                <Hourglass className="h-4 w-4 shrink-0 text-rml-amber" />
                                 <h2 className="text-sm font-semibold text-rml-text">
                                     {t.awaiting_validation_title}
                                 </h2>
@@ -184,7 +228,7 @@ export default function AdminDashboard({
                             </p>
                         </div>
                         <Link
-                            href={route('admin.leads-bought.index')}
+                            href={route('admin.leads.index', { tab: 'registered' })}
                             className="shrink-0 text-xs font-semibold text-rml-primary hover:underline"
                         >
                             {t.view_all}
@@ -221,8 +265,16 @@ export default function AdminDashboard({
                                             key={lead.id}
                                             className="border-b border-rml-border/70 last:border-0"
                                         >
-                                            <td className="py-2 pr-3 font-mono text-sm font-medium text-rml-text">
-                                                {lead.lead_reference}
+                                            <td className="py-2 pr-3">
+                                                <Link
+                                                    href={route(
+                                                        'admin.leads-bought.show',
+                                                        lead.id,
+                                                    )}
+                                                    className="font-mono text-sm font-semibold text-rml-primary hover:underline"
+                                                >
+                                                    {lead.lead_reference}
+                                                </Link>
                                             </td>
                                             <td className="max-w-[10rem] truncate py-2 pr-3 text-rml-muted sm:max-w-[14rem]">
                                                 {lead.seller_name ??
@@ -244,12 +296,11 @@ export default function AdminDashboard({
                                                 )}
                                             </td>
                                             <td className="py-2 text-right">
-                                                <Link
+                                                <TableActionLink
                                                     href={`${route('admin.leads-bought.show', lead.id)}?audit=1`}
-                                                    className="font-semibold text-rml-primary hover:underline"
-                                                >
-                                                    {auditLabel}
-                                                </Link>
+                                                    label={auditLabel}
+                                                    icon={tableActionIcons.audit}
+                                                />
                                             </td>
                                         </tr>
                                     ))}
@@ -265,7 +316,7 @@ export default function AdminDashboard({
                             {t.pipeline_title}
                         </h2>
                         <Link
-                            href={route('admin.leads-bought.index')}
+                            href={route('admin.leads.index', { tab: 'registered' })}
                             className="text-xs font-semibold text-rml-primary hover:underline"
                         >
                             {t.view_leads}
@@ -440,16 +491,22 @@ function ActionQueueCard({ items }: { items: QueueItem[] }) {
     const viewAllHref = useMemo(() => {
         switch (tab) {
             case 'audits':
-                return route('admin.leads-bought.index');
+                return route('admin.leads.index', { tab: 'registered' });
             case 'payments':
                 return route('admin.payments.index');
             case 'approvals':
-                return route('admin.sellers.index', { approval_status: 'pending' });
+                return route('admin.users.index', {
+                    tab: 'sellers',
+                    approval_status: 'pending',
+                });
             case 'messages':
             case 'issues':
                 return route('admin.messages.index');
             default:
-                return route('admin.sellers.index', { approval_status: 'pending' });
+                return route('admin.users.index', {
+                    tab: 'sellers',
+                    approval_status: 'pending',
+                });
         }
     }, [tab]);
 

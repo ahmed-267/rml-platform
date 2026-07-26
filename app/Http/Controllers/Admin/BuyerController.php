@@ -38,6 +38,14 @@ class BuyerController extends Controller
             403,
         );
 
+        return Inertia::render('Admin/Buyers/Index', $this->indexProps($request));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function indexProps(Request $request): array
+    {
         $query = User::query()
             ->with(['buyerProfile.company', 'roles'])
             ->whereHas('roles', fn ($q) => $q->where('name', UserRole::BuyerAdmin->value));
@@ -49,9 +57,9 @@ class BuyerController extends Controller
         if ($request->filled('search')) {
             $search = '%'.$request->string('search')->toString().'%';
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', $search)
-                    ->orWhere('email', 'like', $search)
-                    ->orWhereHas('buyerProfile.company', fn ($cq) => $cq->where('name', 'like', $search));
+                $q->where('name', 'ilike', $search)
+                    ->orWhere('email', 'ilike', $search)
+                    ->orWhereHas('buyerProfile.company', fn ($cq) => $cq->where('name', 'ilike', $search));
             });
         }
 
@@ -93,7 +101,7 @@ class BuyerController extends Controller
                 ];
             });
 
-        return Inertia::render('Admin/Buyers/Index', [
+        return [
             'buyers' => $buyers,
             'filters' => [
                 'approval_status' => $request->input('approval_status'),
@@ -105,7 +113,7 @@ class BuyerController extends Controller
             'filterOptions' => [
                 'approval_statuses' => ApprovalStatus::values(),
             ],
-        ]);
+        ];
     }
 
     public function show(Request $request, User $user): Response

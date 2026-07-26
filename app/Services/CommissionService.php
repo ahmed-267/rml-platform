@@ -36,13 +36,29 @@ class CommissionService
             return $override;
         }
 
-        $rule = CommissionRule::query()
+        $rule = $this->activeRule($appliesTo);
+
+        return $rule && $rule->percentage !== null ? (float) $rule->percentage : 0.0;
+    }
+
+    public function resolveRatePerM2(CommissionAppliesTo $appliesTo, ?float $override = null): ?float
+    {
+        if ($override !== null) {
+            return $override;
+        }
+
+        $rule = $this->activeRule($appliesTo);
+
+        return $rule && $rule->rate_per_m2 !== null ? (float) $rule->rate_per_m2 : null;
+    }
+
+    private function activeRule(CommissionAppliesTo $appliesTo): ?CommissionRule
+    {
+        return CommissionRule::query()
             ->where('applies_to', $appliesTo->value)
             ->where('active', true)
             ->orderByDesc('id')
             ->first();
-
-        return $rule ? (float) $rule->percentage : 0.0;
     }
 
     /**
@@ -100,6 +116,26 @@ class CommissionService
         ?float $percentageOverride = null,
         ?int $sellerCompanyId = null,
     ): Commission {
+        $ratePerM2 = $percentageOverride === null
+            ? $this->resolveRatePerM2($appliesTo)
+            : null;
+        $sizeM2 = $lead->size_m2 !== null ? (float) $lead->size_m2 : 0.0;
+
+        if ($ratePerM2 !== null && $sizeM2 > 0) {
+            $commissionAmount = round($sizeM2 * $ratePerM2, 2);
+
+            return Commission::query()->create([
+                'commission_reference' => ReferenceGenerator::commission(),
+                'lead_id' => $lead->id,
+                'seller_user_id' => $sellerUserId,
+                'seller_company_id' => $sellerCompanyId ?? $lead->seller_company_id,
+                'percentage' => null,
+                'base_amount' => round($sizeM2, 2),
+                'commission_amount' => $commissionAmount,
+                'status' => CommissionStatus::Pending,
+            ]);
+        }
+
         $baseAmount = (float) ($lead->selling_price ?? $lead->buying_price ?? 0);
         $percentage = $this->resolvePercentage($appliesTo, $percentageOverride);
         $calc = $this->calculate($baseAmount, $percentage);

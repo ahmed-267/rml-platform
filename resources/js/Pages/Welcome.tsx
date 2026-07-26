@@ -17,6 +17,7 @@ import { Select } from '@/Components/ui/Select';
 import { Textarea } from '@/Components/ui/Textarea';
 import ScrollReveal from '@/Components/landing/ScrollReveal';
 import PublicLayout from '@/Layouts/PublicLayout';
+import { sanitizePhoneInput } from '@/lib/phone';
 import type { PageProps } from '@/types';
 
 export default function Welcome({
@@ -129,15 +130,20 @@ export default function Welcome({
                                 />
                                 <FormInput
                                     label={t.install_phone}
+                                    name="phone"
+                                    type="tel"
+                                    inputMode="tel"
+                                    autoComplete="tel"
                                     required
                                     value={homeowner.data.phone}
                                     onChange={(e) =>
                                         homeowner.setData(
                                             'phone',
-                                            e.target.value,
+                                            sanitizePhoneInput(e.target.value),
                                         )
                                     }
                                     error={homeowner.errors.phone}
+                                    hint={translations.validation?.phone_length}
                                 />
                             </div>
                             <FormInput

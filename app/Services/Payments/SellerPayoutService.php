@@ -3,6 +3,7 @@
 namespace App\Services\Payments;
 
 use App\Enums\PayoutStatus;
+use App\Enums\SellerType;
 use App\Models\Lead;
 use App\Models\Payment;
 use App\Models\Payout;
@@ -46,10 +47,20 @@ class SellerPayoutService
             ? 'Seller payout due for '.$lead->lead_reference
             : 'Seller payout pending_review for '.$lead->lead_reference.' (buying price missing)';
 
+        $lead->loadMissing('submittedBy.sellerProfile');
+        $sellerType = $lead->submittedBy?->sellerProfile?->seller_type;
+        $isIndividualAgent = $sellerType === SellerType::IndividualAgent;
+        // Staff under a company do not receive a separate RML payout — company does.
+        if ($sellerType === SellerType::SellerStaff) {
+            return null;
+        }
+
         $payout = Payout::query()->create([
             'payout_reference' => ReferenceGenerator::payout(),
-            'seller_company_id' => $lead->seller_company_id,
-            'seller_user_id' => $lead->submitted_by_user_id,
+            'seller_company_id' => $isIndividualAgent ? null : $lead->seller_company_id,
+            'seller_user_id' => $isIndividualAgent
+                ? $lead->submitted_by_user_id
+                : ($lead->seller_company_id ? null : $lead->submitted_by_user_id),
             'payment_id' => null,
             'status' => PayoutStatus::Pending,
             'amount' => $buying,

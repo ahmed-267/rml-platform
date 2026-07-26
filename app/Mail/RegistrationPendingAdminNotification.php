@@ -32,7 +32,7 @@ class RegistrationPendingAdminNotification extends Mailable
             with: [
                 'registrant' => $this->registrant,
                 'registrationType' => $this->registrationType,
-                'approvalsUrl' => url('/admin/sellers?approval_status=pending'),
+                'approvalsUrl' => url('/admin/users?tab=sellers&approval_status=pending'),
             ],
         );
     }

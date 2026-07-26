@@ -4,7 +4,10 @@ import AuthLayout from '@/Layouts/AuthLayout';
 import { Button } from '@/Components/ui/Button';
 import { Checkbox } from '@/Components/ui/Checkbox';
 import { FormInput } from '@/Components/ui/FormInput';
-import { Select } from '@/Components/ui/Select';
+import { CountrySelect } from '@/Components/ui/CountrySelect';
+import { DEFAULT_COUNTRY } from '@/lib/countries';
+import { sanitizePhoneInput } from '@/lib/phone';
+import { useScrollToFirstError } from '@/hooks/use-scroll-to-first-error';
 import type { PageProps } from '@/types';
 
 const serviceOptions = [
@@ -28,7 +31,7 @@ export default function RegisterBuyer() {
         address: '',
         city: '',
         postcode: '',
-        country: 'ES',
+        country: DEFAULT_COUNTRY,
         password: '',
         password_confirmation: '',
         services_offered: [] as string[],
@@ -37,6 +40,8 @@ export default function RegisterBuyer() {
         agreement: false as boolean,
         gdpr: false as boolean,
     });
+
+    useScrollToFirstError(errors);
 
     const toggleValue = (
         field: 'services_offered' | 'preferred_zones',
@@ -63,6 +68,7 @@ export default function RegisterBuyer() {
             title={t.buyer_title}
             subtitle={t.buyer_subtitle}
             wide
+            backHref={route('register')}
         >
             <Head title={t.buyer_title} />
 
@@ -101,17 +107,30 @@ export default function RegisterBuyer() {
                     <FormInput
                         label={t.phone}
                         name="phone"
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
                         value={data.phone}
                         required
                         error={errors.phone}
-                        onChange={(e) => setData('phone', e.target.value)}
+                        hint={translations.validation?.phone_length}
+                        onChange={(e) =>
+                            setData('phone', sanitizePhoneInput(e.target.value))
+                        }
                     />
                     <FormInput
                         label={t.whatsapp_optional}
                         name="whatsapp"
+                        type="tel"
+                        inputMode="tel"
                         value={data.whatsapp}
                         error={errors.whatsapp}
-                        onChange={(e) => setData('whatsapp', e.target.value)}
+                        onChange={(e) =>
+                            setData(
+                                'whatsapp',
+                                sanitizePhoneInput(e.target.value),
+                            )
+                        }
                     />
                 </div>
 
@@ -141,11 +160,12 @@ export default function RegisterBuyer() {
                         error={errors.postcode}
                         onChange={(e) => setData('postcode', e.target.value)}
                     />
-                    <Select
+                    <CountrySelect
                         label={t.country}
                         name="country"
+                        required
                         value={data.country}
-                        options={[{ label: 'Spain', value: 'ES' }]}
+                        error={errors.country}
                         onChange={(e) => setData('country', e.target.value)}
                     />
                 </div>

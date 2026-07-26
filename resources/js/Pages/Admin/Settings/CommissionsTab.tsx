@@ -9,7 +9,10 @@ import {
     Modal,
     Select,
     StatusBadge,
+    TableActionButton,
+    TableActions,
     Textarea,
+    tableActionIcons,
 } from '@/Components/ui';
 import { useIsMobile } from '@/hooks/use-media-query';
 import {
@@ -21,7 +24,7 @@ import {
 type CommissionFormData = {
     name: string;
     applies_to: string;
-    percentage: string | number;
+    rate_per_m2: string | number;
     active: boolean;
     notes: string;
 };
@@ -30,7 +33,7 @@ function emptyCommissionForm(): CommissionFormData {
     return {
         name: '',
         applies_to: 'seller_company',
-        percentage: '',
+        rate_per_m2: '',
         active: true,
         notes: '',
     };
@@ -40,7 +43,7 @@ function ruleToForm(rule: CommissionRuleRow): CommissionFormData {
     return {
         name: rule.name,
         applies_to: rule.applies_to ?? 'seller_company',
-        percentage: rule.percentage ?? '',
+        rate_per_m2: rule.rate_per_m2 ?? '',
         active: rule.active,
         notes: rule.notes ?? '',
     };
@@ -48,6 +51,17 @@ function ruleToForm(rule: CommissionRuleRow): CommissionFormData {
 
 function emptyLabel(common: Record<string, string>): string {
     return common.not_available ?? '—';
+}
+
+function formatRate(
+    rule: CommissionRuleRow,
+    common: Record<string, string>,
+): string {
+    if (rule.rate_per_m2 != null) {
+        return `€${Number(rule.rate_per_m2).toFixed(2)}/m²`;
+    }
+
+    return emptyLabel(common);
 }
 
 function CommissionFormFields({
@@ -80,12 +94,14 @@ function CommissionFormFields({
                 required
             />
             <FormInput
-                label={t.percentage}
+                label={t.rate_per_m2}
                 type="number"
                 step="0.01"
-                value={form.data.percentage}
-                error={form.errors.percentage}
-                onChange={(e) => form.setData('percentage', e.target.value)}
+                min="0"
+                value={form.data.rate_per_m2}
+                error={form.errors.rate_per_m2}
+                onChange={(e) => form.setData('rate_per_m2', e.target.value)}
+                hint={t.rate_per_m2_hint}
                 required
             />
             <Textarea
@@ -137,7 +153,6 @@ export default function CommissionsTab({
     const groupedRules = useMemo(() => {
         const groups: Record<CommissionAppliesTo, CommissionRuleRow[]> = {
             seller_company: [],
-            seller_staff: [],
             individual_agent: [],
         };
 
@@ -197,31 +212,26 @@ export default function CommissionsTab({
     };
 
     const actionButtons = (rule: CommissionRuleRow) => (
-        <div className="flex flex-wrap gap-x-3 gap-y-1">
-            <button
-                type="button"
-                className="text-xs font-semibold text-rml-primary hover:underline"
+        <TableActions>
+            <TableActionButton
+                label={common.view}
+                icon={tableActionIcons.view}
                 onClick={() => setViewRule(rule)}
-            >
-                {common.view}
-            </button>
-            <button
-                type="button"
-                className="text-xs font-semibold text-rml-primary hover:underline"
+            />
+            <TableActionButton
+                label={common.edit}
+                icon={tableActionIcons.edit}
                 onClick={() => openEdit(rule)}
-            >
-                {common.edit}
-            </button>
+            />
             {rule.active && (
-                <button
-                    type="button"
-                    className="text-xs font-semibold text-rml-red hover:underline"
+                <TableActionButton
+                    label={common.deactivate}
+                    icon={tableActionIcons.cancel}
+                    tone="danger"
                     onClick={() => setDeactivateRule(rule)}
-                >
-                    {common.deactivate}
-                </button>
+                />
             )}
-        </div>
+        </TableActions>
     );
 
     const renderRuleTable = (sectionRules: CommissionRuleRow[]) => {
@@ -248,9 +258,7 @@ export default function CommissionsTab({
                                     <span className="text-rml-muted">
                                         {t.rate}:{' '}
                                     </span>
-                                    {rule.percentage != null
-                                        ? `${rule.percentage}%`
-                                        : emptyLabel(common)}
+                                    {formatRate(rule, common)}
                                 </p>
                                 <p className="text-xs text-rml-muted">
                                     {triggerLabel}
@@ -283,10 +291,7 @@ export default function CommissionsTab({
                     {
                         id: 'rate',
                         header: t.rate,
-                        cell: (row) =>
-                            row.percentage != null
-                                ? `${row.percentage}%`
-                                : emptyLabel(common),
+                        cell: (row) => formatRate(row, common),
                     },
                     {
                         id: 'trigger',
@@ -392,11 +397,7 @@ export default function CommissionsTab({
                         </div>
                         <div>
                             <dt className="text-rml-muted">{t.rate}</dt>
-                            <dd>
-                                {viewRule.percentage != null
-                                    ? `${viewRule.percentage}%`
-                                    : emptyLabel(common)}
-                            </dd>
+                            <dd>{formatRate(viewRule, common)}</dd>
                         </div>
                         <div>
                             <dt className="text-rml-muted">{common.status}</dt>

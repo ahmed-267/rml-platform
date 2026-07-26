@@ -3,6 +3,7 @@
 namespace App\Services\Admin;
 
 use App\Services\AuditLogService;
+use App\Support\ReportChartSvg;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -14,14 +15,18 @@ class ReportExportService
         private readonly AuditLogService $auditLogService = new AuditLogService,
     ) {}
 
-    public function downloadCsv(): StreamedResponse
+    /**
+     * @param  array<string, mixed>  $filters
+     */
+    public function downloadCsv(array $filters = []): StreamedResponse
     {
-        $report = $this->reportService->build();
+        $report = $this->reportService->build($filters);
         $filename = 'rml-report-'.now()->format('Y-m-d').'.csv';
 
         $this->auditLogService->log('report_exported_csv', null, null, [
             'filename' => $filename,
             'format' => 'csv',
+            'filters' => $report['filters'] ?? [],
         ]);
 
         return response()->streamDownload(function () use ($report) {
@@ -88,15 +93,19 @@ class ReportExportService
         ]);
     }
 
-    public function downloadPdf(): Response
+    /**
+     * @param  array<string, mixed>  $filters
+     */
+    public function downloadPdf(array $filters = []): Response
     {
-        $report = $this->reportService->build();
+        $report = $this->reportService->build($filters);
         $filename = 'rml-report-'.now()->format('Y-m-d').'.pdf';
         $generatedAt = now()->timezone(config('app.timezone'))->format('Y-m-d H:i:s');
 
         $this->auditLogService->log('report_exported_pdf', null, null, [
             'filename' => $filename,
             'format' => 'pdf',
+            'filters' => $report['filters'] ?? [],
         ]);
 
         if (app()->environment('testing')) {
@@ -114,9 +123,56 @@ class ReportExportService
             'report' => $report,
             'generatedAt' => $generatedAt,
             'title' => __('rml.admin.reports.index_title'),
+            'charts' => $this->chartSvgs($report),
         ])->setPaper('a4');
 
         return $pdf->download($filename);
+    }
+
+    /**
+     * @param  array<string, mixed>  $report
+     * @return array<string, string>
+     */
+    private function chartSvgs(array $report): array
+    {
+        $pipelineItems = ReportChartSvg::fromAssoc(
+            $report['lead_pipeline'] ?? [],
+            fn (string $status) => (string) __('rml.lead_statuses.'.$status),
+        );
+
+        $schemeItems = collect($report['charts']['leads_by_scheme'] ?? [])
+            ->map(fn ($row) => [
+                'label' => (string) ($row['label'] ?? '—'),
+                'value' => (int) ($row['value'] ?? 0),
+            ])
+            ->values()
+            ->all();
+
+        $sellerItems = collect($report['seller_performance'] ?? [])
+            ->take(8)
+            ->map(fn ($row) => [
+                'label' => (string) ($row['name'] ?? '—'),
+                'value' => (int) ($row['submitted'] ?? 0),
+            ])
+            ->values()
+            ->all();
+
+        $buyerItems = collect($report['buyer_performance'] ?? [])
+            ->take(8)
+            ->map(fn ($row) => [
+                'label' => (string) ($row['name'] ?? '—'),
+                'value' => (int) ($row['leads_bought'] ?? 0),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'pipeline' => ReportChartSvg::bar($pipelineItems),
+            'revenue_margin' => ReportChartSvg::multiLine($report['charts']['revenue_margin'] ?? []),
+            'scheme' => ReportChartSvg::donut($schemeItems),
+            'sellers' => ReportChartSvg::bar($sellerItems, barColor: '#2563eb'),
+            'buyers' => ReportChartSvg::bar($buyerItems, barColor: '#f59e0b'),
+        ];
     }
 
     /**

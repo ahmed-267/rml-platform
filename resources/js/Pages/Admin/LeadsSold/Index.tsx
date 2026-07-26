@@ -13,6 +13,8 @@ import {
     Select,
     SortableHeader,
     StatusBadge,
+    TableActionLink,
+    tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
 import {
@@ -25,6 +27,7 @@ import {
 import { useIsMobile } from '@/hooks/use-media-query';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import type { PageProps } from '@/types';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 
 interface SoldLeadRow {
     id: number;
@@ -49,6 +52,7 @@ export default function LeadsSoldIndex({
     filters,
     filterOptions,
     summary,
+    embedded = false,
 }: {
     leads: Paginator<SoldLeadRow>;
     filters: {
@@ -66,6 +70,7 @@ export default function LeadsSoldIndex({
         total_revenue: number;
         total_margin: number;
     };
+    embedded?: boolean;
 }) {
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.admin.leads_sold;
@@ -87,9 +92,11 @@ export default function LeadsSoldIndex({
     const { page, pageCount, perPage } = paginationMeta(leads);
     const currentPerPage = Number(filters.per_page ?? perPage ?? 10);
 
+    const listHref = route('admin.leads.index');
     const queryParams = (
         overrides: Record<string, string | number | undefined> = {},
     ) => ({
+        tab: 'sold',
         search: search || undefined,
         scheme_id: schemeId || undefined,
         sort: currentSort,
@@ -99,18 +106,21 @@ export default function LeadsSoldIndex({
     });
 
     const applyFilters = () => {
-        router.get(route('admin.leads-sold.index'), queryParams({ page: 1 }), {
+        router.get(listHref, queryParams({ page: 1 }), {
             preserveState: true,
             replace: true,
         });
-    };
+    }
+
+    useInstantListFilters(applyFilters, search, [schemeId]);
+
 
     const resetFilters = () => {
         setSearch('');
         setSchemeId('');
         router.get(
-            route('admin.leads-sold.index'),
-            { per_page: currentPerPage },
+            listHref,
+            { tab: 'sold', per_page: currentPerPage },
             { preserveState: true, replace: true },
         );
     };
@@ -122,7 +132,7 @@ export default function LeadsSoldIndex({
                 : 'asc';
 
         router.get(
-            route('admin.leads-sold.index'),
+            listHref,
             queryParams({
                 sort: column,
                 direction: nextDirection,
@@ -144,9 +154,9 @@ export default function LeadsSoldIndex({
         />
     );
 
-    return (
-        <AppLayout title={t.index_title} subtitle={t.index_subtitle}>
-            <Head title={t.index_title} />
+    const body = (
+        <>
+            {!embedded && <Head title={t.index_title} />}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <KpiCard
@@ -175,10 +185,7 @@ export default function LeadsSoldIndex({
                 onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
-                        <Button size="sm" onClick={applyFilters}>
-                            {common.apply}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={resetFilters}>
+<Button size="sm" variant="ghost" onClick={resetFilters}>
                             {common.reset}
                         </Button>
                     </>
@@ -258,12 +265,7 @@ export default function LeadsSoldIndex({
                             </p>
                         ),
                         actions: (
-                            <Link
-                                href={route('admin.leads-sold.show', row.id)}
-                                className="text-sm font-semibold text-rml-primary"
-                            >
-                                {common.view}
-                            </Link>
+                            <TableActionLink href={route('admin.leads-sold.show', row.id)} label={common.view} icon={tableActionIcons.view} />
                         ),
                     }))}
                 />
@@ -310,7 +312,7 @@ export default function LeadsSoldIndex({
                         {
                             id: 'buying_price',
                             header: sortableHeader(
-                                lb.buying_price,
+                                lb.seller_payout ?? lb.buying_price,
                                 'buying_price',
                             ),
                             cell: (row) => formatMoney(row.buying_price),
@@ -359,12 +361,7 @@ export default function LeadsSoldIndex({
                             id: 'actions',
                             header: common.actions,
                             cell: (row) => (
-                                <Link
-                                    href={route('admin.leads-sold.show', row.id)}
-                                    className="font-semibold text-rml-primary hover:underline"
-                                >
-                                    {common.view}
-                                </Link>
+                                <TableActionLink href={route('admin.leads-sold.show', row.id)} label={common.view} icon={tableActionIcons.view} />
                             ),
                         },
                     ]}
@@ -377,20 +374,30 @@ export default function LeadsSoldIndex({
                 perPage={currentPerPage}
                 onPerPageChange={(next) =>
                     router.get(
-                        route('admin.leads-sold.index'),
+                        listHref,
                         queryParams({ per_page: next, page: 1 }),
                         { preserveState: true, replace: true },
                     )
                 }
                 onPageChange={(next) =>
                     router.get(
-                        route('admin.leads-sold.index'),
+                        listHref,
                         queryParams({ page: next }),
                         { preserveState: true, replace: true },
                     )
                 }
                 labels={paginationLabels(common)}
             />
+        </>
+    );
+
+    if (embedded) {
+        return body;
+    }
+
+    return (
+        <AppLayout title={t.index_title} subtitle={t.index_subtitle}>
+            {body}
         </AppLayout>
     );
 }

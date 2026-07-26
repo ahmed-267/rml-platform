@@ -4,7 +4,10 @@ namespace App\Http\Requests\Seller;
 
 use App\Models\Lead;
 use App\Models\SchemeField;
+use App\Rules\PhoneNumber;
+use App\Support\Countries;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class StoreLeadRequest extends FormRequest
@@ -41,14 +44,19 @@ class StoreLeadRequest extends FormRequest
             'zone_code' => ['nullable', 'string', 'max:50'],
             'customer_first_name' => [$asDraft ? 'nullable' : 'required', 'string', 'max:120'],
             'customer_last_name' => [$asDraft ? 'nullable' : 'required', 'string', 'max:120'],
-            'customer_phone' => [$asDraft ? 'nullable' : 'required', 'string', 'max:50'],
-            'customer_whatsapp' => ['nullable', 'string', 'max:50'],
+            'customer_phone' => [$asDraft ? 'nullable' : 'required', 'string', 'max:50', new PhoneNumber],
+            'customer_whatsapp' => ['nullable', 'string', 'max:50', new PhoneNumber],
             'customer_email' => [$asDraft ? 'nullable' : 'required', 'email', 'max:255'],
             'address_line_1' => [$asDraft ? 'nullable' : 'required', 'string', 'max:255'],
             'address_line_2' => ['nullable', 'string', 'max:255'],
             'city' => [$asDraft ? 'nullable' : 'required', 'string', 'max:120'],
             'postcode' => [$asDraft ? 'nullable' : 'required', 'string', 'max:20'],
-            'country' => [$asDraft ? 'nullable' : 'required', 'string', 'size:2'],
+            'country' => [
+                $asDraft ? 'nullable' : 'required',
+                'string',
+                'size:2',
+                Rule::in(Countries::codes()),
+            ],
             'latitude' => ['nullable', 'numeric'],
             'longitude' => ['nullable', 'numeric'],
             'size_m2' => ['nullable', 'numeric', 'min:0'],
@@ -66,6 +74,40 @@ class StoreLeadRequest extends FormRequest
             'consent' => [$asDraft ? 'nullable' : 'accepted'],
             'evidence_genuine' => [$asDraft ? 'nullable' : 'accepted'],
             'info_accurate' => [$asDraft ? 'nullable' : 'accepted'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'scheme_id' => __('rml.seller.leads.scheme'),
+            'zone_id' => __('rml.seller.common.zone'),
+            'zone_code' => __('rml.seller.common.zone'),
+            'customer_first_name' => __('rml.seller.leads.first_name'),
+            'customer_last_name' => __('rml.seller.leads.last_name'),
+            'customer_phone' => __('rml.seller.leads.phone'),
+            'customer_whatsapp' => __('rml.seller.leads.whatsapp'),
+            'customer_email' => __('rml.seller.leads.email'),
+            'address_line_1' => __('rml.seller.leads.address_1'),
+            'address_line_2' => __('rml.seller.leads.address_2'),
+            'city' => __('rml.seller.leads.city'),
+            'postcode' => __('rml.seller.leads.postcode'),
+            'country' => __('rml.seller.leads.country'),
+            'property_type' => __('rml.seller.leads.property_type'),
+            'epc_rating' => __('rml.seller.leads.epc_rating'),
+            'notes' => __('rml.seller.leads.notes'),
+            'size_m2' => __('rml.seller.common.size'),
+            'evidence_photos' => __('rml.seller.leads.evidence_photos'),
+            'evidence_video' => __('rml.seller.leads.evidence_video'),
+            'evidence_agreement' => __('rml.seller.leads.evidence_agreement'),
+            'evidence_eligibility' => __('rml.seller.leads.evidence_eligibility'),
+            'consent' => __('rml.seller.leads.decl_consent'),
+            'evidence_genuine' => __('rml.seller.leads.decl_genuine'),
+            'info_accurate' => __('rml.seller.leads.decl_accurate'),
+            'as_draft' => __('rml.seller.leads.save_draft'),
         ];
     }
 
@@ -139,7 +181,7 @@ class StoreLeadRequest extends FormRequest
             'address_line_2' => $this->input('address_line_2'),
             'city' => $this->input('city'),
             'postcode' => $this->input('postcode'),
-            'country' => $this->input('country', 'ES'),
+            'country' => $this->input('country', Countries::DEFAULT),
             'latitude' => $this->input('latitude'),
             'longitude' => $this->input('longitude'),
             'size_m2' => $this->input('size_m2'),

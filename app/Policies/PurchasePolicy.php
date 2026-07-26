@@ -23,12 +23,17 @@ class PurchasePolicy
             return true;
         }
 
-        if ($user->hasRole(UserRole::BuyerAdmin->value)) {
-            return $purchase->buyer_user_id === $user->id
-                || $purchase->buyer_company_id === $user->buyerProfile?->company_id;
+        $sameCompany = $purchase->buyer_company_id !== null
+            && $purchase->buyer_company_id === $user->buyerProfile?->company_id;
+        $ownPurchase = $purchase->buyer_user_id === $user->id;
+
+        if (! $sameCompany && ! $ownPurchase) {
+            return false;
         }
 
-        return false;
+        return $user->can(Permissions::BUY_LEADS)
+            || $user->can(Permissions::VIEW_PURCHASED_LEADS)
+            || $user->hasRole(UserRole::BuyerAdmin->value);
     }
 
     public function create(User $user): bool

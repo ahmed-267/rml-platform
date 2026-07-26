@@ -11,9 +11,13 @@ import {
     Pagination,
     SortableHeader,
     StatusBadge,
+    TableActionLink,
+    Tabs,
+    tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
 import { useIsMobile } from '@/hooks/use-media-query';
+import { useScrollToFirstError } from '@/hooks/use-scroll-to-first-error';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import {
     nextSortDirection,
@@ -34,12 +38,14 @@ interface CommissionRow {
     id: number;
     commission_reference: string | null;
     lead_reference: string | null;
+    scheme: string | null;
+    metric: string | null;
+    rate: string | null;
     percentage: number | null;
     commission_amount: number | null;
     status: string | null;
     due_at: string | null;
     paid_at: string | null;
-    seller_name: string | null;
     statement_id?: number | null;
 }
 
@@ -53,6 +59,7 @@ interface PayoutRow {
     due_date: string | null;
     paid_at: string | null;
     notes: string | null;
+    rate?: string | null;
     statement_id?: number | null;
 }
 
@@ -81,12 +88,14 @@ function formatMoney(
 }
 
 export default function SellerPayments({
+    tab = 'commission',
     bank_details,
     commissions,
     payouts,
     summaries,
     filters,
 }: {
+    tab?: string;
     bank_details: BankDetails;
     commissions: Paginator<CommissionRow>;
     payouts: Paginator<PayoutRow>;
@@ -105,6 +114,9 @@ export default function SellerPayments({
     const leadStatuses = translations.lead_statuses;
     const isMobile = useIsMobile();
     const statusLabels = { ...statuses, ...leadStatuses };
+
+    const activeTab =
+        tab === 'history' ? 'history' : 'commission';
 
     const commissionSort = filters.commission_sort ?? 'date';
     const commissionDirection: SortDirection = resolveSortDirection(
@@ -125,6 +137,7 @@ export default function SellerPayments({
     );
 
     const baseParams = () => ({
+        tab: activeTab,
         commission_sort: commissionSort,
         commission_direction: commissionDirection,
         commission_per_page: commissionPerPage,
@@ -138,10 +151,18 @@ export default function SellerPayments({
     const visitPayments = (
         overrides: Record<string, string | number | undefined> = {},
     ) => {
-        router.get(route('seller.payments'), { ...baseParams(), ...overrides }, {
-            preserveState: true,
-            replace: true,
-        });
+        router.get(
+            route('seller.payments'),
+            { ...baseParams(), ...overrides },
+            {
+                preserveState: true,
+                replace: true,
+            },
+        );
+    };
+
+    const changeTab = (nextTab: string) => {
+        visitPayments({ tab: nextTab });
     };
 
     const commissionHeader = (label: string, column: string) => (
@@ -195,10 +216,24 @@ export default function SellerPayments({
             payout_method: bank_details.payout_method ?? '',
         });
 
+    useScrollToFirstError(errors);
+
     const saveBank = (event: FormEvent) => {
         event.preventDefault();
         put(route('seller.payments.bank-details'));
     };
+
+    const statementAction = (statementId: number | null | undefined) =>
+        statementId ? (
+            <TableActionLink
+                href={route('invoices.download', statementId)}
+                label={t.download_statement}
+                icon={tableActionIcons.download}
+                external
+            />
+        ) : (
+            '—'
+        );
 
     return (
         <AppLayout title={t.title} subtitle={t.subtitle}>
@@ -276,79 +311,42 @@ export default function SellerPayments({
                 </form>
             </section>
 
-            <section className="space-y-3">
-                <h2 className="text-base font-semibold text-rml-text">
-                    {t.commissions}
-                </h2>
-                {commissions.data.length === 0 ? (
-                    <EmptyState title={t.empty} />
-                ) : isMobile ? (
-                    <MobileCardList
-                        emptyMessage={t.empty}
-                        items={commissions.data.map((row) => ({
-                            id: String(row.id),
-                            title: (
-                                <span className="font-mono text-sm">
-                                    {row.commission_reference}
-                                </span>
-                            ),
-                            subtitle: row.lead_reference ?? undefined,
-                            meta: row.status ? (
-                                <StatusBadge
-                                    label={leadStatusLabel(
-                                        row.status,
-                                        statusLabels,
-                                    )}
-                                    tone={leadStatusTone(row.status)}
-                                />
-                            ) : null,
-                            body: (
-                                <div className="space-y-1 text-rml-muted">
-                                    <p>
-                                        {t.amount}:{' '}
-                                        {formatMoney(row.commission_amount)}
-                                    </p>
-                                    {row.seller_name && <p>{row.seller_name}</p>}
-                                </div>
-                            ),
-                        }))}
-                    />
-                ) : (
-                    <DataTable
-                        data={commissions.data}
-                        getRowId={(row) => String(row.id)}
-                        emptyMessage={t.empty}
-                        columns={[
-                            {
-                                id: 'reference',
-                                header: commissionHeader(t.reference, 'reference'),
-                                cell: (row) => (
-                                    <span className="font-mono text-sm">
-                                        {row.commission_reference}
-                                    </span>
-                                ),
-                            },
-                            {
-                                id: 'lead',
-                                header: common.lead_id,
-                                cell: (row) => row.lead_reference ?? '—',
-                            },
-                            {
-                                id: 'seller',
-                                header: translations.seller.staff.staff_member,
-                                cell: (row) => row.seller_name ?? '—',
-                            },
-                            {
-                                id: 'amount',
-                                header: commissionHeader(t.amount, 'amount'),
-                                cell: (row) =>
-                                    formatMoney(row.commission_amount),
-                            },
-                            {
-                                id: 'status',
-                                header: commissionHeader(common.status, 'status'),
-                                cell: (row) =>
-                                    row.status ? (
+            <Tabs
+                items={[
+                    {
+                        id: 'commission',
+                        label: t.tab_commission ?? t.commissions,
+                        count:
+                            commissions.meta?.total ??
+                            commissions.data.length,
+                    },
+                    {
+                        id: 'history',
+                        label: t.tab_history ?? t.history,
+                        count: payouts.meta?.total ?? payouts.data.length,
+                    },
+                ]}
+                value={activeTab}
+                onChange={changeTab}
+                className="space-y-3"
+            >
+                {activeTab === 'commission' && (
+                    <section className="space-y-3">
+                        {commissions.data.length === 0 ? (
+                            <EmptyState title={t.empty} />
+                        ) : isMobile ? (
+                            <MobileCardList
+                                emptyMessage={t.empty}
+                                items={commissions.data.map((row) => ({
+                                    id: String(row.id),
+                                    title: (
+                                        <span className="font-mono text-sm">
+                                            {row.lead_reference ??
+                                                row.commission_reference}
+                                        </span>
+                                    ),
+                                    subtitle: row.scheme ?? undefined,
+                                    meta: row.status ? (
                                         <StatusBadge
                                             label={leadStatusLabel(
                                                 row.status,
@@ -356,136 +354,144 @@ export default function SellerPayments({
                                             )}
                                             tone={leadStatusTone(row.status)}
                                         />
-                                    ) : (
-                                        '—'
+                                    ) : null,
+                                    body: (
+                                        <div className="space-y-1 text-rml-muted">
+                                            <p>
+                                                {t.metric}: {row.metric ?? '—'}
+                                            </p>
+                                            <p>
+                                                {t.rate}: {row.rate ?? '—'}
+                                            </p>
+                                            <p>
+                                                {t.total_payout}:{' '}
+                                                {formatMoney(
+                                                    row.commission_amount,
+                                                )}
+                                            </p>
+                                        </div>
                                     ),
-                            },
-                            {
-                                id: 'due',
-                                header: commissionHeader(t.due_date, 'date'),
-                                cell: (row) =>
-                                    row.due_at
-                                        ? new Date(
-                                              row.due_at,
-                                          ).toLocaleDateString(app.locale)
-                                        : '—',
-                            },
-                            {
-                                id: 'paid',
-                                header: t.paid_at,
-                                cell: (row) =>
-                                    row.paid_at
-                                        ? new Date(
-                                              row.paid_at,
-                                          ).toLocaleDateString(app.locale)
-                                        : '—',
-                            },
-                        ]}
-                    />
+                                    actions: statementAction(row.statement_id),
+                                }))}
+                            />
+                        ) : (
+                            <DataTable
+                                data={commissions.data}
+                                getRowId={(row) => String(row.id)}
+                                emptyMessage={t.empty}
+                                columns={[
+                                    {
+                                        id: 'lead',
+                                        header: common.lead_id,
+                                        cell: (row) => (
+                                            <span className="font-mono text-sm">
+                                                {row.lead_reference ?? '—'}
+                                            </span>
+                                        ),
+                                    },
+                                    {
+                                        id: 'scheme',
+                                        header: common.scheme,
+                                        cell: (row) => row.scheme ?? '—',
+                                    },
+                                    {
+                                        id: 'metric',
+                                        header: t.metric,
+                                        cell: (row) => row.metric ?? '—',
+                                    },
+                                    {
+                                        id: 'rate',
+                                        header: t.rate,
+                                        cell: (row) => row.rate ?? '—',
+                                    },
+                                    {
+                                        id: 'amount',
+                                        header: commissionHeader(
+                                            t.total_payout,
+                                            'amount',
+                                        ),
+                                        cell: (row) =>
+                                            formatMoney(row.commission_amount),
+                                    },
+                                    {
+                                        id: 'status',
+                                        header: commissionHeader(
+                                            common.status,
+                                            'status',
+                                        ),
+                                        cell: (row) =>
+                                            row.status ? (
+                                                <StatusBadge
+                                                    label={leadStatusLabel(
+                                                        row.status,
+                                                        statusLabels,
+                                                    )}
+                                                    tone={leadStatusTone(
+                                                        row.status,
+                                                    )}
+                                                />
+                                            ) : (
+                                                '—'
+                                            ),
+                                    },
+                                    {
+                                        id: 'paid',
+                                        header: t.paid_at,
+                                        cell: (row) =>
+                                            row.paid_at
+                                                ? new Date(
+                                                      row.paid_at,
+                                                  ).toLocaleDateString(
+                                                      app.locale,
+                                                  )
+                                                : '—',
+                                    },
+                                    {
+                                        id: 'actions',
+                                        header: common.actions,
+                                        cell: (row) =>
+                                            statementAction(row.statement_id),
+                                    },
+                                ]}
+                            />
+                        )}
+                        <Pagination
+                            page={commissionMeta.page}
+                            pageCount={commissionMeta.pageCount}
+                            perPage={commissionPerPage}
+                            onPerPageChange={(next) =>
+                                visitPayments({
+                                    commission_per_page: next,
+                                    commissions_page: 1,
+                                })
+                            }
+                            onPageChange={(next) =>
+                                visitPayments({ commissions_page: next })
+                            }
+                            labels={paginationLabels(common)}
+                        />
+                    </section>
                 )}
-                <Pagination
-                    page={commissionMeta.page}
-                    pageCount={commissionMeta.pageCount}
-                    perPage={commissionPerPage}
-                    onPerPageChange={(next) =>
-                        visitPayments({
-                            commission_per_page: next,
-                            commissions_page: 1,
-                        })
-                    }
-                    onPageChange={(next) =>
-                        visitPayments({ commissions_page: next })
-                    }
-                    labels={paginationLabels(common)}
-                />
-            </section>
 
-            <section className="space-y-3">
-                <h2 className="text-base font-semibold text-rml-text">
-                    {t.history}
-                </h2>
-                {payouts.data.length === 0 ? (
-                    <EmptyState title={t.empty} />
-                ) : isMobile ? (
-                    <MobileCardList
-                        emptyMessage={t.empty}
-                        items={payouts.data.map((row) => ({
-                            id: String(row.id),
-                            title: (
-                                <span className="font-mono text-sm">
-                                    {row.payout_reference}
-                                </span>
-                            ),
-                            subtitle: formatMoney(
-                                row.amount,
-                                row.currency ?? 'EUR',
-                            ),
-                            meta: row.status ? (
-                                <StatusBadge
-                                    label={leadStatusLabel(
-                                        row.status,
-                                        statusLabels,
-                                    )}
-                                    tone={leadStatusTone(row.status)}
-                                />
-                            ) : null,
-                            body: (
-                                <div className="space-y-1 text-rml-muted">
-                                    <p>
-                                        {t.lead_reference}:{' '}
-                                        {row.lead_reference ?? '—'}
-                                    </p>
-                                    <p>
-                                        {t.due_date}:{' '}
-                                        {row.due_date
-                                            ? new Date(
-                                                  row.due_date,
-                                              ).toLocaleDateString(app.locale)
-                                            : '—'}
-                                    </p>
-                                    {row.notes && <p>{row.notes}</p>}
-                                </div>
-                            ),
-                        }))}
-                    />
-                ) : (
-                    <DataTable
-                        data={payouts.data}
-                        getRowId={(row) => String(row.id)}
-                        emptyMessage={t.empty}
-                        columns={[
-                            {
-                                id: 'reference',
-                                header: payoutHeader(t.reference, 'reference'),
-                                cell: (row) => (
-                                    <span className="font-mono text-sm">
-                                        {row.payout_reference}
-                                    </span>
-                                ),
-                            },
-                            {
-                                id: 'lead',
-                                header: t.lead_reference,
-                                cell: (row) => (
-                                    <span className="font-mono text-sm">
-                                        {row.lead_reference ?? '—'}
-                                    </span>
-                                ),
-                            },
-                            {
-                                id: 'amount',
-                                header: payoutHeader(t.amount, 'amount'),
-                                cell: (row) =>
-                                    formatMoney(
+                {activeTab === 'history' && (
+                    <section className="space-y-3">
+                        {payouts.data.length === 0 ? (
+                            <EmptyState title={t.empty} />
+                        ) : isMobile ? (
+                            <MobileCardList
+                                emptyMessage={t.empty}
+                                items={payouts.data.map((row) => ({
+                                    id: String(row.id),
+                                    title: (
+                                        <span className="font-mono text-sm">
+                                            {row.payout_reference}
+                                        </span>
+                                    ),
+                                    subtitle: formatMoney(
                                         row.amount,
                                         row.currency ?? 'EUR',
                                     ),
-                            },
-                            {
-                                id: 'status',
-                                header: payoutHeader(common.status, 'status'),
-                                cell: (row) =>
-                                    row.status ? (
+                                    meta: row.status ? (
                                         <StatusBadge
                                             label={leadStatusLabel(
                                                 row.status,
@@ -493,68 +499,136 @@ export default function SellerPayments({
                                             )}
                                             tone={leadStatusTone(row.status)}
                                         />
-                                    ) : (
-                                        '—'
+                                    ) : null,
+                                    body: (
+                                        <div className="space-y-1 text-rml-muted">
+                                            <p>
+                                                {t.lead_reference}:{' '}
+                                                {row.lead_reference ?? '—'}
+                                            </p>
+                                            <p>
+                                                {t.due_date}:{' '}
+                                                {row.due_date
+                                                    ? new Date(
+                                                          row.due_date,
+                                                      ).toLocaleDateString(
+                                                          app.locale,
+                                                      )
+                                                    : '—'}
+                                            </p>
+                                        </div>
                                     ),
-                            },
-                            {
-                                id: 'due',
-                                header: payoutHeader(t.due_date, 'date'),
-                                cell: (row) =>
-                                    row.due_date
-                                        ? new Date(
-                                              row.due_date,
-                                          ).toLocaleDateString(app.locale)
-                                        : '—',
-                            },
-                            {
-                                id: 'paid',
-                                header: t.paid_at,
-                                cell: (row) =>
-                                    row.paid_at
-                                        ? new Date(
-                                              row.paid_at,
-                                          ).toLocaleDateString(app.locale)
-                                        : '—',
-                            },
-                            {
-                                id: 'statement',
-                                header: common.actions,
-                                cell: (row) =>
-                                    row.statement_id ? (
-                                        <a
-                                            href={route(
-                                                'invoices.download',
-                                                row.statement_id,
-                                            )}
-                                        >
-                                            <Button size="sm" variant="outline">
-                                                {t.download_statement}
-                                            </Button>
-                                        </a>
-                                    ) : (
-                                        '—'
-                                    ),
-                            },
-                        ]}
-                    />
+                                    actions: statementAction(row.statement_id),
+                                }))}
+                            />
+                        ) : (
+                            <DataTable
+                                data={payouts.data}
+                                getRowId={(row) => String(row.id)}
+                                emptyMessage={t.empty}
+                                columns={[
+                                    {
+                                        id: 'reference',
+                                        header: payoutHeader(
+                                            t.reference,
+                                            'reference',
+                                        ),
+                                        cell: (row) => (
+                                            <span className="font-mono text-sm">
+                                                {row.payout_reference}
+                                            </span>
+                                        ),
+                                    },
+                                    {
+                                        id: 'lead',
+                                        header: t.lead_reference,
+                                        cell: (row) => (
+                                            <span className="font-mono text-sm">
+                                                {row.lead_reference ?? '—'}
+                                            </span>
+                                        ),
+                                    },
+                                    {
+                                        id: 'amount',
+                                        header: payoutHeader(t.amount, 'amount'),
+                                        cell: (row) =>
+                                            formatMoney(
+                                                row.amount,
+                                                row.currency ?? 'EUR',
+                                            ),
+                                    },
+                                    {
+                                        id: 'status',
+                                        header: payoutHeader(
+                                            common.status,
+                                            'status',
+                                        ),
+                                        cell: (row) =>
+                                            row.status ? (
+                                                <StatusBadge
+                                                    label={leadStatusLabel(
+                                                        row.status,
+                                                        statusLabels,
+                                                    )}
+                                                    tone={leadStatusTone(
+                                                        row.status,
+                                                    )}
+                                                />
+                                            ) : (
+                                                '—'
+                                            ),
+                                    },
+                                    {
+                                        id: 'due',
+                                        header: payoutHeader(t.due_date, 'date'),
+                                        cell: (row) =>
+                                            row.due_date
+                                                ? new Date(
+                                                      row.due_date,
+                                                  ).toLocaleDateString(
+                                                      app.locale,
+                                                  )
+                                                : '—',
+                                    },
+                                    {
+                                        id: 'paid',
+                                        header: t.paid_at,
+                                        cell: (row) =>
+                                            row.paid_at
+                                                ? new Date(
+                                                      row.paid_at,
+                                                  ).toLocaleDateString(
+                                                      app.locale,
+                                                  )
+                                                : '—',
+                                    },
+                                    {
+                                        id: 'statement',
+                                        header: common.actions,
+                                        cell: (row) =>
+                                            statementAction(row.statement_id),
+                                    },
+                                ]}
+                            />
+                        )}
+                        <Pagination
+                            page={payoutMeta.page}
+                            pageCount={payoutMeta.pageCount}
+                            perPage={payoutPerPage}
+                            onPerPageChange={(next) =>
+                                visitPayments({
+                                    payout_per_page: next,
+                                    payouts_page: 1,
+                                })
+                            }
+                            onPageChange={(next) =>
+                                visitPayments({ payouts_page: next })
+                            }
+                            labels={paginationLabels(common)}
+                        />
+                    </section>
                 )}
-                <Pagination
-                    page={payoutMeta.page}
-                    pageCount={payoutMeta.pageCount}
-                    perPage={payoutPerPage}
-                    onPerPageChange={(next) =>
-                        visitPayments({
-                            payout_per_page: next,
-                            payouts_page: 1,
-                        })
-                    }
-                    onPageChange={(next) =>
-                        visitPayments({ payouts_page: next })
-                    }
-                    labels={paginationLabels(common)}
-                />
-            </section>
+            </Tabs>
         </AppLayout>
     );
 }

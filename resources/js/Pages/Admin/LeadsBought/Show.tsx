@@ -1,13 +1,23 @@
 import { useEffect, useState } from 'react';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import {
     AuditLeadModal,
     type AuditPayload,
 } from '@/Components/admin/AuditLeadModal';
 import { BackLink } from '@/Components/admin/BackLink';
-import { Button, StatusBadge } from '@/Components/ui';
-import { formatDateTime, formatMoney } from '@/lib/admin-helpers';
+import { SellerQuickViewModal } from '@/Components/admin/SellerQuickViewModal';
+import {
+    Button,
+    StatusBadge,
+    TableActionButton,
+    tableActionIcons,
+} from '@/Components/ui';
+import {
+    approvalStatusLabel,
+    formatDateTime,
+    formatMoney,
+} from '@/lib/admin-helpers';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import type { PageProps } from '@/types';
 
@@ -28,7 +38,14 @@ interface AdminLead {
     notes: string | null;
     rejection_reason: string | null;
     requested_info: string | null;
-    seller: { id: number; name: string; email: string } | null;
+    seller: {
+        id: number;
+        name: string;
+        email: string;
+        phone?: string | null;
+        role_label?: string | null;
+        approval_status?: string | null;
+    } | null;
     seller_company: { id: number; name: string } | null;
     scheme: { id: number; name: string } | null;
     zone: { id: number; code: string; name: string } | null;
@@ -66,8 +83,10 @@ export default function LeadsBoughtShow({
     const auditT = translations.admin.audit;
     const common = translations.admin.common;
     const leadStatuses = translations.lead_statuses;
+    const statuses = translations.statuses;
 
     const [modalOpen, setModalOpen] = useState(Boolean(auditOpen));
+    const [sellerOpen, setSellerOpen] = useState(false);
 
     useEffect(() => {
         setModalOpen(Boolean(auditOpen));
@@ -90,18 +109,19 @@ export default function LeadsBoughtShow({
 
             <div className="flex items-start gap-3">
                 <BackLink
-                    href={route('admin.leads-bought.index')}
+                    href={route('admin.leads.index', { tab: 'registered' })}
                     label={common.back}
                     className="mt-0.5"
                 />
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                    <span className="font-mono text-sm">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+                    <span className="font-mono text-2xl font-bold tracking-tight text-rml-text sm:text-3xl">
                         {lead.lead_reference}
                     </span>
                     {lead.status && (
                         <StatusBadge
                             label={leadStatusLabel(lead.status, leadStatuses)}
                             tone={leadStatusTone(lead.status)}
+                            className="px-3 py-1 text-sm font-semibold"
                         />
                     )}
                 </div>
@@ -112,17 +132,18 @@ export default function LeadsBoughtShow({
                     label={auditT.summary}
                     value={`${lead.scheme?.name ?? '—'} · ${lead.zone?.code ?? '—'}`}
                 />
-                <DetailRow
-                    label={common.customer}
-                    value={customerName}
-                />
+                <DetailRow label={common.customer} value={customerName} />
                 <DetailRow label={common.phone} value={lead.customer_phone} />
                 <DetailRow
                     label={common.email}
                     value={lead.customer_email ?? '—'}
                 />
                 <DetailRow
-                    label={t.seller}
+                    label={
+                        lead.seller_company
+                            ? (t.seller_company ?? t.seller)
+                            : t.seller
+                    }
                     value={
                         lead.seller_company?.name ??
                         lead.seller?.name ??
@@ -130,7 +151,7 @@ export default function LeadsBoughtShow({
                     }
                 />
                 <DetailRow
-                    label={t.buying_price}
+                    label={t.seller_payout ?? t.buying_price}
                     value={formatMoney(lead.buying_price)}
                 />
                 <DetailRow
@@ -169,7 +190,9 @@ export default function LeadsBoughtShow({
                                 key={file.id}
                                 className="flex justify-between py-2 text-sm"
                             >
-                                <span>{file.original_name ?? file.file_type}</span>
+                                <span>
+                                    {file.original_name ?? file.file_type}
+                                </span>
                                 <span className="text-rml-muted">
                                     {file.mime_type}
                                 </span>
@@ -181,20 +204,57 @@ export default function LeadsBoughtShow({
 
             {lead.seller && (
                 <section className="rml-card p-5">
-                    <h2 className="mb-2 text-sm font-semibold text-rml-text">
-                        {t.seller}
-                    </h2>
-                    <p className="text-sm">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                        <h2 className="text-sm font-semibold text-rml-text">
+                            {lead.seller_company
+                                ? (t.seller_company ?? t.seller)
+                                : t.seller}
+                        </h2>
+                        <TableActionButton
+                            label={t.view_seller ?? common.view}
+                            icon={tableActionIcons.view}
+                            onClick={() => setSellerOpen(true)}
+                        />
+                    </div>
+                    <p className="text-sm font-medium text-rml-text">
+                        {lead.seller_company?.name ?? lead.seller.name}
+                    </p>
+                    <p className="mt-1 text-sm text-rml-muted">
                         {lead.seller.name} · {lead.seller.email}
                     </p>
-                    <Link
-                        href={route('admin.sellers.show', lead.seller.id)}
-                        className="text-sm font-semibold text-rml-primary"
-                    >
-                        {common.view}
-                    </Link>
                 </section>
             )}
+
+            <SellerQuickViewModal
+                open={sellerOpen}
+                onClose={() => setSellerOpen(false)}
+                seller={lead.seller}
+                companyName={lead.seller_company?.name}
+                statusLabel={
+                    lead.seller?.approval_status
+                        ? approvalStatusLabel(
+                              lead.seller.approval_status,
+                              statuses,
+                          )
+                        : undefined
+                }
+                statusTone={
+                    lead.seller?.approval_status
+                        ? leadStatusTone(lead.seller.approval_status)
+                        : undefined
+                }
+                labels={{
+                    title: t.view_seller ?? t.seller,
+                    name: common.name,
+                    email: common.email,
+                    phone: common.phone,
+                    company: common.company,
+                    role: common.role ?? t.seller,
+                    status: common.status,
+                    openFullProfile: common.view,
+                    close: common.close ?? common.cancel,
+                }}
+            />
 
             <AuditLeadModal
                 open={modalOpen}

@@ -34,6 +34,12 @@ final class LeadEvidenceAccess
             return true;
         }
 
+        // Buyers: only after purchase payment confirmed / details released.
+        if (self::isBuyerSide($user)) {
+            return app(\App\Services\Buyer\LeadReleaseService::class)
+                ->canReleaseDetails($user, $lead);
+        }
+
         return false;
     }
 
@@ -56,6 +62,13 @@ final class LeadEvidenceAccess
             UserRole::SellerCompanyAdmin->value,
             UserRole::SellerStaff->value,
             UserRole::IndividualSellerAgent->value,
+        ]);
+    }
+
+    private static function isBuyerSide(User $user): bool
+    {
+        return $user->hasAnyRole([
+            UserRole::BuyerAdmin->value,
         ]);
     }
 }

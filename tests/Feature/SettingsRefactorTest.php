@@ -42,6 +42,7 @@ class SettingsRefactorTest extends TestCase
                 ->has('commission_rules')
                 ->has('templates')
                 ->has('general')
+                ->has('can_delete_logs')
                 ->missing('needs_attention'));
     }
 
@@ -199,7 +200,7 @@ class SettingsRefactorTest extends TestCase
             ->post(route('admin.settings.commissions.store'), [
                 'name' => 'Special Agent Rule',
                 'applies_to' => 'individual_agent',
-                'percentage' => 12.5,
+                'rate_per_m2' => 2.5,
                 'active' => true,
                 'notes' => 'Test rule',
             ])
@@ -210,7 +211,7 @@ class SettingsRefactorTest extends TestCase
 
         $this->actingAs($admin)
             ->put(route('admin.settings.commissions.update', $rule), [
-                'percentage' => 14,
+                'rate_per_m2' => 3.25,
                 'active' => true,
             ])
             ->assertRedirect();
@@ -285,11 +286,25 @@ class SettingsRefactorTest extends TestCase
 
     public function test_commission_seed_has_only_default_rules(): void
     {
-        $this->assertDatabaseHas('commission_rules', ['name' => 'Seller Company Default', 'percentage' => 10]);
-        $this->assertDatabaseHas('commission_rules', ['name' => 'Seller Staff Default', 'percentage' => 3]);
-        $this->assertDatabaseHas('commission_rules', ['name' => 'Individual Agent Default', 'percentage' => 7]);
+        $this->assertDatabaseHas('commission_rules', [
+            'name' => 'Seller Company Default',
+            'rate_per_m2' => 2,
+        ]);
+        $this->assertDatabaseHas('commission_rules', [
+            'name' => 'Individual Agent Default',
+            'rate_per_m2' => 2,
+        ]);
+        $this->assertDatabaseMissing('commission_rules', ['name' => 'Seller Staff Default']);
         $this->assertDatabaseMissing('commission_rules', ['name' => 'Premium Seller Company']);
         $this->assertDatabaseMissing('commission_rules', ['name' => 'Legacy Agent Rule']);
-        $this->assertSame(3, CommissionRule::query()->count());
+        $this->assertSame(2, CommissionRule::query()->count());
+
+        $admin = User::query()->where('email', 'admin@rml.test')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('admin.settings.index', ['tab' => 'commissions']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('commission_rules', 2));
     }
 }

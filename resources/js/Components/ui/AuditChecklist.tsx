@@ -1,4 +1,5 @@
 import { cn } from '@/lib/cn';
+import { Button } from '@/Components/ui/Button';
 import { Checkbox } from '@/Components/ui/Checkbox';
 
 export interface AuditChecklistItem {
@@ -6,11 +7,16 @@ export interface AuditChecklistItem {
     label: string;
     description?: string;
     checked: boolean;
+    required?: boolean;
 }
 
 export interface AuditChecklistProps {
     items: AuditChecklistItem[];
     onChange: (id: string, checked: boolean) => void;
+    onCheckAll?: () => void;
+    onUncheckAll?: () => void;
+    checkAllLabel?: string;
+    uncheckAllLabel?: string;
     readOnly?: boolean;
     className?: string;
     title?: string;
@@ -20,27 +26,46 @@ export interface AuditChecklistProps {
 export function AuditChecklist({
     items,
     onChange,
+    onCheckAll,
+    onUncheckAll,
+    checkAllLabel = 'Check all',
+    uncheckAllLabel = 'Uncheck all',
     readOnly = false,
     className,
-    title = 'Audit checklist',
-    subtitle = 'Confirm each validation item before accepting a lead.',
+    title,
+    subtitle,
 }: AuditChecklistProps) {
+    const allChecked = items.length > 0 && items.every((item) => item.checked);
+
     return (
-        <div
-            className={cn(
-                'space-y-3 rounded-xl border border-rml-border bg-white p-4',
-                className,
-            )}
-        >
-            <div>
-                <h3 className="text-sm font-semibold text-rml-text">
-                    {title}
-                </h3>
-                <p className="text-sm text-rml-muted">
-                    {subtitle}
-                </p>
+        <div className={cn('space-y-1', className)}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+                {(title || subtitle) && (
+                    <div className="min-w-0">
+                        {title ? (
+                            <h3 className="text-sm font-semibold text-rml-text">
+                                {title}
+                            </h3>
+                        ) : null}
+                        {subtitle ? (
+                            <p className="text-sm text-rml-muted">{subtitle}</p>
+                        ) : null}
+                    </div>
+                )}
+                {!readOnly && onCheckAll && (
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                            allChecked ? onUncheckAll?.() : onCheckAll()
+                        }
+                    >
+                        {allChecked ? uncheckAllLabel : checkAllLabel}
+                    </Button>
+                )}
             </div>
-            <ul className="divide-y divide-rml-border">
+            <ul className="divide-y divide-slate-200">
                 {items.map((item) => (
                     <li key={item.id} className="py-3 first:pt-0 last:pb-0">
                         <Checkbox
@@ -49,7 +74,11 @@ export function AuditChecklist({
                             onChange={(event) =>
                                 onChange(item.id, event.target.checked)
                             }
-                            label={item.label}
+                            label={
+                                item.required
+                                    ? `${item.label} *`
+                                    : item.label
+                            }
                             description={item.description}
                         />
                     </li>

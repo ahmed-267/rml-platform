@@ -68,10 +68,10 @@ final class BuyerLeadPresenter
         ?LeadReleaseService $releaseService = null,
         ?LeadPricingService $pricingService = null,
         ?DistanceService $distanceService = null,
+        ?bool $released = null,
     ): array {
-        $releaseService ??= new LeadReleaseService;
         $base = self::presentForMarketplace($lead, $buyer, $pricingService, $distanceService);
-        $released = $releaseService->canReleaseDetails($buyer, $lead);
+        $released ??= ($releaseService ?? new LeadReleaseService)->canReleaseDetails($buyer, $lead);
 
         $base['details_released'] = $released;
 
@@ -96,15 +96,7 @@ final class BuyerLeadPresenter
             'epc_rating' => $lead->epc_rating,
             'notes' => $lead->notes,
             'evidence' => $lead->evidenceFiles
-                ->map(fn (LeadEvidenceFile $file) => [
-                    'id' => $file->id,
-                    'file_type' => $file->file_type?->value,
-                    'original_name' => $file->original_name,
-                    'mime_type' => $file->mime_type,
-                    'size' => $file->size,
-                    'status' => $file->status?->value,
-                    'created_at' => $file->created_at?->toIso8601String(),
-                ])
+                ->map(fn (LeadEvidenceFile $file) => SellerLeadPresenter::evidenceMeta($file))
                 ->values()
                 ->all(),
         ]);
@@ -118,6 +110,7 @@ final class BuyerLeadPresenter
     {
         $items = [];
         $pricing = new LeadPricingService;
+        $pricing->warmRulesCache();
         $distance = new DistanceService;
 
         foreach ($leads as $lead) {

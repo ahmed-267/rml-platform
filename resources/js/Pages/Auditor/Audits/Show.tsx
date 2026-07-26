@@ -137,7 +137,9 @@ export default function AuditorAuditShow({
             <div className="space-y-6">
                 <div className="flex flex-wrap items-center gap-3">
                     <BackLink
-                        href={route('auditor.audits.index')}
+                        href={route('auditor.audits.index', {
+                            tab: 'my-audits',
+                        })}
                         label={common.back}
                     />
                     <p className="font-mono text-lg font-semibold text-rml-text">

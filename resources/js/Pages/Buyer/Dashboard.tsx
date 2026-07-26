@@ -13,41 +13,20 @@ import {
     KpiCard,
     MobileCardList,
     StatusBadge,
+    TableActionLink,
+    tableActionIcons,
 } from '@/Components/ui';
 import { useIsMobile } from '@/hooks/use-media-query';
-import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
+import {
+    useBuyerDashboardQuery,
+    type BuyerDashboardPayload,
+} from '@/hooks/use-buyer-dashboard-query';
+import { leadStatusLabel } from '@/lib/lead-status';
+import {
+    purchaseFlowStatus,
+    purchaseFlowStatusTone,
+} from '@/lib/purchase-status';
 import type { PageProps } from '@/types';
-
-interface DashboardKpis {
-    available_leads: number;
-    leads_bought: number;
-    pending_payments: number;
-    pending_payments_amount: number;
-    pending_to_buy: number;
-    total_spent: number;
-}
-
-interface RecentPurchase {
-    id: number;
-    purchase_reference: string;
-    display_reference: string;
-    scheme: string | null;
-    zone: string | null;
-    purchased_at: string | null;
-    status: string | null;
-    payment_status: string | null;
-}
-
-interface MarketplaceLead {
-    id: number;
-    lead_reference: string;
-    scheme: { id: number; name: string; slug: string } | null;
-    zone: { id: number; code: string; name: string } | null;
-    size_m2: number | null;
-    distance_km: number | null;
-    price_per_m2: number | null;
-    total_price: number | null;
-}
 
 function formatMoney(value: number): string {
     return new Intl.NumberFormat(undefined, {
@@ -69,15 +48,7 @@ function formatDate(value: string | null, locale: string): string {
     });
 }
 
-export default function BuyerDashboard({
-    kpis,
-    recent_purchases,
-    recommended_leads,
-}: {
-    kpis: DashboardKpis;
-    recent_purchases: RecentPurchase[];
-    recommended_leads: MarketplaceLead[];
-}) {
+export default function BuyerDashboard(props: BuyerDashboardPayload) {
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.buyer?.dashboard ?? {};
     const common = translations.buyer?.common ?? {};
@@ -85,6 +56,10 @@ export default function BuyerDashboard({
     const paymentStatuses = translations.payment_statuses ?? {};
     const statusLabels = { ...purchaseStatuses, ...paymentStatuses };
     const isMobile = useIsMobile();
+    const { data, isFetching } = useBuyerDashboardQuery(props);
+    const kpis = data?.kpis ?? props.kpis;
+    const recent_purchases = data?.recent_purchases ?? props.recent_purchases;
+    const recommended_leads = data?.recommended_leads ?? props.recommended_leads;
 
     return (
         <AppLayout title={t.title} subtitle={t.subtitle}>
@@ -92,12 +67,14 @@ export default function BuyerDashboard({
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0" />
-                <Link href={route('buyer.leads.index')}>
+                <Link href={route('buyer.leads.index')} prefetch>
                     <Button>{t.browse_cta}</Button>
                 </Link>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <div
+                className={`grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 ${isFetching ? 'opacity-70' : ''}`}
+            >
                 <KpiCard
                     label={t.kpi_available}
                     value={kpis.available_leads}
@@ -152,15 +129,23 @@ export default function BuyerDashboard({
                                 </span>
                             ),
                             subtitle: purchase.scheme ?? undefined,
-                            meta: purchase.status ? (
-                                <StatusBadge
-                                    label={leadStatusLabel(
-                                        purchase.status,
-                                        statusLabels,
-                                    )}
-                                    tone={leadStatusTone(purchase.status)}
-                                />
-                            ) : null,
+                            meta: (() => {
+                                const status = purchaseFlowStatus({
+                                    status: purchase.status,
+                                    payment: {
+                                        status: purchase.payment_status,
+                                    },
+                                });
+                                return (
+                                    <StatusBadge
+                                        label={leadStatusLabel(
+                                            status,
+                                            statusLabels,
+                                        )}
+                                        tone={purchaseFlowStatusTone(status)}
+                                    />
+                                );
+                            })(),
                             body: (
                                 <div className="space-y-1 text-rml-muted">
                                     <p>
@@ -173,29 +158,13 @@ export default function BuyerDashboard({
                                             app.locale,
                                         )}
                                     </p>
-                                    {purchase.payment_status && (
-                                        <p>
-                                            {translations.buyer?.purchases
-                                                ?.payment_status ?? ''}
-                                            :{' '}
-                                            {leadStatusLabel(
-                                                purchase.payment_status,
-                                                statusLabels,
-                                            )}
-                                        </p>
-                                    )}
                                 </div>
                             ),
                             actions: (
-                                <Link
-                                    href={route(
+                                <TableActionLink href={route(
                                         'buyer.purchases.show',
                                         purchase.id,
-                                    )}
-                                    className="text-sm font-semibold text-rml-primary"
-                                >
-                                    {common.view}
-                                </Link>
+                                    )} label={common.view} icon={tableActionIcons.view} />
                             ),
                         }))}
                     />
@@ -235,52 +204,34 @@ export default function BuyerDashboard({
                             {
                                 id: 'status',
                                 header: common.status,
-                                cell: (row) =>
-                                    row.status ? (
+                                cell: (row) => {
+                                    const status = purchaseFlowStatus({
+                                        status: row.status,
+                                        payment: {
+                                            status: row.payment_status,
+                                        },
+                                    });
+                                    return (
                                         <StatusBadge
                                             label={leadStatusLabel(
-                                                row.status,
+                                                status,
                                                 statusLabels,
                                             )}
-                                            tone={leadStatusTone(row.status)}
-                                        />
-                                    ) : (
-                                        '—'
-                                    ),
-                            },
-                            {
-                                id: 'payment_status',
-                                header:
-                                    translations.buyer?.purchases
-                                        ?.payment_status ?? '',
-                                cell: (row) =>
-                                    row.payment_status ? (
-                                        <StatusBadge
-                                            label={leadStatusLabel(
-                                                row.payment_status,
-                                                statusLabels,
-                                            )}
-                                            tone={leadStatusTone(
-                                                row.payment_status,
+                                            tone={purchaseFlowStatusTone(
+                                                status,
                                             )}
                                         />
-                                    ) : (
-                                        '—'
-                                    ),
+                                    );
+                                },
                             },
                             {
                                 id: 'actions',
                                 header: common.actions,
                                 cell: (row) => (
-                                    <Link
-                                        href={route(
+                                    <TableActionLink href={route(
                                             'buyer.purchases.show',
                                             row.id,
-                                        )}
-                                        className="font-semibold text-rml-primary hover:underline"
-                                    >
-                                        {common.view}
-                                    </Link>
+                                        )} label={common.view} icon={tableActionIcons.view} />
                                 ),
                             },
                         ]}
@@ -334,12 +285,11 @@ export default function BuyerDashboard({
                                 </div>
                             ),
                             actions: (
-                                <Link
+                                <TableActionLink
                                     href={route('buyer.leads.index')}
-                                    className="text-sm font-semibold text-rml-primary"
-                                >
-                                    {common.buy}
-                                </Link>
+                                    label={common.buy}
+                                    icon={tableActionIcons.buy}
+                                />
                             ),
                         }))}
                     />
@@ -396,12 +346,11 @@ export default function BuyerDashboard({
                                 id: 'actions',
                                 header: common.actions,
                                 cell: () => (
-                                    <Link
+                                    <TableActionLink
                                         href={route('buyer.leads.index')}
-                                        className="font-semibold text-rml-primary hover:underline"
-                                    >
-                                        {common.buy}
-                                    </Link>
+                                        label={common.buy}
+                                        icon={tableActionIcons.buy}
+                                    />
                                 ),
                             },
                         ]}

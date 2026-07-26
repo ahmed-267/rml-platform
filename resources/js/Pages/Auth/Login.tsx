@@ -32,7 +32,7 @@ export default function Login({
     };
 
     return (
-        <AuthLayout title={t.login_title} subtitle={t.login_subtitle}>
+        <AuthLayout title={t.login_title} subtitle={t.login_subtitle} backHref="/">
             <Head title={t.sign_in} />
 
             {status && (
@@ -41,7 +41,7 @@ export default function Login({
                 </Alert>
             )}
 
-            <form onSubmit={submit} className="space-y-4">
+            <form onSubmit={submit} className="space-y-5">
                 <FormInput
                     label={t.email}
                     id="email"

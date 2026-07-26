@@ -26,6 +26,7 @@ import {
 import { useIsMobile } from '@/hooks/use-media-query';
 import { leadStatusTone } from '@/lib/lead-status';
 import type { ApprovalStatus, PageProps } from '@/types';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 
 interface SellerRow {
     id: number;
@@ -45,6 +46,7 @@ export default function SellersIndex({
     sellers,
     filters,
     filterOptions,
+    embedded = false,
 }: {
     sellers: Paginator<SellerRow>;
     filters: {
@@ -59,6 +61,7 @@ export default function SellersIndex({
         approval_statuses: string[];
         roles: string[];
     };
+    embedded?: boolean;
 }) {
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.admin.sellers;
@@ -82,7 +85,9 @@ export default function SellersIndex({
 
     const actionLabels = accountActionLabels(common);
 
+    const listHref = route('admin.users.index');
     const queryParams = (overrides: Record<string, string | number | undefined> = {}) => ({
+        tab: 'sellers',
         search: search || undefined,
         approval_status: approvalStatus || undefined,
         role: role || undefined,
@@ -93,26 +98,29 @@ export default function SellersIndex({
     });
 
     const applyFilters = () => {
-        router.get(route('admin.sellers.index'), queryParams({ page: 1 }), {
+        router.get(listHref, queryParams({ page: 1 }), {
             preserveState: true,
             replace: true,
         });
-    };
+    }
+
+    useInstantListFilters(applyFilters, search, [approvalStatus, role]);
+
 
     const resetFilters = () => {
         setSearch('');
         setApprovalStatus('');
         setRole('');
         router.get(
-            route('admin.sellers.index'),
-            { sort: 'date', direction: 'desc', per_page: 10 },
+            listHref,
+            { tab: 'sellers', sort: 'date', direction: 'desc', per_page: 10 },
             { preserveState: true, replace: true },
         );
     };
 
     const handleSort = (column: string) => {
         router.get(
-            route('admin.sellers.index'),
+            listHref,
             queryParams({
                 sort: column,
                 direction:
@@ -153,9 +161,9 @@ export default function SellersIndex({
         />
     );
 
-    return (
-        <AppLayout title={t.index_title} subtitle={t.index_subtitle}>
-            <Head title={t.index_title} />
+    const body = (
+        <>
+            {!embedded && <Head title={t.index_title} />}
 
             <FilterBar
                 compact
@@ -166,10 +174,7 @@ export default function SellersIndex({
                 onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
-                        <Button size="sm" onClick={applyFilters}>
-                            {common.apply}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={resetFilters}>
+<Button size="sm" variant="ghost" onClick={resetFilters}>
                             {common.reset}
                         </Button>
                     </>
@@ -347,20 +352,30 @@ export default function SellersIndex({
                 perPage={currentPerPage}
                 onPerPageChange={(next) =>
                     router.get(
-                        route('admin.sellers.index'),
+                        listHref,
                         queryParams({ per_page: next, page: 1 }),
                         { preserveState: true, replace: true },
                     )
                 }
                 onPageChange={(next) =>
                     router.get(
-                        route('admin.sellers.index'),
+                        listHref,
                         queryParams({ page: next }),
                         { preserveState: true },
                     )
                 }
                 labels={paginationLabels(common)}
             />
+        </>
+    );
+
+    if (embedded) {
+        return body;
+    }
+
+    return (
+        <AppLayout title={t.index_title} subtitle={t.index_subtitle}>
+            {body}
         </AppLayout>
     );
 }

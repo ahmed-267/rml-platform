@@ -1,7 +1,10 @@
 import { FormEvent } from 'react';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
-import { Button, Checkbox, FormInput, StatusBadge } from '@/Components/ui';
+import { Button, Checkbox, CountrySelect, FormInput, StatusBadge } from '@/Components/ui';
+import { useScrollToFirstError } from '@/hooks/use-scroll-to-first-error';
+import { DEFAULT_COUNTRY } from '@/lib/countries';
+import { sanitizePhoneInput } from '@/lib/phone';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import type { PageProps } from '@/types';
 
@@ -70,11 +73,13 @@ export default function BuyerProfile({
         address: profile.company?.address ?? '',
         city: profile.company?.city ?? '',
         postcode: profile.company?.postcode ?? '',
-        country: profile.company?.country ?? 'ES',
+        country: profile.company?.country ?? DEFAULT_COUNTRY,
         services_offered: profile.services_offered ?? [],
         preferred_zones: profile.preferred_zones ?? [],
         max_distance_km: profile.max_distance_km ?? '',
     });
+
+    useScrollToFirstError(errors);
 
     const toggleArrayValue = (
         field: 'services_offered' | 'preferred_zones',
@@ -168,9 +173,15 @@ export default function BuyerProfile({
                     <FormInput
                         label={t.phone}
                         name="phone"
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
                         value={data.phone}
                         error={errors.phone}
-                        onChange={(e) => setData('phone', e.target.value)}
+                        hint={translations.validation?.phone_length}
+                        onChange={(e) =>
+                            setData('phone', sanitizePhoneInput(e.target.value))
+                        }
                     />
                     <FormInput
                         label={t.max_distance}
@@ -277,19 +288,29 @@ export default function BuyerProfile({
                             <FormInput
                                 label={t.phone}
                                 name="company_phone"
+                                type="tel"
+                                inputMode="tel"
                                 value={data.company_phone}
                                 error={errors.company_phone}
                                 onChange={(e) =>
-                                    setData('company_phone', e.target.value)
+                                    setData(
+                                        'company_phone',
+                                        sanitizePhoneInput(e.target.value),
+                                    )
                                 }
                             />
                             <FormInput
                                 label={t.whatsapp}
                                 name="whatsapp"
+                                type="tel"
+                                inputMode="tel"
                                 value={data.whatsapp}
                                 error={errors.whatsapp}
                                 onChange={(e) =>
-                                    setData('whatsapp', e.target.value)
+                                    setData(
+                                        'whatsapp',
+                                        sanitizePhoneInput(e.target.value),
+                                    )
                                 }
                             />
                             <FormInput
@@ -319,9 +340,10 @@ export default function BuyerProfile({
                                     setData('postcode', e.target.value)
                                 }
                             />
-                            <FormInput
+                            <CountrySelect
                                 label={t.country}
                                 name="country"
+                                required
                                 value={data.country}
                                 error={errors.country}
                                 onChange={(e) =>

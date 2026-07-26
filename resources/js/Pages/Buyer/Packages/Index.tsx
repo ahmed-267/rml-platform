@@ -12,6 +12,7 @@ import {
     StatusBadge,
 } from '@/Components/ui';
 import { useIsMobile } from '@/hooks/use-media-query';
+import { useBuyerPackagesQuery } from '@/hooks/use-buyer-packages-query';
 import type { PageProps } from '@/types';
 
 interface MarketplaceLead {
@@ -87,14 +88,7 @@ function zoneMixLabel(mix: Record<string, number> | null | undefined): string {
         .join(' · ');
 }
 
-export default function BuyerPackagesIndex({
-    prebuilt,
-    mixed_zone,
-    schemes,
-    zone_options,
-    preview,
-    builder_filters,
-}: {
+export default function BuyerPackagesIndex(props: {
     prebuilt: PrebuiltPackage[];
     mixed_zone: PreviewPayload;
     schemes: Array<{ id: number; name: string; slug: string }>;
@@ -107,8 +101,14 @@ export default function BuyerPackagesIndex({
     const common = translations.buyer?.common ?? {};
     const paymentMethods = translations.payment_methods ?? {};
     const isMobile = useIsMobile();
+    const { data, isFetching } = useBuyerPackagesQuery(props);
+    const prebuilt = (data?.prebuilt as PrebuiltPackage[] | undefined) ?? props.prebuilt;
+    const mixed_zone = (data?.mixed_zone as PreviewPayload | undefined) ?? props.mixed_zone;
+    const schemes = data?.schemes ?? props.schemes;
+    const zone_options = data?.zone_options ?? props.zone_options;
+    const builder_filters = props.builder_filters;
 
-    const activePreview = preview ?? null;
+    const activePreview = props.preview ?? null;
 
     const [paymentOpen, setPaymentOpen] = useState(false);
 
@@ -261,6 +261,7 @@ export default function BuyerPackagesIndex({
         <AppLayout title={t.title} subtitle={t.subtitle}>
             <Head title={t.title} />
 
+            <div className={isFetching ? 'space-y-6 opacity-70 transition-opacity' : 'space-y-6'}>
             <section className="rml-card space-y-4 p-5 sm:p-6">
                 <h2 className="text-base font-semibold text-rml-text">
                     {t.builder_title}
@@ -485,6 +486,7 @@ export default function BuyerPackagesIndex({
                     </div>
                 )}
             </section>
+            </div>
 
             <Modal
                 open={paymentOpen}

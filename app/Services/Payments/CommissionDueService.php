@@ -39,11 +39,22 @@ class CommissionDueService
         }
 
         $profile = $submitter->sellerProfile;
+
+        // Staff under a company do not get separate RML payouts/commissions.
+        // Company leads are paid via SellerPayoutService to the company.
+        if (in_array($profile?->seller_type, [SellerType::SellerStaff, SellerType::CompanyAdmin], true)) {
+            return null;
+        }
+
         $appliesTo = match ($profile?->seller_type) {
-            SellerType::SellerStaff => CommissionAppliesTo::SellerStaff,
             SellerType::IndividualAgent => CommissionAppliesTo::IndividualAgent,
             default => CommissionAppliesTo::SellerCompany,
         };
+
+        // Individual agents are paid via SellerPayoutService (€/m²) — avoid double pay.
+        if ($appliesTo === CommissionAppliesTo::IndividualAgent) {
+            return null;
+        }
 
         $commission = $this->commissionService->createForLead(
             $lead,

@@ -21,12 +21,16 @@ class LeadSoldController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort_unless(
-            $request->user()?->can(Permissions::VIEW_LEADS)
-                || $request->user()?->hasRole('super_admin'),
-            403,
-        );
+        $this->authorizeView($request);
 
+        return Inertia::render('Admin/LeadsSold/Index', $this->indexProps($request));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function indexProps(Request $request): array
+    {
         $query = Lead::query()
             ->where('leads.status', LeadStatus::Sold->value)
             ->with([
@@ -46,10 +50,10 @@ class LeadSoldController extends Controller
         if ($request->filled('search')) {
             $search = '%'.$request->string('search')->toString().'%';
             $query->where(function ($q) use ($search) {
-                $q->where('leads.lead_reference', 'like', $search)
-                    ->orWhereHas('purchaseItems.purchase.buyerCompany', fn ($bq) => $bq->where('name', 'like', $search))
-                    ->orWhereHas('submittedBy', fn ($uq) => $uq->where('name', 'like', $search))
-                    ->orWhereHas('sellerCompany', fn ($cq) => $cq->where('name', 'like', $search));
+                $q->where('leads.lead_reference', 'ilike', $search)
+                    ->orWhereHas('purchaseItems.purchase.buyerCompany', fn ($bq) => $bq->where('name', 'ilike', $search))
+                    ->orWhereHas('submittedBy', fn ($uq) => $uq->where('name', 'ilike', $search))
+                    ->orWhereHas('sellerCompany', fn ($cq) => $cq->where('name', 'ilike', $search));
             });
         }
 
@@ -78,7 +82,7 @@ class LeadSoldController extends Controller
                 ];
             });
 
-        return Inertia::render('Admin/LeadsSold/Index', [
+        return [
             'leads' => $leads,
             'filters' => [
                 'scheme_id' => $request->input('scheme_id'),
@@ -100,16 +104,21 @@ class LeadSoldController extends Controller
                     ->selectRaw('COALESCE(SUM(COALESCE(expected_margin, selling_price - buying_price)), 0) as total')
                     ->value('total'),
             ],
-        ]);
+        ];
     }
 
-    public function show(Request $request, Lead $lead): Response
+    private function authorizeView(Request $request): void
     {
         abort_unless(
             $request->user()?->can(Permissions::VIEW_LEADS)
                 || $request->user()?->hasRole('super_admin'),
             403,
         );
+    }
+
+    public function show(Request $request, Lead $lead): Response
+    {
+        $this->authorizeView($request);
 
         abort_unless($lead->status === LeadStatus::Sold, 404);
 

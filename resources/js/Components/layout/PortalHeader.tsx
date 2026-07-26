@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Link, usePage } from '@inertiajs/react';
-import { Bell, Menu } from 'lucide-react';
+import { Menu } from 'lucide-react';
 import { LanguageSwitcher } from '@/Components/layout/LanguageSwitcher';
 import { Button } from '@/Components/ui/Button';
 import { StatusBadge } from '@/Components/ui/StatusBadge';
@@ -12,6 +12,7 @@ export interface PortalHeaderProps {
     subtitle?: string;
     onMenuClick?: () => void;
     actions?: ReactNode;
+    breadcrumbs?: ReactNode;
     className?: string;
 }
 
@@ -20,6 +21,7 @@ export function PortalHeader({
     subtitle,
     onMenuClick,
     actions,
+    breadcrumbs,
     className,
 }: PortalHeaderProps) {
     const { auth, translations } = usePage<PageProps>().props;
@@ -33,12 +35,12 @@ export function PortalHeader({
                 className,
             )}
         >
-            <div className="flex h-16 items-center gap-3 px-4 sm:px-6 lg:px-8">
+            <div className="flex items-start gap-3 px-4 py-3 sm:px-6 lg:px-8">
                 {onMenuClick && (
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="!px-2 lg:hidden"
+                        className="mt-0.5 !px-2 lg:hidden"
                         onClick={onMenuClick}
                         aria-label={common.open_navigation ?? 'Open navigation'}
                     >
@@ -46,8 +48,13 @@ export function PortalHeader({
                     </Button>
                 )}
 
-                <div className="min-w-0 flex-1">
-                    <h1 className="truncate text-lg font-bold text-rml-text sm:text-xl">
+                <div className="min-w-0 flex-1 space-y-1">
+                    {breadcrumbs ? (
+                        <div className="max-w-full overflow-x-auto">
+                            {breadcrumbs}
+                        </div>
+                    ) : null}
+                    <h1 className="truncate text-lg font-bold leading-tight text-rml-text sm:text-xl">
                         {title}
                     </h1>
                     {subtitle && (
@@ -57,20 +64,13 @@ export function PortalHeader({
                     )}
                 </div>
 
-                <div className="flex items-center gap-2 sm:gap-3">
-                    <LanguageSwitcher className="hidden sm:inline-flex" />
+                <div className="flex shrink-0 items-center gap-2 self-center sm:gap-3">
+                    <LanguageSwitcher />
                     {actions}
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="!px-2"
-                        aria-label={common.notifications ?? 'Notifications'}
-                    >
-                        <Bell className="h-5 w-5" />
-                    </Button>
                     {user && (
                         <Link
                             href="/profile"
+                            prefetch
                             className="hidden items-center gap-2 rounded-lg border border-rml-border px-2.5 py-1.5 sm:flex"
                         >
                             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-rml-primary-light text-xs font-semibold text-rml-primary">
@@ -81,21 +81,16 @@ export function PortalHeader({
                                     .join('')
                                     .toUpperCase()}
                             </span>
-                            <span className="min-w-0">
-                                <span className="block max-w-[120px] truncate text-sm font-medium text-rml-text">
-                                    {user.name}
-                                </span>
-                                {user.primary_role && (
+                            <span className="max-w-[9rem] truncate text-sm font-medium text-rml-text">
+                                {user.name}
+                            </span>
+                            {user.approval_status &&
+                                user.approval_status !== 'approved' && (
                                     <StatusBadge
-                                        label={user.primary_role.replaceAll(
-                                            '_',
-                                            ' ',
-                                        )}
-                                        tone="neutral"
-                                        className="mt-0.5 capitalize"
+                                        label={user.approval_status}
+                                        tone="warning"
                                     />
                                 )}
-                            </span>
                         </Link>
                     )}
                 </div>

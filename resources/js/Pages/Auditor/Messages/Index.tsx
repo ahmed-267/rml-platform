@@ -14,6 +14,8 @@ import {
     SortableHeader,
     StatusBadge,
     Textarea,
+    TableActionLink,
+    tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
 import { useIsMobile } from '@/hooks/use-media-query';
@@ -26,6 +28,7 @@ import {
     type Paginator,
 } from '@/lib/list-helpers';
 import type { PageProps } from '@/types';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 
 interface ThreadRow {
     id: number;
@@ -98,7 +101,10 @@ export default function AuditorMessagesIndex({
             preserveState: true,
             replace: true,
         });
-    };
+    }
+
+    useInstantListFilters(applyFilters, search, [category, status]);
+
 
     const resetFilters = () => {
         setSearch('');
@@ -172,10 +178,7 @@ export default function AuditorMessagesIndex({
                 onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
-                        <Button size="sm" onClick={applyFilters}>
-                            {common.apply}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={resetFilters}>
+<Button size="sm" variant="ghost" onClick={resetFilters}>
                             {common.reset}
                         </Button>
                     </>
@@ -312,12 +315,7 @@ export default function AuditorMessagesIndex({
                             />
                         ),
                         actions: (
-                            <Link
-                                href={route('auditor.messages.show', row.id)}
-                                className="text-sm font-semibold text-rml-primary"
-                            >
-                                {common.view}
-                            </Link>
+                            <TableActionLink href={route('auditor.messages.show', row.id)} label={common.view} icon={tableActionIcons.view} />
                         ),
                     }))}
                 />
@@ -386,12 +384,7 @@ export default function AuditorMessagesIndex({
                             id: 'action',
                             header: common.actions,
                             cell: (r) => (
-                                <Link
-                                    href={route('auditor.messages.show', r.id)}
-                                    className="text-sm font-semibold text-rml-primary hover:underline"
-                                >
-                                    {common.view}
-                                </Link>
+                                <TableActionLink href={route('auditor.messages.show', r.id)} label={common.view} icon={tableActionIcons.view} />
                             ),
                         },
                     ]}

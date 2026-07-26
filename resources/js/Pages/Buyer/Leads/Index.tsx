@@ -1,21 +1,24 @@
 import { useMemo, useState } from 'react';
-import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Head, useForm, usePage } from '@inertiajs/react';
+import { useQueryClient } from '@tanstack/react-query';
 import AppLayout from '@/Layouts/AppLayout';
+import { Search } from 'lucide-react';
 import {
     Alert,
     Button,
     Checkbox,
     DataTable,
     EmptyState,
-    FilterBar,
-    FormInput,
     MobileCardList,
     MobileFilterDrawer,
     Modal,
     Pagination,
     PaymentSummaryBar,
+    RangeInput,
     Select,
     SortableHeader,
+    TableActionButton,
+    tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
 import {
@@ -23,46 +26,15 @@ import {
     paginationLabels,
     paginationMeta,
     resolveSortDirection,
-    type Paginator,
 } from '@/lib/list-helpers';
 import { useIsMobile } from '@/hooks/use-media-query';
+import {
+    useBuyerLeadsQuery,
+    type BuyerLeadsFilters,
+    type BuyerLeadsPayload,
+} from '@/hooks/use-buyer-leads-query';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 import type { PageProps } from '@/types';
-
-interface MarketplaceLead {
-    id: number;
-    lead_reference: string;
-    scheme: { id: number; name: string; slug: string } | null;
-    zone: { id: number; code: string; name: string } | null;
-    size_m2: number | null;
-    distance_km: number | null;
-    price_per_m2: number | null;
-    total_price: number | null;
-}
-
-interface Filters {
-    scheme_id?: string | number | null;
-    zone_id?: string | number | null;
-    min_size?: string | number | null;
-    max_size?: string | number | null;
-    min_distance?: string | number | null;
-    max_distance?: string | number | null;
-    min_price?: string | number | null;
-    max_price?: string | number | null;
-    search?: string | null;
-    sort?: string | null;
-    direction?: string | null;
-    per_page?: number | string | null;
-}
-
-interface FilterOptions {
-    schemes: Array<{ id: number; name: string }>;
-    zones: Array<{
-        id: number;
-        code: string;
-        name: string;
-        scheme_id: number;
-    }>;
-}
 
 function formatMoney(value: number | null | undefined): string {
     if (value == null) {
@@ -76,19 +48,7 @@ function formatMoney(value: number | null | undefined): string {
     }).format(value);
 }
 
-export default function BuyerLeadsIndex({
-    leads,
-    filters,
-    filterOptions,
-    card_configured = true,
-    mollie_configured,
-}: {
-    leads: Paginator<MarketplaceLead>;
-    filters: Filters;
-    filterOptions: FilterOptions;
-    card_configured?: boolean;
-    mollie_configured?: boolean;
-}) {
+export default function BuyerLeadsIndex(props: BuyerLeadsPayload) {
     const { translations } = usePage<PageProps>().props;
     const t = translations.buyer?.leads ?? {};
     const common = translations.buyer?.common ?? {};
@@ -96,44 +56,91 @@ export default function BuyerLeadsIndex({
     const paymentMethods = translations.payment_methods ?? {};
     const paymentsT = translations.buyer?.payments ?? {};
     const isMobile = useIsMobile();
-    const cardConfigured = card_configured ?? mollie_configured ?? true;
 
-    const [search, setSearch] = useState(filters.search ?? '');
+    const initialApplied: BuyerLeadsFilters = {
+        search: props.filters.search ?? '',
+        scheme_id: props.filters.scheme_id ?? '',
+        zone_id: props.filters.zone_id ?? '',
+        min_size: props.filters.min_size ?? '',
+        max_size: props.filters.max_size ?? '',
+        min_distance: props.filters.min_distance ?? '',
+        max_distance: props.filters.max_distance ?? '',
+        min_price: props.filters.min_price ?? '',
+        max_price: props.filters.max_price ?? '',
+        sort: props.filters.sort ?? 'date',
+        direction: resolveSortDirection(props.filters.direction),
+        per_page: Number(props.filters.per_page ?? props.leads.per_page ?? 10),
+        page: props.leads.current_page ?? 1,
+    };
+
+    const [search, setSearch] = useState(String(initialApplied.search ?? ''));
     const [schemeId, setSchemeId] = useState(
-        filters.scheme_id != null ? String(filters.scheme_id) : '',
+        initialApplied.scheme_id != null && initialApplied.scheme_id !== ''
+            ? String(initialApplied.scheme_id)
+            : '',
     );
     const [zoneId, setZoneId] = useState(
-        filters.zone_id != null ? String(filters.zone_id) : '',
+        initialApplied.zone_id != null && initialApplied.zone_id !== ''
+            ? String(initialApplied.zone_id)
+            : '',
     );
     const [minSize, setMinSize] = useState(
-        filters.min_size != null ? String(filters.min_size) : '',
+        initialApplied.min_size != null && initialApplied.min_size !== ''
+            ? String(initialApplied.min_size)
+            : '',
     );
     const [maxSize, setMaxSize] = useState(
-        filters.max_size != null ? String(filters.max_size) : '',
+        initialApplied.max_size != null && initialApplied.max_size !== ''
+            ? String(initialApplied.max_size)
+            : '',
     );
     const [minDistance, setMinDistance] = useState(
-        filters.min_distance != null ? String(filters.min_distance) : '',
+        initialApplied.min_distance != null &&
+            initialApplied.min_distance !== ''
+            ? String(initialApplied.min_distance)
+            : '',
     );
     const [maxDistance, setMaxDistance] = useState(
-        filters.max_distance != null ? String(filters.max_distance) : '',
+        initialApplied.max_distance != null &&
+            initialApplied.max_distance !== ''
+            ? String(initialApplied.max_distance)
+            : '',
     );
     const [minPrice, setMinPrice] = useState(
-        filters.min_price != null ? String(filters.min_price) : '',
+        initialApplied.min_price != null && initialApplied.min_price !== ''
+            ? String(initialApplied.min_price)
+            : '',
     );
     const [maxPrice, setMaxPrice] = useState(
-        filters.max_price != null ? String(filters.max_price) : '',
+        initialApplied.max_price != null && initialApplied.max_price !== ''
+            ? String(initialApplied.max_price)
+            : '',
     );
+    const [applied, setApplied] = useState<BuyerLeadsFilters>(initialApplied);
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [paymentOpen, setPaymentOpen] = useState(false);
     const [pendingLeadIds, setPendingLeadIds] = useState<number[]>([]);
     const [filtersOpen, setFiltersOpen] = useState(false);
 
-    const currentSort = filters.sort ?? 'date';
+    const queryClient = useQueryClient();
+    const { data, isFetching, isError } = useBuyerLeadsQuery(applied, props);
+
+    const leads = data?.leads ?? props.leads;
+    const filterOptions = data?.filterOptions ?? props.filterOptions;
+    const cardConfigured =
+        data?.card_configured ??
+        data?.mollie_configured ??
+        props.card_configured ??
+        props.mollie_configured ??
+        true;
+
+    const currentSort = String(applied.sort ?? 'date');
     const currentDirection: SortDirection = resolveSortDirection(
-        filters.direction,
+        applied.direction,
     );
-    const { page, pageCount, perPage } = paginationMeta(leads);
-    const currentPerPage = Number(filters.per_page ?? perPage ?? 10);
+    const { pageCount } = paginationMeta(leads);
+    const currentPerPage = Number(applied.per_page ?? 10);
+    const page = Number(applied.page ?? 1);
 
     const {
         data: paymentData,
@@ -147,32 +154,43 @@ export default function BuyerLeadsIndex({
         payment_method: cardConfigured ? 'card' : 'manual_bank_transfer',
     });
 
-    const queryParams = (
-        overrides: Record<string, string | number | undefined> = {},
-    ) => ({
-        search: search || undefined,
-        scheme_id: schemeId || undefined,
-        zone_id: zoneId || undefined,
-        min_size: minSize || undefined,
-        max_size: maxSize || undefined,
-        min_distance: minDistance || undefined,
-        max_distance: maxDistance || undefined,
-        min_price: minPrice || undefined,
-        max_price: maxPrice || undefined,
+    const draftFilters = (
+        overrides: Partial<BuyerLeadsFilters> = {},
+    ): BuyerLeadsFilters => ({
+        search,
+        scheme_id: schemeId,
+        zone_id: zoneId,
+        min_size: minSize,
+        max_size: maxSize,
+        min_distance: minDistance,
+        max_distance: maxDistance,
+        min_price: minPrice,
+        max_price: maxPrice,
         sort: currentSort,
         direction: currentDirection,
         per_page: currentPerPage,
+        page: 1,
         ...overrides,
     });
 
-    const applyFilters = (
-        overrides: Record<string, string | number | undefined> = {},
-    ) => {
-        router.get(route('buyer.leads.index'), queryParams({ page: 1, ...overrides }), {
-            preserveState: true,
-            replace: true,
-        });
+    const applyFilters = (overrides: Partial<BuyerLeadsFilters> = {}) => {
+        setApplied(draftFilters(overrides));
     };
+
+    useInstantListFilters(
+        () => applyFilters(),
+        search,
+        [
+            schemeId,
+            zoneId,
+            minSize,
+            maxSize,
+            minDistance,
+            maxDistance,
+            minPrice,
+            maxPrice,
+        ],
+    );
 
     const resetFilters = () => {
         setSearch('');
@@ -184,17 +202,26 @@ export default function BuyerLeadsIndex({
         setMaxDistance('');
         setMinPrice('');
         setMaxPrice('');
-        router.get(
-            route('buyer.leads.index'),
-            { sort: 'date', direction: 'desc', per_page: currentPerPage },
-            { preserveState: true, replace: true },
-        );
+        setApplied({
+            search: '',
+            scheme_id: '',
+            zone_id: '',
+            min_size: '',
+            max_size: '',
+            min_distance: '',
+            max_distance: '',
+            min_price: '',
+            max_price: '',
+            sort: 'date',
+            direction: 'desc',
+            per_page: currentPerPage,
+            page: 1,
+        });
     };
 
     const handleSort = (column: string) => {
-        router.get(
-            route('buyer.leads.index'),
-            queryParams({
+        setApplied(
+            draftFilters({
                 sort: column,
                 direction: nextSortDirection(
                     currentSort,
@@ -203,7 +230,6 @@ export default function BuyerLeadsIndex({
                 ),
                 page: 1,
             }),
-            { preserveState: true, replace: true },
         );
     };
 
@@ -266,6 +292,8 @@ export default function BuyerLeadsIndex({
                 setPaymentOpen(false);
                 setSelectedIds([]);
                 resetPayment();
+                void queryClient.invalidateQueries({ queryKey: ['buyer', 'leads'] });
+                void queryClient.invalidateQueries({ queryKey: ['buyer', 'dashboard'] });
             },
             onError: () => {
                 // Keep modal open so validation / Stripe errors are visible.
@@ -299,102 +327,121 @@ export default function BuyerLeadsIndex({
             <Head title={t.title} />
 
             <Alert variant="info">{t.hidden_notice}</Alert>
+            {isError && (
+                <Alert variant="error">
+                    {common.load_error ??
+                        'Could not refresh leads. Showing last results.'}
+                </Alert>
+            )}
 
-            <FilterBar
-                search={search}
-                onSearchChange={setSearch}
-                searchLabel={common.search}
-                searchPlaceholder={t.search_placeholder}
-                onOpenMobileFilters={() => setFiltersOpen(true)}
-                actions={
-                    <>
-                        <Button size="sm" onClick={() => applyFilters()}>
-                            {common.apply}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={resetFilters}>
-                            {common.reset}
-                        </Button>
-                    </>
-                }
-            >
-                <Select
-                    label={common.scheme}
-                    aria-label={common.scheme}
-                    value={schemeId}
-                    onChange={(e) => {
-                        setSchemeId(e.target.value);
-                        setZoneId('');
-                    }}
-                    options={[
-                        {
-                            value: '',
-                            label: common.all_schemes ?? common.all,
-                        },
-                        ...filterOptions.schemes.map((scheme) => ({
-                            value: String(scheme.id),
-                            label: scheme.name,
-                        })),
-                    ]}
-                />
-                <Select
-                    label={common.zone}
-                    aria-label={common.zone}
-                    value={zoneId}
-                    onChange={(e) => setZoneId(e.target.value)}
-                    options={[
-                        {
-                            value: '',
-                            label: common.all_zones ?? common.all,
-                        },
-                        ...zoneOptions.map((zone) => ({
-                            value: String(zone.id),
-                            label: `${zone.code} — ${zone.name}`,
-                        })),
-                    ]}
-                />
-                <FormInput
-                    label={t.min_size}
-                    name="min_size"
-                    type="number"
-                    value={minSize}
-                    onChange={(e) => setMinSize(e.target.value)}
-                />
-                <FormInput
-                    label={t.max_size}
-                    name="max_size"
-                    type="number"
-                    value={maxSize}
-                    onChange={(e) => setMaxSize(e.target.value)}
-                />
-                <FormInput
-                    label={t.min_distance}
-                    name="min_distance"
-                    type="number"
-                    value={minDistance}
-                    onChange={(e) => setMinDistance(e.target.value)}
-                />
-                <FormInput
-                    label={t.max_distance}
-                    name="max_distance"
-                    type="number"
-                    value={maxDistance}
-                    onChange={(e) => setMaxDistance(e.target.value)}
-                />
-                <FormInput
-                    label={t.min_price}
-                    name="min_price"
-                    type="number"
-                    value={minPrice}
-                    onChange={(e) => setMinPrice(e.target.value)}
-                />
-                <FormInput
-                    label={t.max_price}
-                    name="max_price"
-                    type="number"
-                    value={maxPrice}
-                    onChange={(e) => setMaxPrice(e.target.value)}
-                />
-            </FilterBar>
+            <section className="rounded-xl border border-rml-border bg-white p-3 shadow-sm">
+                <div className="flex flex-col gap-2.5 lg:gap-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                        <div className="relative min-w-0 flex-1">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-rml-muted" />
+                            <input
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder={t.search_placeholder}
+                                aria-label={common.search}
+                                className="block w-full rounded-lg border border-rml-border bg-white py-2 pl-9 pr-3 text-sm text-rml-text shadow-sm placeholder:text-rml-muted/70 rml-focus-ring focus:border-rml-primary"
+                            />
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="lg:hidden"
+                                onClick={() => setFiltersOpen(true)}
+                            >
+                                {common.filters}
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={resetFilters}
+                            >
+                                {common.reset}
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div className="hidden items-end gap-2 lg:grid lg:grid-cols-5">
+                        <Select
+                            label={common.scheme}
+                            aria-label={common.scheme}
+                            value={schemeId}
+                            onChange={(e) => {
+                                setSchemeId(e.target.value);
+                                setZoneId('');
+                            }}
+                            options={[
+                                {
+                                    value: '',
+                                    label: common.all_schemes ?? common.all,
+                                },
+                                ...filterOptions.schemes.map((scheme) => ({
+                                    value: String(scheme.id),
+                                    label: scheme.name,
+                                })),
+                            ]}
+                        />
+                        <Select
+                            label={common.zone}
+                            aria-label={common.zone}
+                            value={zoneId}
+                            onChange={(e) => setZoneId(e.target.value)}
+                            options={[
+                                {
+                                    value: '',
+                                    label: common.all_zones ?? common.all,
+                                },
+                                ...Array.from(
+                                    new Map(
+                                        zoneOptions.map((zone) => [
+                                            zone.code,
+                                            zone,
+                                        ]),
+                                    ).values(),
+                                ).map((zone) => ({
+                                    value: String(zone.id),
+                                    label: zone.code,
+                                })),
+                            ]}
+                        />
+                        <RangeInput
+                            label={common.size}
+                            unit="m²"
+                            minName="min_size"
+                            maxName="max_size"
+                            minValue={minSize}
+                            maxValue={maxSize}
+                            onMinChange={setMinSize}
+                            onMaxChange={setMaxSize}
+                        />
+                        <RangeInput
+                            label={common.distance}
+                            unit="km"
+                            minName="min_distance"
+                            maxName="max_distance"
+                            minValue={minDistance}
+                            maxValue={maxDistance}
+                            onMinChange={setMinDistance}
+                            onMaxChange={setMaxDistance}
+                        />
+                        <RangeInput
+                            label={common.price}
+                            unit="€"
+                            minName="min_price"
+                            maxName="max_price"
+                            minValue={minPrice}
+                            maxValue={maxPrice}
+                            onMinChange={setMinPrice}
+                            onMaxChange={setMaxPrice}
+                        />
+                    </div>
+                </div>
+            </section>
 
             <MobileFilterDrawer
                 open={filtersOpen}
@@ -431,57 +478,51 @@ export default function BuyerLeadsIndex({
                             value: '',
                             label: common.all_zones ?? common.all,
                         },
-                        ...zoneOptions.map((zone) => ({
+                        ...Array.from(
+                            new Map(
+                                zoneOptions.map((zone) => [zone.code, zone]),
+                            ).values(),
+                        ).map((zone) => ({
                             value: String(zone.id),
-                            label: `${zone.code} — ${zone.name}`,
+                            label: zone.code,
                         })),
                     ]}
                 />
-                <FormInput
-                    label={t.min_size}
-                    name="min_size"
-                    type="number"
-                    value={minSize}
-                    onChange={(e) => setMinSize(e.target.value)}
+                <RangeInput
+                    label={common.size}
+                    unit="m²"
+                    minName="min_size"
+                    maxName="max_size"
+                    minValue={minSize}
+                    maxValue={maxSize}
+                    onMinChange={setMinSize}
+                    onMaxChange={setMaxSize}
                 />
-                <FormInput
-                    label={t.max_size}
-                    name="max_size"
-                    type="number"
-                    value={maxSize}
-                    onChange={(e) => setMaxSize(e.target.value)}
+                <RangeInput
+                    label={common.distance}
+                    unit="km"
+                    minName="min_distance"
+                    maxName="max_distance"
+                    minValue={minDistance}
+                    maxValue={maxDistance}
+                    onMinChange={setMinDistance}
+                    onMaxChange={setMaxDistance}
                 />
-                <FormInput
-                    label={t.min_distance}
-                    name="min_distance"
-                    type="number"
-                    value={minDistance}
-                    onChange={(e) => setMinDistance(e.target.value)}
-                />
-                <FormInput
-                    label={t.max_distance}
-                    name="max_distance"
-                    type="number"
-                    value={maxDistance}
-                    onChange={(e) => setMaxDistance(e.target.value)}
-                />
-                <FormInput
-                    label={t.min_price}
-                    name="min_price"
-                    type="number"
-                    value={minPrice}
-                    onChange={(e) => setMinPrice(e.target.value)}
-                />
-                <FormInput
-                    label={t.max_price}
-                    name="max_price"
-                    type="number"
-                    value={maxPrice}
-                    onChange={(e) => setMaxPrice(e.target.value)}
+                <RangeInput
+                    label={common.price}
+                    unit="€"
+                    minName="min_price"
+                    maxName="max_price"
+                    minValue={minPrice}
+                    maxValue={maxPrice}
+                    onMinChange={setMinPrice}
+                    onMaxChange={setMaxPrice}
                 />
             </MobileFilterDrawer>
 
-            <div className={isMobile && selectedIds.length > 0 ? 'pb-28' : ''}>
+            <div
+                className={`${isMobile && selectedIds.length > 0 ? 'pb-28' : ''} ${isFetching ? 'opacity-60 transition-opacity' : ''}`}
+            >
                 {leads.data.length === 0 ? (
                     <EmptyState title={t.empty ?? common.empty} />
                 ) : isMobile ? (
@@ -531,12 +572,12 @@ export default function BuyerLeadsIndex({
                                 </div>
                             ),
                             actions: (
-                                <Button
-                                    size="sm"
+                                <TableActionButton
+                                    label={t.buy_single ?? common.buy}
+                                    icon={tableActionIcons.buy}
+                                    tone="success"
                                     onClick={() => openPayment([lead.id])}
-                                >
-                                    {t.buy_single ?? common.buy}
-                                </Button>
+                                />
                             ),
                         }))}
                     />
@@ -624,13 +665,12 @@ export default function BuyerLeadsIndex({
                                 id: 'buy',
                                 header: common.actions,
                                 cell: (row) => (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
+                                    <TableActionButton
+                                        label={t.buy_single ?? common.buy}
+                                        icon={tableActionIcons.buy}
+                                        tone="success"
                                         onClick={() => openPayment([row.id])}
-                                    >
-                                        {t.buy_single ?? common.buy}
-                                    </Button>
+                                    />
                                 ),
                             },
                         ]}
@@ -646,11 +686,10 @@ export default function BuyerLeadsIndex({
                     applyFilters({ per_page: next, page: 1 })
                 }
                 onPageChange={(nextPage) =>
-                    router.get(
-                        route('buyer.leads.index'),
-                        queryParams({ page: nextPage }),
-                        { preserveState: true },
-                    )
+                    setApplied((current) => ({
+                        ...current,
+                        page: nextPage,
+                    }))
                 }
                 labels={paginationLabels(common)}
             />

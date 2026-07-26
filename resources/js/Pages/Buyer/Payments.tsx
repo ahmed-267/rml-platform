@@ -10,7 +10,11 @@ import {
     Pagination,
     SortableHeader,
     StatusBadge,
+    TableActionButton,
+    TableActionLink,
+    TableActions,
     Tabs,
+    tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
 import {
@@ -169,49 +173,47 @@ export default function BuyerPayments({
     };
 
     const renderActions = (row: PaymentRow) => (
-        <div className="flex flex-wrap gap-2">
+        <TableActions>
             {row.can_pay && (
-                <Button size="sm" onClick={() => payNow(row.id)}>
-                    {t.pay_now ?? t.continue_payment}
-                </Button>
+                <TableActionButton
+                    label={t.pay_now ?? t.continue_payment}
+                    icon={tableActionIcons.pay}
+                    tone="success"
+                    onClick={() => payNow(row.id)}
+                />
             )}
             {row.can_cancel && (
-                <Button
-                    size="sm"
-                    variant="outline"
+                <TableActionButton
+                    label={t.cancel_payment}
+                    icon={tableActionIcons.cancel}
+                    tone="danger"
                     onClick={() => cancelPayment(row.id)}
-                >
-                    {t.cancel_payment}
-                </Button>
+                />
             )}
             {row.can_download_invoice && row.invoice_id && (
-                <a href={route('invoices.download', row.invoice_id)}>
-                    <Button size="sm" variant="outline">
-                        {t.download_invoice ?? docs.download_invoice}
-                    </Button>
-                </a>
+                <TableActionLink
+                    href={route('invoices.download', row.invoice_id)}
+                    label={t.download_invoice ?? docs.download_invoice}
+                    icon={tableActionIcons.download}
+                    external
+                />
             )}
             {row.can_download_receipt && row.receipt_id && (
-                <a href={route('invoices.download', row.receipt_id)}>
-                    <Button size="sm" variant="outline">
-                        {t.download_receipt ?? docs.download_receipt}
-                    </Button>
-                </a>
+                <TableActionLink
+                    href={route('invoices.download', row.receipt_id)}
+                    label={t.download_receipt ?? docs.download_receipt}
+                    icon={tableActionIcons.download}
+                    external
+                />
             )}
             {row.purchase_id && (
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() =>
-                        router.visit(
-                            route('buyer.purchases.show', row.purchase_id!),
-                        )
-                    }
-                >
-                    {common.view}
-                </Button>
+                <TableActionLink
+                    href={route('buyer.purchases.show', row.purchase_id)}
+                    label={common.view}
+                    icon={tableActionIcons.view}
+                />
             )}
-        </div>
+        </TableActions>
     );
 
     return (

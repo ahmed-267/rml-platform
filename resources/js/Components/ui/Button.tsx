@@ -12,18 +12,18 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<ButtonVariant, string> = {
     primary:
-        'bg-rml-primary text-white hover:bg-green-700 shadow-sm border border-transparent',
+        'bg-gradient-to-b from-emerald-500 to-rml-primary text-white hover:from-emerald-400 hover:to-green-700 shadow-sm shadow-emerald-900/10 border border-transparent',
     secondary:
         'bg-rml-sidebar text-white hover:bg-slate-800 shadow-sm border border-transparent',
     outline:
-        'bg-white text-rml-text border-rml-border hover:bg-rml-background border',
+        'bg-white text-rml-text border-rml-border hover:bg-rml-background hover:border-slate-300 shadow-sm border',
     ghost: 'bg-transparent text-rml-muted hover:bg-rml-background hover:text-rml-text border border-transparent',
-    danger: 'bg-rml-red text-white hover:bg-red-700 shadow-sm border border-transparent',
+    danger: 'bg-gradient-to-b from-red-500 to-rml-red text-white hover:from-red-400 hover:to-red-700 shadow-sm border border-transparent',
     soft: 'bg-rml-primary-light text-rml-primary hover:bg-rml-primary-lighter border border-transparent',
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-    sm: 'h-9 px-3 text-sm gap-1.5',
+    sm: 'h-9 px-3.5 text-sm gap-1.5',
     md: 'h-10 px-4 text-sm gap-2',
     lg: 'h-11 px-5 text-base gap-2',
 };
@@ -48,7 +48,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                 type={type}
                 disabled={disabled}
                 className={cn(
-                    'inline-flex items-center justify-center rounded-lg font-semibold transition-colors rml-focus-ring disabled:cursor-not-allowed disabled:opacity-50',
+                    'inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-150 rml-focus-ring disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]',
                     variantClasses[variant],
                     sizeClasses[size],
                     fullWidth && 'w-full',

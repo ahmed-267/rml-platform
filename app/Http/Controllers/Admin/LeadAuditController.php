@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\AuditDecisionStatus;
 use App\Enums\LeadStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
@@ -40,10 +41,6 @@ class LeadAuditController extends Controller
             'lead' => AdminLeadPresenter::present($lead),
             'audit' => $this->auditPayload($lead),
             'auditOpen' => true,
-            'auditors' => User::query()
-                ->role(UserRole::InternalAuditor->value)
-                ->orderBy('name')
-                ->get(['id', 'name', 'email']),
         ]);
     }
 
@@ -98,11 +95,50 @@ class LeadAuditController extends Controller
      */
     private function auditPayload(Lead $lead): array
     {
+        $lead->loadMissing(['audits' => fn ($q) => $q->latest('id')->limit(1)]);
+        $latestAudit = $lead->audits->first();
+        $actor = request()->user();
+
         return [
             'checklist' => $this->leadAuditService->checklistItems($lead->scheme_id),
             'pricing' => $this->leadAuditService->pricingPreview($lead),
             'lead' => AdminLeadPresenter::present($lead),
+            'assigned_auditor_id' => $latestAudit?->auditor_user_id,
+            'can_assign_auditor' => (bool) (
+                $actor?->hasRole(UserRole::SuperAdmin->value)
+                || $actor?->can(Permissions::ACCEPT_REJECT_LEADS)
+            ),
+            'auditors' => $this->auditorOptions(),
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function auditorOptions(): array
+    {
+        $activeStatuses = [
+            AuditDecisionStatus::Pending->value,
+            AuditDecisionStatus::InReview->value,
+            AuditDecisionStatus::NeedsMoreInformation->value,
+        ];
+
+        return User::query()
+            ->role(UserRole::InternalAuditor->value)
+            ->where('approval_status', 'approved')
+            ->withCount([
+                'assignedAudits as active_assigned_count' => fn ($q) => $q->whereIn('status', $activeStatuses),
+            ])
+            ->orderBy('name')
+            ->get(['id', 'name', 'email'])
+            ->map(fn (User $auditor) => [
+                'id' => $auditor->id,
+                'name' => $auditor->name,
+                'email' => $auditor->email,
+                'active_assigned_count' => (int) $auditor->active_assigned_count,
+            ])
+            ->values()
+            ->all();
     }
 
     private function wantsAuditJson(Request $request): bool

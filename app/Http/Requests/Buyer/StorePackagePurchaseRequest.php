@@ -27,10 +27,29 @@ class StorePackagePurchaseRequest extends FormRequest
             'scheme_id' => ['nullable', 'integer', 'exists:schemes,id'],
             'zone_codes' => ['nullable', 'array'],
             'zone_codes.*' => ['string', 'max:10'],
-            'min_size' => ['nullable', 'numeric', 'min:0'],
-            'max_size' => ['nullable', 'numeric', 'min:0'],
-            'min_distance' => ['nullable', 'numeric', 'min:0'],
-            'max_distance' => ['nullable', 'numeric', 'min:0'],
+            'min_size' => ['nullable', 'numeric', 'min:0', 'max:10000'],
+            'max_size' => ['nullable', 'numeric', 'min:0', 'max:10000'],
+            'min_distance' => ['nullable', 'numeric', 'min:0', 'max:500'],
+            'max_distance' => ['nullable', 'numeric', 'min:0', 'max:500'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'type' => __('rml.buyer.packages.package_name'),
+            'package_id' => __('rml.buyer.packages.package_name'),
+            'payment_method' => __('rml.buyer.leads.payment_method'),
+            'lead_count' => __('rml.buyer.packages.lead_count'),
+            'scheme_id' => __('rml.auditor.common.scheme'),
+            'zone_codes' => __('rml.buyer.packages.zones'),
+            'min_size' => __('rml.buyer.leads.min_size'),
+            'max_size' => __('rml.buyer.leads.max_size'),
+            'min_distance' => __('rml.buyer.leads.min_distance'),
+            'max_distance' => __('rml.buyer.leads.max_distance'),
         ];
     }
 }

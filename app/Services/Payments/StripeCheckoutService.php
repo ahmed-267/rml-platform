@@ -60,6 +60,30 @@ class StripeCheckoutService
 
         $this->assertPurchasePayable($payment);
 
+        // Reuse an open Checkout Session to avoid duplicate sessions on double-click.
+        if (filled($payment->stripe_checkout_session_id) && $payment->method?->value === 'card') {
+            try {
+                $existing = $this->retrieveSession((string) $payment->stripe_checkout_session_id);
+                if (($existing->status ?? '') === 'open' && filled($existing->url)) {
+                    return [
+                        'checkout_url' => (string) $existing->url,
+                        'session_id' => (string) $existing->id,
+                        'payment_intent_id' => is_string($existing->payment_intent)
+                            ? $existing->payment_intent
+                            : null,
+                        'status' => (string) ($existing->status ?? 'open'),
+                        'raw' => $existing->toArray(),
+                    ];
+                }
+            } catch (ApiErrorException $e) {
+                Log::info('Stripe existing session reuse skipped', [
+                    'payment_id' => $payment->id,
+                    'session_id' => $payment->stripe_checkout_session_id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         $currency = strtolower((string) (
             config('services.stripe.currency')
             ?: config('payments.stripe.currency')

@@ -1,17 +1,24 @@
-import { useState } from 'react';
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import {
     Button,
     DataTable,
     EmptyState,
     FilterBar,
+    FormInput,
     MobileFilterDrawer,
     MobileCardList,
+    Modal,
     Pagination,
     Select,
     SortableHeader,
     StatusBadge,
+    TableActionButton,
+    TableActionLink,
+    TableActions,
+    Textarea,
+    tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
 import {
@@ -23,6 +30,7 @@ import {
 import { useIsMobile } from '@/hooks/use-media-query';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import type { PageProps } from '@/types';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 
 interface ThreadRow {
     id: number;
@@ -31,15 +39,25 @@ interface ThreadRow {
     category: string | null;
     status: string | null;
     created_by: { id: number; name: string; email: string } | null;
+    assigned_to: { id: number; name: string; email: string } | null;
     related_lead_reference: string | null;
     latest_message_preview: string | null;
     updated_at: string | null;
+}
+
+interface MessageRecipient {
+    id: number;
+    name: string;
+    email: string;
+    label: string;
 }
 
 export default function MessagesIndex({
     threads,
     filters,
     filterOptions,
+    recipients,
+    can_delete_messages = false,
 }: {
     threads: Paginator<ThreadRow>;
     filters: {
@@ -54,8 +72,10 @@ export default function MessagesIndex({
         categories: string[];
         statuses: string[];
     };
+    recipients: MessageRecipient[];
+    can_delete_messages?: boolean;
 }) {
-    const { translations, app } = usePage<PageProps>().props;
+    const { translations, app, auth } = usePage<PageProps>().props;
     const t = translations.admin.messages;
     const common = translations.admin.common;
     const statuses = translations.statuses;
@@ -63,11 +83,30 @@ export default function MessagesIndex({
         (translations.admin.messages as { categories?: Record<string, string> })
             .categories ?? {};
     const isMobile = useIsMobile();
+    const isSuperAdmin = auth.user?.primary_role === 'super_admin';
+    const canDelete = can_delete_messages || isSuperAdmin;
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [category, setCategory] = useState(filters.category ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
     const [filtersOpen, setFiltersOpen] = useState(false);
+    const [composeOpen, setComposeOpen] = useState(false);
+    const [deleteRow, setDeleteRow] = useState<ThreadRow | null>(null);
+    const [deleteProcessing, setDeleteProcessing] = useState(false);
+
+    const {
+        data: composeData,
+        setData: setComposeData,
+        post: postCompose,
+        processing: composeProcessing,
+        errors: composeErrors,
+        reset: resetCompose,
+    } = useForm({
+        recipient_user_id: '',
+        category: filterOptions.categories[0] ?? 'internal',
+        subject: '',
+        body: '',
+    });
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection =
@@ -93,6 +132,8 @@ export default function MessagesIndex({
             replace: true,
         });
     };
+
+    useInstantListFilters(applyFilters, search, [category, status]);
 
     const resetFilters = () => {
         setSearch('');
@@ -134,6 +175,76 @@ export default function MessagesIndex({
     const categoryLabel = (value: string | null) =>
         value && categories[value] ? categories[value] : (value ?? '—');
 
+    const categoryOptions = filterOptions.categories.map((value) => ({
+        label: categoryLabel(value),
+        value,
+    }));
+
+    const recipientOptions = recipients.map((recipient) => ({
+        label: recipient.label,
+        value: String(recipient.id),
+    }));
+
+    const closeCompose = () => {
+        if (!composeProcessing) {
+            setComposeOpen(false);
+            resetCompose();
+        }
+    };
+
+    const submitCompose = () => {
+        postCompose(route('admin.messages.store'), {
+            onSuccess: () => {
+                setComposeOpen(false);
+                resetCompose();
+            },
+        });
+    };
+
+    const confirmDelete = () => {
+        if (!deleteRow) {
+            return;
+        }
+
+        setDeleteProcessing(true);
+        router.delete(route('admin.messages.destroy', deleteRow.id), {
+            preserveScroll: true,
+            onFinish: () => {
+                setDeleteProcessing(false);
+                setDeleteRow(null);
+            },
+        });
+    };
+
+    const deleteConfirmBody = useMemo(() => {
+        if (!deleteRow) {
+            return '';
+        }
+
+        return (t.delete_confirm_body ?? '').replaceAll(
+            ':ref',
+            deleteRow.thread_reference,
+        );
+    }, [deleteRow, t.delete_confirm_body]);
+
+    const rowActions = (row: ThreadRow) => (
+        <TableActions>
+            <TableActionLink
+                href={route('admin.messages.show', row.id)}
+                label={common.view}
+                icon={tableActionIcons.view}
+            />
+            {canDelete && (
+                <TableActionButton
+                    label={common.delete}
+                    icon={tableActionIcons.delete}
+                    tone="danger"
+                    onClick={() => setDeleteRow(row)}
+                />
+            )}
+        </TableActions>
+    );
+
     return (
         <AppLayout title={t.index_title} subtitle={t.index_subtitle}>
             <Head title={t.index_title} />
@@ -147,8 +258,8 @@ export default function MessagesIndex({
                 onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
-                        <Button size="sm" onClick={applyFilters}>
-                            {common.apply}
+                        <Button size="sm" onClick={() => setComposeOpen(true)}>
+                            {t.start_conversation}
                         </Button>
                         <Button size="sm" variant="ghost" onClick={resetFilters}>
                             {common.reset}
@@ -167,10 +278,7 @@ export default function MessagesIndex({
                                 label: common.all_categories ?? common.all,
                                 value: '',
                             },
-                            ...filterOptions.categories.map((c) => ({
-                                label: categoryLabel(c),
-                                value: c,
-                            })),
+                            ...categoryOptions,
                         ]}
                     />
                 </div>
@@ -207,10 +315,7 @@ export default function MessagesIndex({
                             label: common.all_categories ?? common.all,
                             value: '',
                         },
-                        ...filterOptions.categories.map((c) => ({
-                            label: categoryLabel(c),
-                            value: c,
-                        })),
+                        ...categoryOptions,
                     ]}
                 />
                 <Select
@@ -247,14 +352,7 @@ export default function MessagesIndex({
                                 {row.latest_message_preview ?? '—'}
                             </p>
                         ),
-                        actions: (
-                            <Link
-                                href={route('admin.messages.show', row.id)}
-                                className="text-sm font-semibold text-rml-primary"
-                            >
-                                {common.view}
-                            </Link>
-                        ),
+                        actions: rowActions(row),
                     }))}
                 />
             ) : (
@@ -322,6 +420,11 @@ export default function MessagesIndex({
                             cell: (row) =>
                                 formatDateTime(row.updated_at, app.locale),
                         },
+                        {
+                            id: 'actions',
+                            header: common.actions,
+                            cell: (row) => rowActions(row),
+                        },
                     ]}
                 />
             )}
@@ -346,6 +449,123 @@ export default function MessagesIndex({
                 }
                 labels={paginationLabels(common)}
             />
+
+            <Modal
+                open={composeOpen}
+                onClose={closeCompose}
+                title={t.compose_title}
+                footer={
+                    <>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={composeProcessing}
+                            onClick={closeCompose}
+                        >
+                            {common.cancel}
+                        </Button>
+                        <Button
+                            size="sm"
+                            disabled={composeProcessing}
+                            onClick={submitCompose}
+                        >
+                            {t.send_message}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    <Select
+                        label={t.recipient}
+                        aria-label={t.recipient}
+                        value={composeData.recipient_user_id}
+                        onChange={(e) =>
+                            setComposeData('recipient_user_id', e.target.value)
+                        }
+                        options={[
+                            {
+                                label: t.select_recipient,
+                                value: '',
+                            },
+                            ...recipientOptions,
+                        ]}
+                        error={composeErrors.recipient_user_id}
+                        required
+                    />
+                    <Select
+                        label={t.filter_category}
+                        aria-label={t.filter_category}
+                        value={composeData.category}
+                        onChange={(e) =>
+                            setComposeData('category', e.target.value)
+                        }
+                        options={[
+                            {
+                                label: t.select_category,
+                                value: '',
+                            },
+                            ...categoryOptions,
+                        ]}
+                        error={composeErrors.category}
+                        required
+                    />
+                    <FormInput
+                        label={t.subject}
+                        name="subject"
+                        value={composeData.subject}
+                        error={composeErrors.subject}
+                        onChange={(e) =>
+                            setComposeData('subject', e.target.value)
+                        }
+                        hint={
+                            categories[composeData.category]
+                                ? `${t.select_category}: ${categories[composeData.category]}`
+                                : undefined
+                        }
+                    />
+                    <Textarea
+                        label={t.body}
+                        name="body"
+                        required
+                        value={composeData.body}
+                        error={composeErrors.body}
+                        onChange={(e) => setComposeData('body', e.target.value)}
+                    />
+                </div>
+            </Modal>
+
+            <Modal
+                open={deleteRow != null}
+                onClose={() => {
+                    if (!deleteProcessing) {
+                        setDeleteRow(null);
+                    }
+                }}
+                title={t.delete_confirm_title}
+                size="sm"
+                footer={
+                    <>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={deleteProcessing}
+                            onClick={() => setDeleteRow(null)}
+                        >
+                            {common.cancel}
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="danger"
+                            disabled={deleteProcessing}
+                            onClick={confirmDelete}
+                        >
+                            {common.delete}
+                        </Button>
+                    </>
+                }
+            >
+                <p className="text-sm text-rml-muted">{deleteConfirmBody}</p>
+            </Modal>
         </AppLayout>
     );
 }

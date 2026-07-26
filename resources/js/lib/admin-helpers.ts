@@ -12,6 +12,8 @@ export {
 export function accountActionLabels(common: Record<string, string>) {
     return {
         view: common.view,
+        edit: common.edit,
+        delete: common.delete,
         approve: common.approve,
         reject: common.reject,
         suspend: common.suspend,
@@ -26,6 +28,9 @@ export function accountActionLabels(common: Record<string, string>) {
         reinstateTitle: common.reinstate_confirm_title,
         reinstateBody: common.reinstate_confirm_body,
         reinstateConfirm: common.confirm_yes_reinstate,
+        deleteTitle: common.delete_confirm_title,
+        deleteBody: common.delete_confirm_body,
+        deleteConfirm: common.confirm_yes_delete,
     };
 }
 

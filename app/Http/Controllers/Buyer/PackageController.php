@@ -18,6 +18,7 @@ use App\Services\Payments\PaymentService;
 use App\Support\BuyerLeadPresenter;
 use App\Support\CheckoutRedirect;
 use App\Support\Permissions;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -34,11 +35,17 @@ class PackageController extends Controller
         private readonly PaymentService $paymentService,
     ) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request): Response|JsonResponse
     {
         abort_unless($request->user()?->can(Permissions::BUY_LEADS), 403);
 
-        return Inertia::render('Buyer/Packages/Index', $this->pageProps($request->user()));
+        $payload = $this->pageProps($request->user());
+
+        if ($request->wantsJson() && ! $request->header('X-Inertia')) {
+            return response()->json($payload);
+        }
+
+        return Inertia::render('Buyer/Packages/Index', $payload);
     }
 
     public function preview(PreviewPackageRequest $request): Response
@@ -123,35 +130,41 @@ class PackageController extends Controller
      */
     private function pageProps(User $user): array
     {
-        $prebuilt = LeadPackage::query()
+        $packages = LeadPackage::query()
             ->where('status', PackageStatus::Available)
             ->with(['scheme:id,name,slug', 'leads.zone', 'leads.scheme'])
             ->latest()
-            ->get()
-            ->map(function (LeadPackage $package) use ($user) {
-                $pricing = $this->packagePricingService->calculate($package);
-                $availableLeads = $package->leads->filter(
-                    fn ($lead) => $this->availabilityService->isAvailable($lead)
-                );
+            ->limit(50)
+            ->get();
 
-                return [
-                    'id' => $package->id,
-                    'package_reference' => $package->package_reference,
-                    'name' => $package->name,
-                    'package_type' => $package->package_type?->value,
-                    'scheme' => $package->scheme?->name,
-                    'zone_mix' => $package->zone_mix,
-                    'lead_count' => $availableLeads->count(),
-                    'avg_size_m2' => $availableLeads->count() > 0
-                        ? round((float) $availableLeads->avg('size_m2'), 2)
-                        : null,
-                    'avg_price_per_m2' => $pricing['avg_price_per_m2'],
-                    'estimated_total' => $pricing['estimated_total'],
-                    'buyable' => $availableLeads->count() > 0
-                        && $availableLeads->count() === $package->leads->count(),
-                    'leads' => BuyerLeadPresenter::marketplaceCollection($availableLeads, $user),
-                ];
-            });
+        $availableIds = $this->availabilityService->availableIdSet(
+            $packages->flatMap(fn (LeadPackage $package) => $package->leads->pluck('id'))
+        );
+
+        $prebuilt = $packages->map(function (LeadPackage $package) use ($user, $availableIds) {
+            $pricing = $this->packagePricingService->calculate($package);
+            $availableLeads = $package->leads->filter(
+                fn ($lead) => isset($availableIds[(int) $lead->id])
+            );
+
+            return [
+                'id' => $package->id,
+                'package_reference' => $package->package_reference,
+                'name' => $package->name,
+                'package_type' => $package->package_type?->value,
+                'scheme' => $package->scheme?->name,
+                'zone_mix' => $package->zone_mix,
+                'lead_count' => $availableLeads->count(),
+                'avg_size_m2' => $availableLeads->count() > 0
+                    ? round((float) $availableLeads->avg('size_m2'), 2)
+                    : null,
+                'avg_price_per_m2' => $pricing['avg_price_per_m2'],
+                'estimated_total' => $pricing['estimated_total'],
+                'buyable' => $availableLeads->count() > 0
+                    && $availableLeads->count() === $package->leads->count(),
+                'leads' => BuyerLeadPresenter::marketplaceCollection($availableLeads, $user),
+            ];
+        });
 
         return [
             'prebuilt' => $prebuilt,

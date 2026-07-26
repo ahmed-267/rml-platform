@@ -33,21 +33,21 @@ export function DataTable<T>({
                 className,
             )}
         >
-            <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-rml-border text-left text-sm">
+            <div className="overflow-x-auto overscroll-x-contain">
+                <table className="w-max min-w-full border-collapse divide-y divide-rml-border text-left text-sm">
                     <thead className="bg-rml-background">
                         <tr>
                             {columns.map((column) => (
-                                <th
-                                    key={column.id}
-                                    scope="col"
-                                    className={cn(
-                                        'px-4 py-3 text-xs font-semibold uppercase tracking-wide text-rml-muted',
-                                        column.className,
-                                    )}
-                                >
-                                    {column.header}
-                                </th>
+                                    <th
+                                        key={column.id}
+                                        scope="col"
+                                        className={cn(
+                                            'whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-rml-muted',
+                                            column.className,
+                                        )}
+                                    >
+                                        {column.header}
+                                    </th>
                             ))}
                         </tr>
                     </thead>
@@ -72,15 +72,15 @@ export function DataTable<T>({
                                     onClick={() => onRowClick?.(row)}
                                 >
                                     {columns.map((column) => (
-                                        <td
-                                            key={column.id}
-                                            className={cn(
-                                                'whitespace-nowrap px-4 py-3 text-rml-text',
-                                                column.className,
-                                            )}
-                                        >
-                                            {column.cell(row)}
-                                        </td>
+                                            <td
+                                                key={column.id}
+                                                className={cn(
+                                                    'whitespace-nowrap px-4 py-3 text-rml-text',
+                                                    column.className,
+                                                )}
+                                            >
+                                                {column.cell(row)}
+                                            </td>
                                     ))}
                                 </tr>
                             ))

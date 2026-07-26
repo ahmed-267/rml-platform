@@ -17,12 +17,15 @@ use App\Models\Payment;
 use App\Models\Payout;
 use App\Models\User;
 use App\Support\LeadStatusPresentation;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    private const KPI_CACHE_SECONDS = 45;
+
     public function __invoke(): Response
     {
         $awaitingValidationStatuses = [
@@ -30,93 +33,109 @@ class DashboardController extends Controller
             ...LeadStatusPresentation::expand(LeadStatusPresentation::NEEDS_INFORMATION),
         ];
 
-        $totalSubmitted = Lead::query()
-            ->where('status', '!=', LeadStatus::Draft->value)
-            ->count();
+        $metrics = Cache::remember('admin.dashboard.metrics.v2', self::KPI_CACHE_SECONDS, function () use ($awaitingValidationStatuses) {
+            $leadAgg = Lead::query()
+                ->selectRaw('count(*) filter (where status != ?) as total_submitted', [LeadStatus::Draft->value])
+                ->selectRaw('count(*) filter (where status = ?) as leads_sold', [LeadStatus::Sold->value])
+                ->selectRaw(
+                    'count(*) filter (where status in ('.implode(',', array_fill(0, count($awaitingValidationStatuses), '?')).')) as awaiting_validation',
+                    $awaitingValidationStatuses
+                )
+                ->selectRaw(
+                    'COALESCE(SUM(COALESCE(expected_margin, selling_price - buying_price)) filter (where status = ?), 0) as profit_margin',
+                    [LeadStatus::Sold->value]
+                )
+                ->first();
 
-        $awaitingValidation = Lead::query()
-            ->whereIn('status', $awaitingValidationStatuses)
-            ->count();
-
-        $leadsSold = Lead::query()->where('status', LeadStatus::Sold->value)->count();
-
-        $buyerPaymentsPaidSum = (float) Payment::query()
-            ->where('type', PaymentType::BuyerPayment->value)
-            ->where('status', PaymentStatus::Paid->value)
-            ->sum('amount');
-
-        $sellerPayoutsPaidSum = (float) Payout::query()
-            ->where('status', PayoutStatus::Paid->value)
-            ->sum('amount');
-
-        $profitMargin = (float) Lead::query()
-            ->where('status', LeadStatus::Sold->value)
-            ->selectRaw('COALESCE(SUM(COALESCE(expected_margin, selling_price - buying_price)), 0) as total')
-            ->value('total');
-
-        $openIssues = MessageThread::query()
-            ->where('status', MessageThreadStatus::Open->value)
-            ->count();
-
-        $reviewedCount = Lead::query()
-            ->whereIn('status', [
+            $listedStatuses = [
                 ...LeadStatusPresentation::expand(LeadStatusPresentation::LISTED),
                 LeadStatus::Sold->value,
-                LeadStatus::Rejected->value,
-            ])
-            ->count();
+            ];
+            $reviewedStatuses = [...$listedStatuses, LeadStatus::Rejected->value];
 
-        $acceptedCount = Lead::query()
-            ->whereIn('status', [
-                ...LeadStatusPresentation::expand(LeadStatusPresentation::LISTED),
-                LeadStatus::Sold->value,
-            ])
-            ->count();
+            $reviewAgg = Lead::query()
+                ->selectRaw(
+                    'count(*) filter (where status in ('.implode(',', array_fill(0, count($reviewedStatuses), '?')).')) as reviewed_count',
+                    $reviewedStatuses
+                )
+                ->selectRaw(
+                    'count(*) filter (where status in ('.implode(',', array_fill(0, count($listedStatuses), '?')).')) as accepted_count',
+                    $listedStatuses
+                )
+                ->first();
 
-        $acceptanceRate = $reviewedCount > 0
-            ? round(($acceptedCount / $reviewedCount) * 100, 1)
-            : 0.0;
+            $paymentAgg = Payment::query()
+                ->where('type', PaymentType::BuyerPayment->value)
+                ->selectRaw('COALESCE(SUM(amount) filter (where status = ?), 0) as paid_sum', [PaymentStatus::Paid->value])
+                ->selectRaw('count(*) filter (where status = ?) as pending_count', [PaymentStatus::Pending->value])
+                ->selectRaw('COALESCE(SUM(amount) filter (where status = ?), 0) as pending_sum', [PaymentStatus::Pending->value])
+                ->first();
 
-        $pipelineCounts = LeadStatusPresentation::groupCounts(
-            Lead::query()
-                ->where('status', '!=', LeadStatus::Draft->value)
-                ->select('status', DB::raw('count(*) as count'))
-                ->groupBy('status')
-                ->pluck('count', 'status')
-                ->all()
-        );
+            $payoutAgg = Payout::query()
+                ->selectRaw('COALESCE(SUM(amount) filter (where status = ?), 0) as paid_sum', [PayoutStatus::Paid->value])
+                ->selectRaw('count(*) filter (where status = ?) as pending_count', [PayoutStatus::Pending->value])
+                ->selectRaw('COALESCE(SUM(amount) filter (where status = ?), 0) as pending_sum', [PayoutStatus::Pending->value])
+                ->first();
 
-        $pendingSellerRegs = User::query()
-            ->where('approval_status', ApprovalStatus::Pending->value)
-            ->whereHas('roles', fn ($q) => $q->whereIn('name', [
-                UserRole::SellerCompanyAdmin->value,
-                UserRole::IndividualSellerAgent->value,
-                UserRole::SellerStaff->value,
-            ]))
-            ->count();
+            $openIssues = MessageThread::query()
+                ->where('status', MessageThreadStatus::Open->value)
+                ->count();
 
-        $pendingBuyerRegs = User::query()
-            ->where('approval_status', ApprovalStatus::Pending->value)
-            ->whereHas('roles', fn ($q) => $q->where('name', UserRole::BuyerAdmin->value))
-            ->count();
+            $reviewedCount = (int) ($reviewAgg->reviewed_count ?? 0);
+            $acceptedCount = (int) ($reviewAgg->accepted_count ?? 0);
 
-        $pendingPayments = Payment::query()
-            ->where('type', PaymentType::BuyerPayment->value)
-            ->where('status', PaymentStatus::Pending->value)
-            ->count();
+            $totalSubmitted = (int) ($leadAgg->total_submitted ?? 0);
+            $awaitingValidation = (int) ($leadAgg->awaiting_validation ?? 0);
+            $leadsSold = (int) ($leadAgg->leads_sold ?? 0);
+            $buyerPaid = (float) ($paymentAgg->paid_sum ?? 0);
+            $profitMargin = (float) ($leadAgg->profit_margin ?? 0);
 
-        $pendingPayouts = Payout::query()
-            ->where('status', PayoutStatus::Pending->value)
-            ->count();
-
-        $pendingPaymentsSum = (float) Payment::query()
-            ->where('type', PaymentType::BuyerPayment->value)
-            ->where('status', PaymentStatus::Pending->value)
-            ->sum('amount');
-
-        $pendingPayoutsSum = (float) Payout::query()
-            ->where('status', PayoutStatus::Pending->value)
-            ->sum('amount');
+            return [
+                'total_submitted' => $totalSubmitted,
+                'awaiting_validation' => $awaitingValidation,
+                'leads_sold' => $leadsSold,
+                'buyer_payments_paid_sum' => $buyerPaid,
+                'seller_payouts_paid_sum' => (float) ($payoutAgg->paid_sum ?? 0),
+                'profit_margin' => $profitMargin,
+                'open_issues' => $openIssues,
+                'acceptance_rate' => $reviewedCount > 0
+                    ? round(($acceptedCount / $reviewedCount) * 100, 1)
+                    : 0.0,
+                'sold_rate' => $totalSubmitted > 0
+                    ? round(($leadsSold / $totalSubmitted) * 100, 1)
+                    : 0.0,
+                'awaiting_rate' => $totalSubmitted > 0
+                    ? round(($awaitingValidation / $totalSubmitted) * 100, 1)
+                    : 0.0,
+                'margin_rate' => $buyerPaid > 0
+                    ? round(($profitMargin / $buyerPaid) * 100, 1)
+                    : 0.0,
+                'pipeline_counts' => LeadStatusPresentation::groupCounts(
+                    Lead::query()
+                        ->where('status', '!=', LeadStatus::Draft->value)
+                        ->select('status', DB::raw('count(*) as count'))
+                        ->groupBy('status')
+                        ->pluck('count', 'status')
+                        ->all()
+                ),
+                'pending_seller_regs' => User::query()
+                    ->where('approval_status', ApprovalStatus::Pending->value)
+                    ->whereHas('roles', fn ($q) => $q->whereIn('name', [
+                        UserRole::SellerCompanyAdmin->value,
+                        UserRole::IndividualSellerAgent->value,
+                        UserRole::SellerStaff->value,
+                    ]))
+                    ->count(),
+                'pending_buyer_regs' => User::query()
+                    ->where('approval_status', ApprovalStatus::Pending->value)
+                    ->whereHas('roles', fn ($q) => $q->where('name', UserRole::BuyerAdmin->value))
+                    ->count(),
+                'pending_payments' => (int) ($paymentAgg->pending_count ?? 0),
+                'pending_payouts' => (int) ($payoutAgg->pending_count ?? 0),
+                'pending_payments_sum' => (float) ($paymentAgg->pending_sum ?? 0),
+                'pending_payouts_sum' => (float) ($payoutAgg->pending_sum ?? 0),
+            ];
+        });
 
         $awaitingAuditLeads = Lead::query()
             ->whereIn('status', $awaitingValidationStatuses)
@@ -154,37 +173,43 @@ class DashboardController extends Controller
 
         return Inertia::render('Admin/Dashboard', [
             'kpis' => [
-                'total_submitted' => $totalSubmitted,
-                'awaiting_validation' => $awaitingValidation,
-                'leads_sold' => $leadsSold,
-                'buyer_payments_paid_sum' => round($buyerPaymentsPaidSum, 2),
-                'seller_payouts_paid_sum' => round($sellerPayoutsPaidSum, 2),
-                'profit_margin' => round($profitMargin, 2),
-                'open_issues' => $openIssues,
-                'acceptance_rate' => $acceptanceRate,
+                'total_submitted' => $metrics['total_submitted'],
+                'awaiting_validation' => $metrics['awaiting_validation'],
+                'leads_sold' => $metrics['leads_sold'],
+                'buyer_payments_paid_sum' => round($metrics['buyer_payments_paid_sum'], 2),
+                'seller_payouts_paid_sum' => round($metrics['seller_payouts_paid_sum'], 2),
+                'profit_margin' => round($metrics['profit_margin'], 2),
+                'open_issues' => $metrics['open_issues'],
+                'acceptance_rate' => $metrics['acceptance_rate'],
+                'sold_rate' => $metrics['sold_rate'],
+                'awaiting_rate' => $metrics['awaiting_rate'],
+                'margin_rate' => $metrics['margin_rate'],
+                'pending_payments_count' => $metrics['pending_payments'],
+                'pending_payouts_count' => $metrics['pending_payouts'],
+                'pending_approvals' => $metrics['pending_seller_regs'] + $metrics['pending_buyer_regs'],
             ],
-            'pipeline_counts' => $pipelineCounts,
+            'pipeline_counts' => $metrics['pipeline_counts'],
             'queue_counts' => [
-                'awaiting_audit' => $awaitingValidation,
-                'pending_seller_regs' => $pendingSellerRegs,
-                'pending_buyer_regs' => $pendingBuyerRegs,
-                'pending_payments' => $pendingPayments,
-                'pending_payouts' => $pendingPayouts,
-                'open_messages' => $openIssues,
+                'awaiting_audit' => $metrics['awaiting_validation'],
+                'pending_seller_regs' => $metrics['pending_seller_regs'],
+                'pending_buyer_regs' => $metrics['pending_buyer_regs'],
+                'pending_payments' => $metrics['pending_payments'],
+                'pending_payouts' => $metrics['pending_payouts'],
+                'open_messages' => $metrics['open_issues'],
             ],
             'awaiting_audit_leads' => $awaitingAuditLeads,
             'action_queue' => $actionQueue,
             'financial_snapshot' => [
-                'buyer_payments_paid' => round($buyerPaymentsPaidSum, 2),
-                'seller_payouts_paid' => round($sellerPayoutsPaidSum, 2),
-                'profit_margin' => round($profitMargin, 2),
-                'pending_payments_sum' => round($pendingPaymentsSum, 2),
-                'pending_payouts_sum' => round($pendingPayoutsSum, 2),
-                'pending_payments_count' => $pendingPayments,
-                'pending_payouts_count' => $pendingPayouts,
+                'buyer_payments_paid' => round($metrics['buyer_payments_paid_sum'], 2),
+                'seller_payouts_paid' => round($metrics['seller_payouts_paid_sum'], 2),
+                'profit_margin' => round($metrics['profit_margin'], 2),
+                'pending_payments_sum' => round($metrics['pending_payments_sum'], 2),
+                'pending_payouts_sum' => round($metrics['pending_payouts_sum'], 2),
+                'pending_payments_count' => $metrics['pending_payments'],
+                'pending_payouts_count' => $metrics['pending_payouts'],
             ],
             'open_issues_summary' => [
-                'open_count' => $openIssues,
+                'open_count' => $metrics['open_issues'],
                 'items' => $openIssueItems,
             ],
         ]);
@@ -285,8 +310,8 @@ class DashboardController extends Controller
                     'badge' => __('rml.admin.dashboard.queue_approval_badge'),
                     'tone' => 'info',
                     'href' => $isBuyer
-                        ? route('admin.buyers.index', ['approval_status' => 'pending'])
-                        : route('admin.sellers.index', ['approval_status' => 'pending']),
+                        ? route('admin.users.index', ['tab' => 'buyers', 'approval_status' => 'pending'])
+                        : route('admin.users.index', ['tab' => 'sellers', 'approval_status' => 'pending']),
                     'action_label' => __('rml.admin.dashboard.action_approve'),
                     'category' => 'approvals',
                     'priority' => 4,

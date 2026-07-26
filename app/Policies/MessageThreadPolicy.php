@@ -43,4 +43,10 @@ class MessageThreadPolicy
     {
         return $this->view($user, $thread);
     }
+
+    public function delete(User $user, MessageThread $thread): bool
+    {
+        return $user->can(Permissions::MANAGE_MESSAGES)
+            || $user->hasRole(UserRole::SuperAdmin->value);
+    }
 }

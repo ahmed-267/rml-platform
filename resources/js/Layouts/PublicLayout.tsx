@@ -57,10 +57,14 @@ export default function PublicLayout({
     }, [mobileOpen]);
 
     return (
-        <div className="min-h-screen overflow-x-hidden bg-rml-background">
-            <header className="sticky top-0 z-40 border-b border-rml-border bg-white/95 shadow-sm backdrop-blur">
-                <div className="mx-auto flex h-14 max-w-content items-center justify-between gap-3 px-4 sm:px-6 lg:h-[58px] lg:px-8">
-                    <Link href="/#home" className="inline-flex shrink-0">
+        <div className="min-h-screen bg-rml-background">
+            {/*
+              Sticky (not fixed): stays in document flow — no spacer, no jump.
+              Do not put overflow-x-hidden on this ancestor; it breaks sticky.
+            */}
+            <header className="sticky top-0 z-40 border-b border-rml-border/80 bg-white/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/85">
+                <div className="mx-auto flex h-14 max-w-content items-center justify-between gap-3 px-4 sm:px-6 lg:h-14 lg:px-8">
+                    <Link href="/" prefetch className="inline-flex shrink-0">
                         <RmlLogo showWordmark />
                     </Link>
 
@@ -194,7 +198,7 @@ export default function PublicLayout({
                 </div>
             )}
 
-            <main>{children}</main>
+            <main className="overflow-x-clip">{children}</main>
         </div>
     );
 }

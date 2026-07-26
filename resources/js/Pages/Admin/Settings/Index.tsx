@@ -3,16 +3,22 @@ import AppLayout from '@/Layouts/AppLayout';
 import { Tabs } from '@/Components/ui';
 import type { PageProps } from '@/types';
 import CommissionsTab from './CommissionsTab';
+import DocumentsTab from './DocumentsTab';
 import GeneralTab from './GeneralTab';
 import LogsTab from './LogsTab';
 import SchemesTab from './SchemesTab';
-import type {
-    AuditLogRow,
-    CommissionRuleRow,
-    SchemeRow,
-    TemplateRow,
+import {
+    AGREEMENT_TYPES,
+    GDPR_TYPES,
+    TERMS_TYPES,
+    type AuditLogRow,
+    type CommissionRuleRow,
+    type SchemeRow,
+    type TemplateRow,
 } from './types';
 import type { Paginator } from '@/lib/admin-helpers';
+
+const DOCUMENT_TABS = ['agreements', 'terms', 'gdpr'] as const;
 
 export default function SettingsIndex({
     tab,
@@ -24,6 +30,7 @@ export default function SettingsIndex({
     log_filters,
     log_users = [],
     log_actions = [],
+    can_delete_logs = false,
 }: {
     tab: string;
     schemes: SchemeRow[];
@@ -41,6 +48,7 @@ export default function SettingsIndex({
     };
     log_users?: { id: number; name: string }[];
     log_actions?: string[];
+    can_delete_logs?: boolean;
     zones?: unknown[];
     pricing_rules?: unknown[];
 }) {
@@ -53,7 +61,13 @@ export default function SettingsIndex({
             template_types?: Record<string, string>;
         }).template_types ?? {};
 
-    const activeTab = ['schemes', 'commissions', 'general', 'logs'].includes(tab)
+    const activeTab = [
+        'schemes',
+        'commissions',
+        'general',
+        ...DOCUMENT_TABS,
+        'logs',
+    ].includes(tab)
         ? tab
         : 'schemes';
 
@@ -77,6 +91,21 @@ export default function SettingsIndex({
             count: commission_rules.length,
         },
         { id: 'general', label: t.tab_general },
+        {
+            id: 'agreements',
+            label: t.tab_agreements,
+            count: activeTab === 'agreements' ? templates.length : undefined,
+        },
+        {
+            id: 'terms',
+            label: t.tab_terms,
+            count: activeTab === 'terms' ? templates.length : undefined,
+        },
+        {
+            id: 'gdpr',
+            label: t.tab_gdpr,
+            count: activeTab === 'gdpr' ? templates.length : undefined,
+        },
         { id: 'logs', label: t.tab_logs },
     ];
 
@@ -101,9 +130,33 @@ export default function SettingsIndex({
                     />
                 )}
                 {activeTab === 'general' && (
-                    <GeneralTab
-                        general={general}
+                    <GeneralTab general={general} t={t} common={common} />
+                )}
+                {activeTab === 'agreements' && (
+                    <DocumentsTab
+                        tabKind="agreements"
                         templates={templates}
+                        allowedTypes={AGREEMENT_TYPES}
+                        t={t}
+                        common={common}
+                        templateTypes={templateTypes}
+                    />
+                )}
+                {activeTab === 'terms' && (
+                    <DocumentsTab
+                        tabKind="terms"
+                        templates={templates}
+                        allowedTypes={TERMS_TYPES}
+                        t={t}
+                        common={common}
+                        templateTypes={templateTypes}
+                    />
+                )}
+                {activeTab === 'gdpr' && (
+                    <DocumentsTab
+                        tabKind="gdpr"
+                        templates={templates}
+                        allowedTypes={GDPR_TYPES}
                         t={t}
                         common={common}
                         templateTypes={templateTypes}
@@ -115,6 +168,7 @@ export default function SettingsIndex({
                         filters={log_filters}
                         logUsers={log_users}
                         logActions={log_actions}
+                        canDeleteLogs={can_delete_logs}
                         t={t}
                         auditT={auditT}
                         common={common}

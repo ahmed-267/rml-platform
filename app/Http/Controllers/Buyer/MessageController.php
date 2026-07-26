@@ -26,7 +26,10 @@ class MessageController extends Controller
         abort_unless($request->user()?->can('viewAny', MessageThread::class), 403);
 
         $query = MessageThread::query()
-            ->where('created_by_user_id', $request->user()->id)
+            ->where(function ($q) use ($request) {
+                $q->where('created_by_user_id', $request->user()->id)
+                    ->orWhere('assigned_to_user_id', $request->user()->id);
+            })
             ->with(['messages' => fn ($q) => $q->latest()->limit(1)]);
 
         if ($request->filled('status')) {

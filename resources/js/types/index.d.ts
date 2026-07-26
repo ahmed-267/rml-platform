@@ -102,6 +102,15 @@ export interface SharedTranslations {
     profile: Record<string, string>;
     whatsapp: Record<string, string>;
     documents: Record<string, string>;
+    validation?: {
+        phone_format?: string;
+        phone_length?: string;
+        phone_too_short?: string;
+        phone_too_long?: string;
+        phone_required?: string;
+        email_format?: string;
+        field_required?: string;
+    };
 }
 
 export type PageProps<
@@ -116,6 +125,7 @@ export type PageProps<
         warning?: string | null;
         info?: string | null;
     };
+    errors?: Record<string, string>;
     app: {
         name: string;
         locale: string;

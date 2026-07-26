@@ -21,4 +21,14 @@ class InviteStaffRequest extends FormRequest
             'email' => ['required', 'email', 'max:255'],
         ];
     }
+
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
+    {
+        return [
+            'email' => __('rml.seller.staff.invite_email'),
+        ];
+    }
 }

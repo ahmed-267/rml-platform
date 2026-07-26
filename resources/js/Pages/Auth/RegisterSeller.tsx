@@ -6,7 +6,14 @@ import { Button } from '@/Components/ui/Button';
 import { Checkbox } from '@/Components/ui/Checkbox';
 import { FileUpload } from '@/Components/ui/FileUpload';
 import { FormInput } from '@/Components/ui/FormInput';
-import { Select } from '@/Components/ui/Select';
+import { CountrySelect } from '@/Components/ui/CountrySelect';
+import { DEFAULT_COUNTRY } from '@/lib/countries';
+import {
+    phoneErrorMessage,
+    phoneMessagesFromTranslations,
+    sanitizePhoneInput,
+} from '@/lib/phone';
+import { useScrollToFirstError } from '@/hooks/use-scroll-to-first-error';
 import type { PageProps } from '@/types';
 
 type AccountType = 'company' | 'individual';
@@ -15,6 +22,19 @@ export default function RegisterSeller() {
     const { translations } = usePage<PageProps>().props;
     const t = translations.auth;
     const [accountType, setAccountType] = useState<AccountType>('company');
+    const [clientErrors, setClientErrors] = useState<Record<string, string>>(
+        {},
+    );
+
+    const phoneMessages = phoneMessagesFromTranslations(
+        translations.validation,
+        (field) =>
+            (
+                translations.validation?.field_required ??
+                ':field is required.'
+            ).replace(':field', field),
+        t.phone,
+    );
 
     const { data, setData, post, processing, errors, reset } = useForm({
         account_type: 'company' as AccountType,
@@ -26,12 +46,17 @@ export default function RegisterSeller() {
         postcode: '',
         address: '',
         city: '',
-        country: 'ES',
+        country: DEFAULT_COUNTRY,
         password: '',
         password_confirmation: '',
         agreement: false as boolean,
         gdpr: false as boolean,
     });
+
+    const fieldError = (key: string) =>
+        clientErrors[key] ?? (errors as Record<string, string | undefined>)[key];
+
+    useScrollToFirstError({ ...clientErrors, ...errors });
 
     const switchType = (type: AccountType) => {
         setAccountType(type);
@@ -40,6 +65,24 @@ export default function RegisterSeller() {
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
+        const next: Record<string, string> = {};
+        const phoneErr = phoneErrorMessage(data.phone, phoneMessages, {
+            required: true,
+        });
+        if (phoneErr) {
+            next.phone = phoneErr;
+        }
+        const whatsappErr = phoneErrorMessage(data.whatsapp, phoneMessages, {
+            required: false,
+        });
+        if (whatsappErr) {
+            next.whatsapp = whatsappErr;
+        }
+        if (Object.keys(next).length > 0) {
+            setClientErrors(next);
+            return;
+        }
+        setClientErrors({});
         post(route('register.seller.store'), {
             onFinish: () => reset('password', 'password_confirmation'),
         });
@@ -54,7 +97,12 @@ export default function RegisterSeller() {
     );
 
     return (
-        <AuthLayout title={title} subtitle={t.seller_subtitle} wide>
+        <AuthLayout
+            title={title}
+            subtitle={t.seller_subtitle}
+            wide
+            backHref={route('register')}
+        >
             <Head title={title} />
 
             <div className="mb-6 grid gap-3 sm:grid-cols-2">
@@ -137,17 +185,61 @@ export default function RegisterSeller() {
                     <FormInput
                         label={t.phone}
                         name="phone"
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
                         value={data.phone}
                         required
-                        error={errors.phone}
-                        onChange={(e) => setData('phone', e.target.value)}
+                        error={fieldError('phone')}
+                        hint={
+                            fieldError('phone')
+                                ? undefined
+                                : translations.validation?.phone_length
+                        }
+                        onChange={(e) => {
+                            const value = sanitizePhoneInput(e.target.value);
+                            setData('phone', value);
+                            const msg = phoneErrorMessage(
+                                value,
+                                phoneMessages,
+                                { required: true },
+                            );
+                            setClientErrors((prev) => {
+                                const next = { ...prev };
+                                if (msg) {
+                                    next.phone = msg;
+                                } else {
+                                    delete next.phone;
+                                }
+                                return next;
+                            });
+                        }}
                     />
                     <FormInput
                         label={t.whatsapp}
                         name="whatsapp"
+                        type="tel"
+                        inputMode="tel"
                         value={data.whatsapp}
-                        error={errors.whatsapp}
-                        onChange={(e) => setData('whatsapp', e.target.value)}
+                        error={fieldError('whatsapp')}
+                        onChange={(e) => {
+                            const value = sanitizePhoneInput(e.target.value);
+                            setData('whatsapp', value);
+                            const msg = phoneErrorMessage(
+                                value,
+                                phoneMessages,
+                                { required: false },
+                            );
+                            setClientErrors((prev) => {
+                                const next = { ...prev };
+                                if (msg) {
+                                    next.whatsapp = msg;
+                                } else {
+                                    delete next.whatsapp;
+                                }
+                                return next;
+                            });
+                        }}
                     />
                 </div>
 
@@ -177,11 +269,12 @@ export default function RegisterSeller() {
                         error={errors.postcode}
                         onChange={(e) => setData('postcode', e.target.value)}
                     />
-                    <Select
+                    <CountrySelect
                         label={t.country}
                         name="country"
+                        required
                         value={data.country}
-                        options={[{ label: 'Spain', value: 'ES' }]}
+                        error={errors.country}
                         onChange={(e) => setData('country', e.target.value)}
                     />
                 </div>

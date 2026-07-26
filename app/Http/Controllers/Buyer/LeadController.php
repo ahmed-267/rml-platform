@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\Zone;
 use App\Services\Buyer\BuyerPurchaseService;
 use App\Services\Buyer\LeadAvailabilityService;
+use App\Services\LeadPricingService;
 use App\Services\Payments\PaymentProviderManager;
 use App\Services\Payments\PaymentService;
 use App\Support\BuyerLeadPresenter;
@@ -20,6 +21,7 @@ use App\Support\ListPagination;
 use App\Support\ListSort;
 use App\Support\Permissions;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -34,10 +36,24 @@ class LeadController extends Controller
         private readonly PaymentService $paymentService,
     ) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request): Response|JsonResponse
     {
         abort_unless($request->user()?->can(Permissions::BUY_LEADS), 403);
 
+        $payload = $this->indexPayload($request);
+
+        if ($request->wantsJson() && ! $request->header('X-Inertia')) {
+            return response()->json($payload);
+        }
+
+        return Inertia::render('Buyer/Leads/Index', $payload);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function indexPayload(Request $request): array
+    {
         $filters = [
             'scheme_id' => $request->input('scheme_id'),
             'zone_id' => $request->input('zone_id'),
@@ -90,13 +106,21 @@ class LeadController extends Controller
         $query->orderBy('leads.id', $sortState['direction'] === 'asc' ? 'asc' : 'desc');
 
         $perPage = ListPagination::perPage($request);
+        $pricing = new LeadPricingService;
+        $pricing->warmRulesCache();
 
         $leads = $query
             ->paginate($perPage)
             ->withQueryString()
-            ->through(fn ($lead) => BuyerLeadPresenter::presentForMarketplace($lead, $request->user()));
+            ->through(fn ($lead) => BuyerLeadPresenter::presentForMarketplace(
+                $lead,
+                $request->user(),
+                $pricing,
+            ));
 
-        return Inertia::render('Buyer/Leads/Index', [
+        $cardConfigured = app(PaymentProviderManager::class)->cardConfigured();
+
+        return [
             'leads' => $leads,
             'filters' => [
                 ...$filters,
@@ -108,9 +132,9 @@ class LeadController extends Controller
                 'schemes' => Scheme::query()->where('active', true)->orderBy('name')->get(['id', 'name', 'slug']),
                 'zones' => Zone::query()->orderBy('code')->get(['id', 'code', 'name', 'scheme_id']),
             ],
-            'card_configured' => app(PaymentProviderManager::class)->cardConfigured(),
-            'mollie_configured' => app(PaymentProviderManager::class)->cardConfigured(),
-        ]);
+            'card_configured' => $cardConfigured,
+            'mollie_configured' => $cardConfigured,
+        ];
     }
 
     public function storePurchase(StoreLeadPurchaseRequest $request): SymfonyResponse

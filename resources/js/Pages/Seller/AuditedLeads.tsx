@@ -12,6 +12,8 @@ import {
     Select,
     SortableHeader,
     StatusBadge,
+    TableActionLink,
+    tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
 import { useIsMobile } from '@/hooks/use-media-query';
@@ -29,6 +31,7 @@ import {
     type SellerPayoutSummary,
 } from '@/lib/seller-payout';
 import type { PageProps } from '@/types';
+import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
 
 interface SellerLeadRow {
     id: number;
@@ -109,7 +112,10 @@ export default function AuditedLeads({
             preserveState: true,
             replace: true,
         });
-    };
+    }
+
+    useInstantListFilters(applyFilters, search, [status]);
+
 
     const resetFilters = () => {
         setSearch('');
@@ -161,10 +167,7 @@ export default function AuditedLeads({
                 onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
                     <>
-                        <Button size="sm" onClick={applyFilters}>
-                            {common.apply}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={resetFilters}>
+<Button size="sm" variant="ghost" onClick={resetFilters}>
                             {common.reset}
                         </Button>
                     </>
@@ -250,12 +253,7 @@ export default function AuditedLeads({
                             </div>
                         ),
                         actions: (
-                            <Link
-                                href={route('seller.leads.show', lead.id)}
-                                className="text-sm font-semibold text-rml-primary"
-                            >
-                                {common.view}
-                            </Link>
+                            <TableActionLink href={route('seller.leads.show', lead.id)} label={common.view} icon={tableActionIcons.view} />
                         ),
                     }))}
                 />
@@ -337,12 +335,7 @@ export default function AuditedLeads({
                             id: 'actions',
                             header: common.actions,
                             cell: (row) => (
-                                <Link
-                                    href={route('seller.leads.show', row.id)}
-                                    className="font-semibold text-rml-primary hover:underline"
-                                >
-                                    {common.view}
-                                </Link>
+                                <TableActionLink href={route('seller.leads.show', row.id)} label={common.view} icon={tableActionIcons.view} />
                             ),
                         },
                     ]}
