@@ -12,7 +12,7 @@ final class EvidencePlaceholderStorage
 {
     public static function ensureOnDisk(LeadEvidenceFile $evidence): bool
     {
-        $disk = $evidence->disk ?: 'local';
+        $disk = $evidence->disk ?: FilesystemDisk::uploads();
         $path = (string) $evidence->path;
 
         if ($path === '') {
@@ -33,8 +33,10 @@ final class EvidencePlaceholderStorage
         return Storage::disk($disk)->exists($path);
     }
 
-    public static function ensurePath(string $path, string $disk = 'local', ?string $mimeType = 'image/jpeg'): void
+    public static function ensurePath(string $path, ?string $disk = null, ?string $mimeType = 'image/jpeg'): void
     {
+        $disk ??= FilesystemDisk::uploads();
+
         if ($path === '' || Storage::disk($disk)->exists($path)) {
             return;
         }

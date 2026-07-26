@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Models\Invoice;
 use App\Services\AuditLogService;
 use App\Services\Documents\InvoiceDocumentService;
+use App\Support\FilesystemDisk;
 use App\Support\Permissions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -24,7 +25,9 @@ class InvoiceDownloadController extends Controller
         $user = $request->user();
         abort_unless($user && $this->canDownload($user, $invoice), 403);
 
-        if (! $invoice->pdf_path || ! Storage::disk('local')->exists($invoice->pdf_path)) {
+        $disk = FilesystemDisk::uploads();
+
+        if (! $invoice->pdf_path || ! Storage::disk($disk)->exists($invoice->pdf_path)) {
             $invoice = $this->invoiceDocumentService->regenerate($invoice);
         }
 
@@ -36,7 +39,7 @@ class InvoiceDownloadController extends Controller
             $user,
         );
 
-        return Storage::disk('local')->download(
+        return Storage::disk($disk)->download(
             $invoice->pdf_path,
             $invoice->invoice_reference.'.pdf',
         );

@@ -277,7 +277,7 @@ class DomainDemoSeeder extends Seeder
                 [
                     'uploaded_by_user_id' => $def['submitter']->id,
                     'path' => 'evidence/'.$lead->lead_reference.'/photo.jpg',
-                    'disk' => 'local',
+                    'disk' => \App\Support\FilesystemDisk::uploads(),
                     'mime_type' => 'image/jpeg',
                     'size' => 245760,
                     'visibility' => EvidenceVisibility::Private,
@@ -286,7 +286,7 @@ class DomainDemoSeeder extends Seeder
             );
             \App\Support\EvidencePlaceholderStorage::ensurePath(
                 'evidence/'.$lead->lead_reference.'/photo.jpg',
-                'local',
+                null,
                 'image/jpeg',
             );
 

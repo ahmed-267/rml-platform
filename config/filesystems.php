@@ -26,6 +26,10 @@ return [
     |
     | Supported drivers: "local", "ftp", "sftp", "s3"
     |
+    | Laravel Cloud: attach an Object Storage bucket and FILESYSTEM_DISK / AWS_*
+    | are injected. App uploads (evidence, invoices) use filesystems.default via
+    | App\Support\FilesystemDisk::uploads().
+    |
     */
 
     'disks' => [

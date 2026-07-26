@@ -10,6 +10,7 @@ use App\Models\Payment;
 use App\Models\Payout;
 use App\Models\Purchase;
 use App\Services\AuditLogService;
+use App\Support\FilesystemDisk;
 use App\Support\ReferenceGenerator;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
@@ -283,13 +284,15 @@ class InvoiceDocumentService
      */
     private function storePdf(string $path, string $view, array $data): void
     {
+        $disk = FilesystemDisk::uploads();
+
         if (app()->environment('testing')) {
-            Storage::disk('local')->put($path, "%PDF-1.4\n% RML test stub for {$data['invoice']->invoice_reference}\n");
+            Storage::disk($disk)->put($path, "%PDF-1.4\n% RML test stub for {$data['invoice']->invoice_reference}\n");
 
             return;
         }
 
         $pdf = Pdf::loadView($view, $data);
-        Storage::disk('local')->put($path, $pdf->output());
+        Storage::disk($disk)->put($path, $pdf->output());
     }
 }

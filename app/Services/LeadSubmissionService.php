@@ -13,6 +13,7 @@ use App\Models\SchemeField;
 use App\Models\User;
 use App\Models\Zone;
 use App\Support\LeadEvidenceAccess;
+use App\Support\FilesystemDisk;
 use App\Support\ReferenceGenerator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -327,7 +328,8 @@ class LeadSubmissionService
                     continue;
                 }
 
-                $path = $file->store("lead-evidence/{$lead->id}", 'local');
+                $disk = FilesystemDisk::uploads();
+                $path = $file->store("lead-evidence/{$lead->id}", $disk);
 
                 LeadEvidenceFile::query()->create([
                     'lead_id' => $lead->id,
@@ -335,7 +337,7 @@ class LeadSubmissionService
                     'file_type' => $type,
                     'original_name' => $file->getClientOriginalName(),
                     'path' => $path,
-                    'disk' => 'local',
+                    'disk' => $disk,
                     'mime_type' => $file->getClientMimeType(),
                     'size' => $file->getSize(),
                     'visibility' => EvidenceVisibility::Private,

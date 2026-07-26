@@ -803,7 +803,7 @@ class ExpandedDemoDataSeeder extends Seeder
             [
                 'uploaded_by_user_id' => $submitter->id,
                 'path' => 'evidence/'.$lead->lead_reference.'/photo.jpg',
-                'disk' => 'local',
+                'disk' => \App\Support\FilesystemDisk::uploads(),
                 'mime_type' => 'image/jpeg',
                 'size' => 220000 + ((int) substr($reference, -2) * 100),
                 'visibility' => EvidenceVisibility::Private,
@@ -812,7 +812,7 @@ class ExpandedDemoDataSeeder extends Seeder
         );
         \App\Support\EvidencePlaceholderStorage::ensurePath(
             'evidence/'.$lead->lead_reference.'/photo.jpg',
-            'local',
+            null,
             'image/jpeg',
         );
 
