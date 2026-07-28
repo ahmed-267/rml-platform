@@ -125,7 +125,7 @@ class BuyerController extends Controller
             403,
         );
 
-        $user->load(['buyerProfile.company', 'roles']);
+        $user->load(['buyerProfile.company', 'roles', 'approvedBy:id,name']);
 
         $companyId = $user->buyerProfile?->company_id;
 
@@ -294,7 +294,12 @@ class BuyerController extends Controller
     public function reject(RejectRegistrationRequest $request, User $user): RedirectResponse
     {
         $this->authorizeBuyerAction($request, $user);
-        $this->approvalService->reject($user, $request->user(), $request->string('reason')->toString());
+        $this->approvalService->reject(
+            $user,
+            $request->user(),
+            $request->string('reason_code')->toString(),
+            $request->input('comment'),
+        );
 
         return back()->with('success', __('rml.admin.buyers.rejected_flash'));
     }
@@ -385,6 +390,16 @@ class BuyerController extends Controller
                 'notes' => $company->notes,
             ] : null,
             'approved_at' => $user->approved_at?->toIso8601String(),
+            'rejection_reason_code' => $user->rejection_reason_code,
+            'rejection_reason' => $user->rejection_reason,
+            'rejection_comment' => $user->rejection_comment,
+            'rejected_at' => $user->rejected_at?->toIso8601String(),
+            'rejected_by' => $user->approval_status === ApprovalStatus::Rejected && $user->approvedBy
+                ? [
+                    'id' => $user->approvedBy->id,
+                    'name' => $user->approvedBy->name,
+                ]
+                : null,
             'created_at' => $user->created_at?->toIso8601String(),
         ];
     }

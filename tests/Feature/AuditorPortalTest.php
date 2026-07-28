@@ -145,9 +145,9 @@ class AuditorPortalTest extends TestCase
 
         $this->actingAs($auditor)
             ->post(route('auditor.audits.recommend-reject', $lead), [
-                'rejection_reason' => '',
+                'reason_code' => '',
             ])
-            ->assertSessionHasErrors('rejection_reason');
+            ->assertSessionHasErrors('reason_code');
 
         $this->actingAs($auditor)
             ->post(route('auditor.audits.request-info', $lead), [
@@ -157,7 +157,7 @@ class AuditorPortalTest extends TestCase
 
         $this->actingAs($auditor)
             ->post(route('auditor.audits.recommend-reject', $lead), [
-                'rejection_reason' => 'Incomplete photos',
+                'reason_code' => 'photos_unclear',
             ])
             ->assertRedirect();
 

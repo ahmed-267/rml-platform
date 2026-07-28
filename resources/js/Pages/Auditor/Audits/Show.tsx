@@ -6,10 +6,12 @@ import {
     Alert,
     BackLink,
     Button,
+    Select,
     StatusBadge,
     Textarea,
 } from '@/Components/ui';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
+import { rejectionReasonOptions } from '@/lib/rejection-reasons';
 import type { PageProps } from '@/types';
 
 interface ChecklistItem {
@@ -42,6 +44,8 @@ interface LeadPayload {
     seller_name: string | null;
     created_at: string | null;
     rejection_reason: string | null;
+    rejection_reason_code?: string | null;
+    rejection_comment?: string | null;
     requested_info: string | null;
     scheme: { name: string } | null;
     zone: { code: string } | null;
@@ -78,12 +82,14 @@ export default function AuditorAuditShow({
     const { translations } = usePage<PageProps>().props;
     const t = translations.auditor.audit;
     const common = translations.auditor.common;
+    const rejection = translations.rejection;
     const auditStatuses = translations.audit_statuses ?? {};
     const leadStatuses = translations.lead_statuses;
 
     const [items, setItems] = useState(initialChecklist);
     const [notes, setNotes] = useState(lead.audit?.audit_notes ?? '');
-    const [rejectionReason, setRejectionReason] = useState('');
+    const [reasonCode, setReasonCode] = useState('');
+    const [comment, setComment] = useState('');
     const [requestedInfo, setRequestedInfo] = useState('');
     const [processing, setProcessing] = useState(false);
 
@@ -357,17 +363,37 @@ export default function AuditorAuditShow({
                         </p>
 
                         <div className="space-y-2">
-                            <label className="text-sm font-medium text-rml-text">
-                                {t.rejection_reason}
-                            </label>
-                            <Textarea
-                                value={rejectionReason}
-                                onChange={(e) =>
-                                    setRejectionReason(e.target.value)
-                                }
-                                rows={3}
-                                placeholder={t.rejection_placeholder}
+                            <Select
+                                label={rejection?.reason ?? t.rejection_reason}
+                                value={reasonCode}
+                                required
+                                onChange={(e) => setReasonCode(e.target.value)}
+                                options={[
+                                    {
+                                        label:
+                                            rejection?.select_reason ??
+                                            t.rejection_placeholder,
+                                        value: '',
+                                    },
+                                    ...rejectionReasonOptions(rejection?.leads),
+                                ]}
                             />
+                            <Textarea
+                                label={rejection?.comment ?? t.rejection_reason}
+                                value={comment}
+                                required={reasonCode === 'other'}
+                                onChange={(e) => setComment(e.target.value)}
+                                rows={3}
+                                placeholder={
+                                    rejection?.comment_optional ??
+                                    t.rejection_placeholder
+                                }
+                            />
+                            {rejection?.comment_hint_other ? (
+                                <p className="text-xs text-rml-muted">
+                                    {rejection.comment_hint_other}
+                                </p>
+                            ) : null}
                         </div>
 
                         <div className="space-y-2">
@@ -402,7 +428,12 @@ export default function AuditorAuditShow({
                             <Button
                                 type="button"
                                 variant="danger"
-                                disabled={processing}
+                                disabled={
+                                    processing ||
+                                    !reasonCode ||
+                                    (reasonCode === 'other' &&
+                                        comment.trim() === '')
+                                }
                                 onClick={() =>
                                     post(
                                         route(
@@ -410,7 +441,9 @@ export default function AuditorAuditShow({
                                             lead.id,
                                         ),
                                         {
-                                            rejection_reason: rejectionReason,
+                                            reason_code: reasonCode,
+                                            comment:
+                                                comment.trim() || undefined,
                                         },
                                     )
                                 }
@@ -442,6 +475,7 @@ export default function AuditorAuditShow({
                 {(lead.audit?.rejection_reason ||
                     lead.audit?.requested_info ||
                     lead.rejection_reason ||
+                    lead.rejection_comment ||
                     lead.requested_info) && (
                     <section className="rml-card space-y-2 p-5 text-sm">
                         <h2 className="text-base font-semibold text-rml-text">
@@ -451,10 +485,20 @@ export default function AuditorAuditShow({
                             lead.rejection_reason) && (
                             <p>
                                 <span className="text-rml-muted">
-                                    {t.rejection_reason}:{' '}
+                                    {rejection?.reason ?? t.rejection_reason}:{' '}
                                 </span>
                                 {lead.audit?.rejection_reason ??
                                     lead.rejection_reason}
+                            </p>
+                        )}
+                        {lead.rejection_comment && (
+                            <p>
+                                <span className="text-rml-muted">
+                                    {rejection?.rejection_comment ??
+                                        rejection?.comment}
+                                    :{' '}
+                                </span>
+                                {lead.rejection_comment}
                             </p>
                         )}
                         {(lead.audit?.requested_info ||

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import type { LucideIcon } from 'lucide-react';
+import { RejectionFormModal } from '@/Components/admin/RejectionFormModal';
 import {
     Button,
     Modal,
@@ -10,8 +11,9 @@ import {
     tableActionIcons,
 } from '@/Components/ui';
 import type { TableActionTone } from '@/Components/ui/TableActions';
-import type { ApprovalStatus } from '@/types';
+import type { ApprovalStatus, PageProps } from '@/types';
 import { cn } from '@/lib/cn';
+import { rejectionReasonOptions } from '@/lib/rejection-reasons';
 
 export type AccountActionLabels = {
     view: string;
@@ -92,10 +94,16 @@ export function AccountRowActions({
     variant = 'icons',
     className,
 }: Props) {
+    const { translations } = usePage<PageProps>().props;
+    const rejection = translations.rejection;
     const [modal, setModal] = useState<
         'reject' | 'suspend' | 'reinstate' | 'approve' | 'delete' | null
     >(null);
     const [processing, setProcessing] = useState(false);
+    const [rejectErrors, setRejectErrors] = useState<{
+        reason_code?: string;
+        comment?: string;
+    }>({});
 
     const vars = {
         name: targetName,
@@ -107,7 +115,10 @@ export function AccountRowActions({
         callback();
     };
 
-    const closeModal = () => setModal(null);
+    const closeModal = () => {
+        setModal(null);
+        setRejectErrors({});
+    };
 
     const submitApprove = () => {
         if (!approveRoute) return;
@@ -123,17 +134,31 @@ export function AccountRowActions({
         );
     };
 
-    const submitReject = () => {
+    const submitReject = (payload: {
+        reason_code: string;
+        comment: string;
+    }) => {
         if (!rejectRoute) return;
-        run(() =>
-            router.post(
-                rejectRoute,
-                {},
-                {
-                    onSuccess: closeModal,
-                    onFinish: () => setProcessing(false),
+        setProcessing(true);
+        setRejectErrors({});
+        router.post(
+            rejectRoute,
+            {
+                reason_code: payload.reason_code,
+                comment: payload.comment || undefined,
+            },
+            {
+                onSuccess: () => {
+                    setModal(null);
                 },
-            ),
+                onError: (errors) => {
+                    setRejectErrors({
+                        reason_code: errors.reason_code,
+                        comment: errors.comment,
+                    });
+                },
+                onFinish: () => setProcessing(false),
+            },
         );
     };
 
@@ -338,31 +363,32 @@ export function AccountRowActions({
                 </p>
             </Modal>
 
-            <Modal
+            <RejectionFormModal
                 open={modal === 'reject'}
                 onClose={closeModal}
-                title={labels.rejectTitle}
-                size="sm"
-                footer={
-                    <>
-                        <Button variant="ghost" size="sm" onClick={closeModal}>
-                            {labels.cancel}
-                        </Button>
-                        <Button
-                            variant="danger"
-                            size="sm"
-                            disabled={processing}
-                            onClick={submitReject}
-                        >
-                            {labels.rejectConfirm}
-                        </Button>
-                    </>
+                title={
+                    rejection?.title_account ??
+                    labels.rejectTitle
                 }
-            >
-                <p className="text-sm text-rml-muted">
-                    {fillTemplate(labels.rejectBody, vars)}
-                </p>
-            </Modal>
+                warning={fillTemplate(
+                    rejection?.warning_account ?? labels.rejectBody,
+                    vars,
+                )}
+                reasonLabel={rejection?.reason ?? labels.rejectTitle}
+                commentLabel={rejection?.comment ?? labels.reject}
+                commentHint={rejection?.comment_hint_other}
+                selectReasonLabel={
+                    rejection?.select_reason ?? labels.rejectTitle
+                }
+                cancelLabel={labels.cancel}
+                confirmLabel={
+                    rejection?.confirm ?? labels.rejectConfirm
+                }
+                reasons={rejectionReasonOptions(rejection?.accounts)}
+                processing={processing}
+                errors={rejectErrors}
+                onConfirm={submitReject}
+            />
 
             <Modal
                 open={modal === 'suspend'}

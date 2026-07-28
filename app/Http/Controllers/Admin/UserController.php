@@ -200,7 +200,7 @@ class UserController extends Controller
             403,
         );
 
-        $user->load(['roles', 'sellerProfile.company', 'buyerProfile.company']);
+        $user->load(['roles', 'sellerProfile.company', 'buyerProfile.company', 'approvedBy:id,name']);
 
         return Inertia::render('Admin/Users/Show', [
             'user' => $this->transformDetail($user),
@@ -281,7 +281,12 @@ class UserController extends Controller
     public function reject(RejectRegistrationRequest $request, User $user): RedirectResponse
     {
         $this->authorizeUserAction($request, $user);
-        $this->approvalService->reject($user, $request->user(), $request->string('reason')->toString());
+        $this->approvalService->reject(
+            $user,
+            $request->user(),
+            $request->string('reason_code')->toString(),
+            $request->input('comment'),
+        );
 
         return back()->with('success', __('rml.admin.users.rejected_flash'));
     }
@@ -756,6 +761,16 @@ class UserController extends Controller
             'portal' => $user->primaryRole()?->portal(),
             'approval_status' => $user->approval_status?->value,
             'approved_at' => $user->approved_at?->toIso8601String(),
+            'rejection_reason_code' => $user->rejection_reason_code,
+            'rejection_reason' => $user->rejection_reason,
+            'rejection_comment' => $user->rejection_comment,
+            'rejected_at' => $user->rejected_at?->toIso8601String(),
+            'rejected_by' => $user->approval_status === ApprovalStatus::Rejected && $user->approvedBy
+                ? [
+                    'id' => $user->approvedBy->id,
+                    'name' => $user->approvedBy->name,
+                ]
+                : null,
             'created_at' => $user->created_at?->toIso8601String(),
         ];
     }

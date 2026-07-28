@@ -15,6 +15,7 @@ import {
     accountActionLabels,
     approvalStatusLabel,
     formatDate,
+    formatDateTime,
     formatMoney,
 } from '@/lib/admin-helpers';
 import { leadStatusTone } from '@/lib/lead-status';
@@ -40,6 +41,10 @@ interface BuyerDetail {
         approval_status?: string | null;
     } | null;
     approved_at: string | null;
+    rejection_reason?: string | null;
+    rejection_comment?: string | null;
+    rejected_at?: string | null;
+    rejected_by?: { id: number; name: string } | null;
     created_at: string | null;
 }
 
@@ -81,6 +86,7 @@ export default function BuyersShow({
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.admin.buyers;
     const common = translations.admin.common;
+    const rejection = translations.rejection;
     const statuses = translations.statuses;
     const roles = translations.roles;
     const purchaseStatuses = translations.purchase_statuses;
@@ -184,6 +190,38 @@ export default function BuyersShow({
                         />
                     </dl>
                 </ProfileCard>
+
+                {buyer.approval_status === 'rejected' && (
+                    <ProfileCard title={rejection?.reason ?? common.reject}>
+                        <dl className="grid gap-3 sm:grid-cols-2">
+                            <ProfileField
+                                label={rejection?.rejected_by ?? common.reject}
+                                value={buyer.rejected_by?.name ?? '—'}
+                            />
+                            <ProfileField
+                                label={
+                                    rejection?.rejected_at ?? common.joined_date
+                                }
+                                value={formatDateTime(
+                                    buyer.rejected_at,
+                                    app.locale,
+                                )}
+                            />
+                            <ProfileField
+                                label={rejection?.reason ?? common.reject}
+                                value={buyer.rejection_reason ?? '—'}
+                            />
+                            <ProfileField
+                                label={
+                                    rejection?.rejection_comment ??
+                                    rejection?.comment ??
+                                    common.reject
+                                }
+                                value={buyer.rejection_comment ?? '—'}
+                            />
+                        </dl>
+                    </ProfileCard>
+                )}
 
                 <ProfileCard title={common.company_details}>
                     <dl className="grid gap-3 sm:grid-cols-2">

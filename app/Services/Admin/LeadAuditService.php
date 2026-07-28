@@ -19,6 +19,7 @@ use App\Services\AuditLogService;
 use App\Services\LeadPricingService;
 use App\Support\Permissions;
 use App\Support\ReferenceGenerator;
+use App\Support\RejectionReasons;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
@@ -167,20 +168,35 @@ class LeadAuditService
     {
         $this->assertCanDecide($actor);
 
-        $reason = trim((string) ($data['rejection_reason'] ?? ''));
-        if ($reason === '') {
+        $reasonCode = trim((string) ($data['reason_code'] ?? ''));
+        $comment = trim((string) ($data['comment'] ?? '')) ?: null;
+
+        if ($reasonCode === '' || ! in_array($reasonCode, RejectionReasons::codes(RejectionReasons::CONTEXT_LEADS), true)) {
             throw ValidationException::withMessages([
-                'rejection_reason' => __('rml.admin.audit.rejection_required'),
+                'reason_code' => __('rml.rejection.reason_required'),
             ]);
         }
 
-        return DB::transaction(function () use ($actor, $lead, $data, $reason) {
+        if ($reasonCode === RejectionReasons::OTHER && ($comment === null || $comment === '')) {
+            throw ValidationException::withMessages([
+                'comment' => __('rml.rejection.comment_required_other'),
+            ]);
+        }
+
+        $label = RejectionReasons::label(RejectionReasons::CONTEXT_LEADS, $reasonCode);
+        $message = RejectionReasons::composeMessage(
+            RejectionReasons::CONTEXT_LEADS,
+            $reasonCode,
+            $comment,
+        );
+
+        return DB::transaction(function () use ($actor, $lead, $data, $reasonCode, $label, $comment, $message) {
             $lead = Lead::query()->whereKey($lead->id)->lockForUpdate()->firstOrFail();
 
             $audit = $this->upsertAudit($actor, $lead, [
                 'status' => AuditDecisionStatus::Rejected,
                 'audit_notes' => $data['audit_notes'] ?? null,
-                'rejection_reason' => $reason,
+                'rejection_reason' => $message,
                 'requested_info' => null,
                 'final_decision_by_user_id' => $actor->id,
                 'completed_at' => now(),
@@ -190,18 +206,27 @@ class LeadAuditService
 
             $lead->fill([
                 'status' => LeadStatus::Rejected,
-                'rejection_reason' => $reason,
+                'rejection_reason' => $label,
+                'rejection_reason_code' => $reasonCode,
+                'rejection_comment' => $comment,
                 'rejected_at' => now(),
+                'rejected_by_user_id' => $actor->id,
             ])->save();
 
-            $this->notifySeller($actor, $lead, __('rml.admin.audit.rejected_thread_subject'), $reason, MessageThreadCategory::SellerIssue);
-            $this->emailSeller($lead, 'rejected', $reason);
+            $this->notifySeller($actor, $lead, __('rml.admin.audit.rejected_thread_subject'), $message, MessageThreadCategory::SellerIssue);
+            $this->emailSeller($lead, 'rejected', $message);
 
             $this->auditLogService->log(
                 'lead.audit_rejected',
                 $lead,
                 null,
-                ['status' => LeadStatus::Rejected->value, 'reason' => $reason, 'audit_id' => $audit->id],
+                [
+                    'status' => LeadStatus::Rejected->value,
+                    'reason_code' => $reasonCode,
+                    'reason' => $label,
+                    'comment' => $comment,
+                    'audit_id' => $audit->id,
+                ],
                 $actor,
             );
 

@@ -41,8 +41,11 @@ class Lead extends Model
         'expected_margin',
         'notes',
         'rejection_reason',
+        'rejection_reason_code',
+        'rejection_comment',
         'accepted_at',
         'rejected_at',
+        'rejected_by_user_id',
         'listed_at',
         'sold_at',
     ];
@@ -71,6 +74,11 @@ class Lead extends Model
     public function submittedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'submitted_by_user_id');
+    }
+
+    public function rejectedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by_user_id');
     }
 
     public function sellerCompany(): BelongsTo

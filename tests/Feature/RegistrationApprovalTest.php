@@ -187,7 +187,8 @@ class RegistrationApprovalTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('admin.approvals.reject', $pending), [
-                'reason' => 'Incomplete company documentation provided',
+                'reason_code' => 'missing_required_documents',
+                'comment' => 'Incomplete company documentation provided',
             ])
             ->assertRedirect();
 

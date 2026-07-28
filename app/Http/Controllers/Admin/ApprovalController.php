@@ -46,7 +46,12 @@ class ApprovalController extends Controller
     {
         $this->authorizeAction($request, $user);
 
-        $this->approvalService->reject($user, $request->user(), $request->string('reason')->toString());
+        $this->approvalService->reject(
+            $user,
+            $request->user(),
+            $request->string('reason_code')->toString(),
+            $request->input('comment'),
+        );
 
         return back()->with('success', __('rml.approvals.rejected_flash'));
     }

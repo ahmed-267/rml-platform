@@ -32,6 +32,10 @@ interface UserDetail {
     portal?: string | null;
     approval_status: ApprovalStatus;
     approved_at: string | null;
+    rejection_reason?: string | null;
+    rejection_comment?: string | null;
+    rejected_at?: string | null;
+    rejected_by?: { id: number; name: string } | null;
     created_at: string | null;
 }
 
@@ -54,6 +58,7 @@ export default function UsersShow({
     const { translations, app, auth } = usePage<PageProps>().props;
     const t = translations.admin.users;
     const common = translations.admin.common;
+    const rejection = translations.rejection;
     const statuses = translations.statuses;
     const roles = translations.roles;
     const isSuperAdmin = auth.user?.primary_role === 'super_admin';
@@ -217,6 +222,36 @@ export default function UsersShow({
                             label={statuses.approved}
                             value={formatDateTime(user.approved_at, app.locale)}
                         />
+                        {user.approval_status === 'rejected' && (
+                            <>
+                                <ProfileField
+                                    label={rejection?.rejected_by ?? common.reject}
+                                    value={user.rejected_by?.name ?? '—'}
+                                />
+                                <ProfileField
+                                    label={
+                                        rejection?.rejected_at ??
+                                        common.joined_date
+                                    }
+                                    value={formatDateTime(
+                                        user.rejected_at,
+                                        app.locale,
+                                    )}
+                                />
+                                <ProfileField
+                                    label={rejection?.reason ?? common.reject}
+                                    value={user.rejection_reason ?? '—'}
+                                />
+                                <ProfileField
+                                    label={
+                                        rejection?.rejection_comment ??
+                                        rejection?.comment ??
+                                        common.reject
+                                    }
+                                    value={user.rejection_comment ?? '—'}
+                                />
+                            </>
+                        )}
                     </dl>
                 </ProfileCard>
 

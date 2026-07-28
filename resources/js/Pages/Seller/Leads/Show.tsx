@@ -51,6 +51,7 @@ interface SellerLead {
     size_m2: number | null;
     notes: string | null;
     rejection_reason: string | null;
+    rejection_comment?: string | null;
     requested_info: string | null;
     scheme: { id: number; name: string; slug: string } | null;
     zone: { id: number; code: string; name: string } | null;
@@ -227,11 +228,25 @@ export default function SellerLeadsShow({
                 )}
             </div>
 
-            {(lead.rejection_reason || lead.requested_info) && (
+            {(lead.rejection_reason ||
+                lead.rejection_comment ||
+                lead.requested_info) && (
                 <div className="space-y-3">
                     {lead.rejection_reason && (
                         <Alert variant="error" title={t.rejection_reason}>
-                            {lead.rejection_reason}
+                            <div className="space-y-2">
+                                <p>{lead.rejection_reason}</p>
+                                {lead.rejection_comment ? (
+                                    <p className="text-sm opacity-90">
+                                        {lead.rejection_comment}
+                                    </p>
+                                ) : null}
+                            </div>
+                        </Alert>
+                    )}
+                    {!lead.rejection_reason && lead.rejection_comment && (
+                        <Alert variant="error" title={t.rejection_reason}>
+                            {lead.rejection_comment}
                         </Alert>
                     )}
                     {lead.requested_info && (

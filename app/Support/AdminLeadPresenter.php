@@ -20,6 +20,7 @@ final class AdminLeadPresenter
             'zone:id,code,name,scheme_id',
             'submittedBy:id,name,email,phone,approval_status',
             'submittedBy.roles:id,name',
+            'rejectedBy:id,name,email',
             'sellerCompany:id,name',
             'evidenceFiles',
             'metricValues',
@@ -64,6 +65,8 @@ final class AdminLeadPresenter
             'expected_margin' => $lead->expected_margin !== null ? (float) $lead->expected_margin : null,
             'notes' => $lead->notes,
             'rejection_reason' => $lead->rejection_reason ?? $latestAudit?->rejection_reason,
+            'rejection_reason_code' => $lead->rejection_reason_code,
+            'rejection_comment' => $lead->rejection_comment,
             'requested_info' => $latestAudit?->requested_info,
             'seller' => $lead->submittedBy ? [
                 'id' => $lead->submittedBy->id,
@@ -141,6 +144,11 @@ final class AdminLeadPresenter
             ])->values()->all(),
             'accepted_at' => $lead->accepted_at?->toIso8601String(),
             'rejected_at' => $lead->rejected_at?->toIso8601String(),
+            'rejected_by' => $lead->rejectedBy ? [
+                'id' => $lead->rejectedBy->id,
+                'name' => $lead->rejectedBy->name,
+                'email' => $lead->rejectedBy->email,
+            ] : null,
             'listed_at' => $lead->listed_at?->toIso8601String(),
             'sold_at' => $lead->sold_at?->toIso8601String(),
             'created_at' => $lead->created_at?->toIso8601String(),

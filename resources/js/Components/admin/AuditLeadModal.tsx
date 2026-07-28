@@ -16,6 +16,7 @@ import {
 import { cn } from '@/lib/cn';
 import { useIsMobile } from '@/hooks/use-media-query';
 import { formatDate, formatMoney } from '@/lib/admin-helpers';
+import { rejectionReasonOptions } from '@/lib/rejection-reasons';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import type { PageProps } from '@/types';
 import { StatusBadge } from '@/Components/ui/StatusBadge';
@@ -227,6 +228,7 @@ export function AuditLeadModal({
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.admin.audit;
     const common = translations.admin.common;
+    const rejection = translations.rejection;
     const leadStatuses = translations.lead_statuses;
     const isMobile = useIsMobile();
     const checklistSectionRef = useRef<HTMLDivElement | null>(null);
@@ -260,7 +262,8 @@ export function AuditLeadModal({
         buying_price: '' as string | number,
         selling_price: '' as string | number,
         override_reason: '',
-        rejection_reason: '',
+        reason_code: '',
+        comment: '',
         requested_info: '',
         checklist: [] as Array<{
             id: number;
@@ -366,7 +369,8 @@ export function AuditLeadModal({
                 loadedAudit.pricing.suggested_selling_price ??
                 '',
             override_reason: '',
-            rejection_reason: '',
+            reason_code: '',
+            comment: '',
             requested_info: '',
             checklist,
         });
@@ -519,14 +523,18 @@ export function AuditLeadModal({
 
     const submitReject = (event: FormEvent) => {
         event.preventDefault();
-        if (data.rejection_reason.trim().length < 5) {
+        if (!data.reason_code) {
+            return;
+        }
+        if (data.reason_code === 'other' && data.comment.trim() === '') {
             return;
         }
         setSubmitting(true);
         router.post(
             route('admin.leads.audit.reject', leadId),
             {
-                rejection_reason: data.rejection_reason,
+                reason_code: data.reason_code,
+                comment: data.comment || undefined,
                 audit_notes: data.audit_notes || undefined,
                 checklist: buildChecklistPayload(checklistState),
             },
@@ -622,16 +630,41 @@ export function AuditLeadModal({
 
             {decision === 'reject' && ready && (
                 <form onSubmit={submitReject} className="space-y-2">
-                    <Textarea
-                        label={t.rejection_reason}
-                        name="rejection_reason"
+                    <p className="text-sm text-rml-muted">
+                        {rejection?.warning_lead ?? t.reject}
+                    </p>
+                    <Select
+                        label={rejection?.reason ?? t.rejection_reason}
+                        value={data.reason_code}
+                        error={errors.reason_code}
                         required
-                        value={data.rejection_reason}
-                        error={errors.rejection_reason}
                         onChange={(e) =>
-                            setData('rejection_reason', e.target.value)
+                            setData('reason_code', e.target.value)
                         }
+                        options={[
+                            {
+                                label:
+                                    rejection?.select_reason ??
+                                    common.select ??
+                                    t.rejection_reason,
+                                value: '',
+                            },
+                            ...rejectionReasonOptions(rejection?.leads),
+                        ]}
                     />
+                    <Textarea
+                        label={rejection?.comment ?? t.rejection_reason}
+                        name="comment"
+                        value={data.comment}
+                        error={errors.comment}
+                        required={data.reason_code === 'other'}
+                        onChange={(e) => setData('comment', e.target.value)}
+                    />
+                    {rejection?.comment_hint_other ? (
+                        <p className="text-xs text-rml-muted">
+                            {rejection.comment_hint_other}
+                        </p>
+                    ) : null}
                     <div className="flex flex-wrap justify-end gap-2">
                         <Button
                             type="button"
@@ -646,10 +679,12 @@ export function AuditLeadModal({
                             variant="danger"
                             disabled={
                                 submitting ||
-                                data.rejection_reason.trim().length < 5
+                                !data.reason_code ||
+                                (data.reason_code === 'other' &&
+                                    data.comment.trim() === '')
                             }
                         >
-                            {t.reject}
+                            {rejection?.confirm ?? t.reject}
                         </Button>
                     </div>
                 </form>

@@ -37,6 +37,9 @@ interface AdminLead {
     expected_margin: number | null;
     notes: string | null;
     rejection_reason: string | null;
+    rejection_comment?: string | null;
+    rejected_at?: string | null;
+    rejected_by?: { id: number; name: string; email?: string | null } | null;
     requested_info: string | null;
     seller: {
         id: number;
@@ -82,6 +85,7 @@ export default function LeadsBoughtShow({
     const t = translations.admin.leads_bought;
     const auditT = translations.admin.audit;
     const common = translations.admin.common;
+    const rejection = translations.rejection;
     const leadStatuses = translations.lead_statuses;
     const statuses = translations.statuses;
 
@@ -167,6 +171,44 @@ export default function LeadsBoughtShow({
                     value={formatDateTime(lead.created_at, app.locale)}
                 />
             </section>
+
+            {(lead.rejection_reason ||
+                lead.rejection_comment ||
+                lead.rejected_at ||
+                lead.rejected_by) && (
+                <section className="rml-card grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {lead.rejected_by && (
+                        <DetailRow
+                            label={rejection?.rejected_by ?? t.seller}
+                            value={lead.rejected_by.name}
+                        />
+                    )}
+                    {lead.rejected_at && (
+                        <DetailRow
+                            label={rejection?.rejected_at ?? common.date}
+                            value={formatDateTime(lead.rejected_at, app.locale)}
+                        />
+                    )}
+                    {lead.rejection_reason && (
+                        <DetailRow
+                            label={
+                                rejection?.reason ?? auditT.rejection_reason
+                            }
+                            value={lead.rejection_reason}
+                        />
+                    )}
+                    {lead.rejection_comment && (
+                        <DetailRow
+                            label={
+                                rejection?.rejection_comment ??
+                                rejection?.comment ??
+                                auditT.rejection_reason
+                            }
+                            value={lead.rejection_comment}
+                        />
+                    )}
+                </section>
+            )}
 
             {lead.notes && (
                 <section className="rml-card p-5">

@@ -105,6 +105,7 @@ class HandleInertiaRequests extends Middleware
             'whatsapp' => __('rml.whatsapp'),
             'documents' => __('rml.documents'),
             'validation' => __('rml.validation'),
+            'rejection' => __('rml.rejection'),
         ];
 
         return match ($portal) {

@@ -24,6 +24,10 @@ use Spatie\Permission\Traits\HasRoles;
     'phone',
     'approved_at',
     'approved_by',
+    'rejection_reason_code',
+    'rejection_reason',
+    'rejection_comment',
+    'rejected_at',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
@@ -39,6 +43,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'approved_at' => 'datetime',
+            'rejected_at' => 'datetime',
             'password' => 'hashed',
             'approval_status' => ApprovalStatus::class,
         ];

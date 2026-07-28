@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Support\Permissions;
+use App\Support\RejectionReasons;
 use Illuminate\Foundation\Http\FormRequest;
 
 class RejectRegistrationRequest extends FormRequest
@@ -10,6 +12,7 @@ class RejectRegistrationRequest extends FormRequest
     {
         return $this->user()?->can('approve_sellers')
             || $this->user()?->can('approve_buyers')
+            || $this->user()?->can(Permissions::MANAGE_USERS)
             || $this->user()?->hasRole('super_admin');
     }
 
@@ -18,17 +21,17 @@ class RejectRegistrationRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'reason' => ['nullable', 'string', 'max:1000'],
-        ];
+        return RejectionReasons::validationRules(RejectionReasons::CONTEXT_ACCOUNTS);
     }
 
-    protected function prepareForValidation(): void
+    /**
+     * @return array<string, string>
+     */
+    public function attributes(): array
     {
-        if (! $this->filled('reason')) {
-            $this->merge([
-                'reason' => __('rml.admin.common.reject_default_reason'),
-            ]);
-        }
+        return [
+            'reason_code' => __('rml.rejection.reason'),
+            'comment' => __('rml.rejection.comment'),
+        ];
     }
 }

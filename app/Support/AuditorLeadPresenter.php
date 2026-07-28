@@ -50,6 +50,8 @@ final class AuditorLeadPresenter
             'distance_km' => $lead->distance_km !== null ? (float) $lead->distance_km : null,
             'notes' => $lead->notes,
             'rejection_reason' => $lead->rejection_reason ?? $latestAudit?->rejection_reason,
+            'rejection_reason_code' => $lead->rejection_reason_code,
+            'rejection_comment' => $lead->rejection_comment,
             'requested_info' => $latestAudit?->requested_info,
             'created_at' => $lead->created_at?->toIso8601String(),
             'seller_name' => $lead->sellerCompany?->name ?? $lead->submittedBy?->name,

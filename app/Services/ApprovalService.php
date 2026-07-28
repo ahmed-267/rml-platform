@@ -6,6 +6,7 @@ use App\Enums\ApprovalStatus;
 use App\Enums\UserRole;
 use App\Mail\AccountApprovalStatusNotification;
 use App\Models\User;
+use App\Support\RejectionReasons;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
@@ -61,15 +62,27 @@ class ApprovalService
         });
     }
 
-    public function reject(User $user, User $actor, string $reason): User
+    public function reject(User $user, User $actor, string $reasonCode, ?string $comment = null): User
     {
-        return DB::transaction(function () use ($user, $actor, $reason) {
+        $label = RejectionReasons::label(RejectionReasons::CONTEXT_ACCOUNTS, $reasonCode);
+        $comment = trim((string) $comment) ?: null;
+        $message = RejectionReasons::composeMessage(
+            RejectionReasons::CONTEXT_ACCOUNTS,
+            $reasonCode,
+            $comment,
+        );
+
+        return DB::transaction(function () use ($user, $actor, $reasonCode, $label, $comment, $message) {
             $old = $this->snapshot($user);
 
             $user->forceFill([
                 'approval_status' => ApprovalStatus::Rejected,
                 'approved_at' => null,
                 'approved_by' => $actor->id,
+                'rejection_reason_code' => $reasonCode,
+                'rejection_reason' => $label,
+                'rejection_comment' => $comment,
+                'rejected_at' => now(),
             ])->save();
 
             $user->sellerProfile?->forceFill([
@@ -83,7 +96,7 @@ class ApprovalService
             if (! $user->hasRole(UserRole::SellerStaff->value)) {
                 $company = $user->sellerProfile?->company ?? $user->buyerProfile?->company;
                 if ($company) {
-                    $notes = trim(($company->notes ? $company->notes."\n" : '').'Rejection: '.$reason);
+                    $notes = trim(($company->notes ? $company->notes."\n" : '').'Rejection: '.$message);
                     $company->forceFill([
                         'approval_status' => ApprovalStatus::Rejected,
                         'approved_at' => null,
@@ -99,11 +112,16 @@ class ApprovalService
                 'registration.rejected',
                 $user,
                 $old,
-                [...$this->snapshot($user), 'rejection_reason' => $reason],
+                [
+                    ...$this->snapshot($user),
+                    'rejection_reason_code' => $reasonCode,
+                    'rejection_reason' => $label,
+                    'rejection_comment' => $comment,
+                ],
                 $actor,
             );
 
-            $this->notifyUser($user, 'rejected', $reason);
+            $this->notifyUser($user, 'rejected', $message);
 
             return $user;
         });

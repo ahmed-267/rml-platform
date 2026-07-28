@@ -111,6 +111,28 @@ export interface SharedTranslations {
         email_format?: string;
         field_required?: string;
     };
+    rejection?: {
+        title_lead?: string;
+        title_account?: string;
+        warning_lead?: string;
+        warning_account?: string;
+        reason?: string;
+        comment?: string;
+        comment_label?: string;
+        comment_hint_other?: string;
+        comment_optional?: string;
+        select_reason?: string;
+        confirm?: string;
+        cancel?: string;
+        reason_required?: string;
+        comment_required_other?: string;
+        rejected_by?: string;
+        rejected_at?: string;
+        rejection_comment?: string;
+        leads?: Record<string, string>;
+        accounts?: Record<string, string>;
+        payments?: Record<string, string>;
+    };
 }
 
 export type PageProps<

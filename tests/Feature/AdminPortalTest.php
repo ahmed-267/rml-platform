@@ -201,11 +201,15 @@ class AdminPortalTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('admin.leads.audit.reject', $lead), [
-                'rejection_reason' => 'Evidence quality is insufficient for listing.',
+                'reason_code' => 'photos_unclear',
+                'comment' => 'Evidence quality is insufficient for listing.',
             ])
             ->assertRedirect();
 
-        $this->assertSame(LeadStatus::Rejected, $lead->fresh()->status);
+        $fresh = $lead->fresh();
+        $this->assertSame(LeadStatus::Rejected, $fresh->status);
+        $this->assertSame('photos_unclear', $fresh->rejection_reason_code);
+        $this->assertSame('Evidence quality is insufficient for listing.', $fresh->rejection_comment);
         $this->assertDatabaseHas('audit_logs', ['action' => 'lead.audit_rejected']);
         Mail::assertQueued(SellerLeadStatusMail::class);
     }
@@ -305,9 +309,16 @@ class AdminPortalTest extends TestCase
 
         $this->actingAs($admin)
             ->post(route('admin.leads.audit.reject', $lead), [
-                'rejection_reason' => '',
+                'reason_code' => '',
             ])
-            ->assertSessionHasErrors('rejection_reason');
+            ->assertSessionHasErrors('reason_code');
+
+        $this->actingAs($admin)
+            ->post(route('admin.leads.audit.reject', $lead), [
+                'reason_code' => 'other',
+                'comment' => '',
+            ])
+            ->assertSessionHasErrors('comment');
     }
 
     public function test_request_more_information_requires_message(): void

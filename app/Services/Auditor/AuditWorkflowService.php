@@ -18,6 +18,7 @@ use App\Services\Admin\LeadAuditService;
 use App\Services\AuditLogService;
 use App\Support\Permissions;
 use App\Support\ReferenceGenerator;
+use App\Support\RejectionReasons;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -227,14 +228,29 @@ class AuditWorkflowService
      */
     public function recommendReject(User $actor, Lead $lead, array $data): LeadAudit
     {
-        $reason = trim((string) ($data['rejection_reason'] ?? ''));
-        if ($reason === '') {
+        $reasonCode = trim((string) ($data['reason_code'] ?? ''));
+        $comment = trim((string) ($data['comment'] ?? '')) ?: null;
+
+        if ($reasonCode === '' || ! in_array($reasonCode, RejectionReasons::codes(RejectionReasons::CONTEXT_LEADS), true)) {
             throw ValidationException::withMessages([
-                'rejection_reason' => __('rml.auditor.audit.rejection_required'),
+                'reason_code' => __('rml.rejection.reason_required'),
             ]);
         }
 
-        return DB::transaction(function () use ($actor, $lead, $data, $reason) {
+        if ($reasonCode === RejectionReasons::OTHER && ($comment === null || $comment === '')) {
+            throw ValidationException::withMessages([
+                'comment' => __('rml.rejection.comment_required_other'),
+            ]);
+        }
+
+        $label = RejectionReasons::label(RejectionReasons::CONTEXT_LEADS, $reasonCode);
+        $message = RejectionReasons::composeMessage(
+            RejectionReasons::CONTEXT_LEADS,
+            $reasonCode,
+            $comment,
+        );
+
+        return DB::transaction(function () use ($actor, $lead, $data, $reasonCode, $label, $comment, $message) {
             $audit = $this->ensureAssignedAudit($actor, $lead);
             $this->assertNotFinalised($audit);
             $this->syncChecklist($audit, $data['checklist'] ?? []);
@@ -242,7 +258,7 @@ class AuditWorkflowService
             $audit->fill([
                 'status' => AuditDecisionStatus::RecommendedReject,
                 'audit_notes' => $data['audit_notes'] ?? $audit->audit_notes,
-                'rejection_reason' => $reason,
+                'rejection_reason' => $message,
                 'requested_info' => null,
                 'completed_at' => now(),
             ])->save();
@@ -250,8 +266,8 @@ class AuditWorkflowService
             $this->notifyInternal(
                 $actor,
                 $lead,
-                'Audit recommendation: reject',
-                $reason,
+                __('rml.auditor.audit.recommend_reject_thread_subject'),
+                $message,
                 MessageThreadCategory::LeadReview,
             );
 
@@ -262,7 +278,9 @@ class AuditWorkflowService
                 [
                     'audit_id' => $audit->id,
                     'status' => AuditDecisionStatus::RecommendedReject->value,
-                    'reason' => $reason,
+                    'reason_code' => $reasonCode,
+                    'reason' => $label,
+                    'comment' => $comment,
                 ],
                 $actor,
             );

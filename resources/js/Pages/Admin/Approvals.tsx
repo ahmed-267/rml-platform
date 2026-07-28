@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Head, router, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
+import { RejectionFormModal } from '@/Components/admin/RejectionFormModal';
 import { Button } from '@/Components/ui/Button';
 import { EmptyState } from '@/Components/ui/EmptyState';
-import { FormInput } from '@/Components/ui/FormInput';
 import { StatusBadge } from '@/Components/ui/StatusBadge';
+import { rejectionReasonOptions } from '@/lib/rejection-reasons';
 import type { ApprovalStatus, PageProps } from '@/types';
 
 interface ApprovalRow {
@@ -31,8 +32,15 @@ export default function Approvals({
     const t = translations.approvals;
     const roles = translations.roles;
     const statuses = translations.statuses;
+    const rejection = translations.rejection;
     const [rejectingId, setRejectingId] = useState<number | null>(null);
-    const [reason, setReason] = useState('');
+    const [processing, setProcessing] = useState(false);
+    const [rejectErrors, setRejectErrors] = useState<{
+        reason_code?: string;
+        comment?: string;
+    }>({});
+
+    const rejectingRow = pending.find((row) => row.id === rejectingId) ?? null;
 
     const typeLabel = (type: string) => {
         if (type === 'buyer') {
@@ -58,15 +66,32 @@ export default function Approvals({
         router.post(route('admin.approvals.approve', id));
     };
 
-    const reject = (id: number) => {
+    const closeReject = () => {
+        setRejectingId(null);
+        setRejectErrors({});
+    };
+
+    const reject = (payload: { reason_code: string; comment: string }) => {
+        if (!rejectingId) {
+            return;
+        }
+        setProcessing(true);
+        setRejectErrors({});
         router.post(
-            route('admin.approvals.reject', id),
-            { reason },
+            route('admin.approvals.reject', rejectingId),
             {
-                onSuccess: () => {
-                    setRejectingId(null);
-                    setReason('');
+                reason_code: payload.reason_code,
+                comment: payload.comment || undefined,
+            },
+            {
+                onSuccess: closeReject,
+                onError: (errors) => {
+                    setRejectErrors({
+                        reason_code: errors.reason_code,
+                        comment: errors.comment,
+                    });
                 },
+                onFinish: () => setProcessing(false),
             },
         );
     };
@@ -147,11 +172,7 @@ export default function Approvals({
                                                 size="sm"
                                                 variant="outline"
                                                 onClick={() =>
-                                                    setRejectingId(
-                                                        rejectingId === row.id
-                                                            ? null
-                                                            : row.id,
-                                                    )
+                                                    setRejectingId(row.id)
                                                 }
                                             >
                                                 {t.reject}
@@ -168,42 +189,6 @@ export default function Approvals({
                                         )}
                                     </div>
                                 </div>
-
-                                {rejectingId === row.id && (
-                                    <div className="mt-4 space-y-3 rounded-lg border border-rml-border bg-rml-background p-4">
-                                        <FormInput
-                                            label={t.rejection_reason}
-                                            name="reason"
-                                            value={reason}
-                                            required
-                                            onChange={(e) =>
-                                                setReason(e.target.value)
-                                            }
-                                        />
-                                        <div className="flex gap-2">
-                                            <Button
-                                                size="sm"
-                                                variant="danger"
-                                                onClick={() => reject(row.id)}
-                                                disabled={
-                                                    reason.trim().length < 5
-                                                }
-                                            >
-                                                {t.confirm_reject}
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                onClick={() => {
-                                                    setRejectingId(null);
-                                                    setReason('');
-                                                }}
-                                            >
-                                                {t.cancel}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
                             </li>
                         ))}
                     </ul>
@@ -249,6 +234,30 @@ export default function Approvals({
                     </ul>
                 </section>
             )}
+
+            <RejectionFormModal
+                open={rejectingId !== null}
+                onClose={closeReject}
+                title={rejection?.title_account ?? t.confirm_reject}
+                warning={(
+                    rejection?.warning_account ?? t.rejection_reason
+                ).replaceAll(
+                    ':name',
+                    rejectingRow?.company_name ?? rejectingRow?.name ?? '',
+                )}
+                reasonLabel={rejection?.reason ?? t.rejection_reason}
+                commentLabel={rejection?.comment ?? t.rejection_reason}
+                commentHint={rejection?.comment_hint_other}
+                selectReasonLabel={
+                    rejection?.select_reason ?? t.rejection_reason
+                }
+                cancelLabel={rejection?.cancel ?? t.cancel}
+                confirmLabel={rejection?.confirm ?? t.confirm_reject}
+                reasons={rejectionReasonOptions(rejection?.accounts)}
+                processing={processing}
+                errors={rejectErrors}
+                onConfirm={reject}
+            />
         </AppLayout>
     );
 }

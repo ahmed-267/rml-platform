@@ -42,6 +42,7 @@ interface SellerLeadRow {
     scheme: { id: number; name: string } | null;
     zone: { id: number; code: string; name: string } | null;
     rejection_reason?: string | null;
+    rejection_comment?: string | null;
     requested_info?: string | null;
     created_at: string | null;
     payout?: SellerPayoutSummary | null;
@@ -56,7 +57,10 @@ function auditNote(lead: SellerLeadRow): string | null {
         return lead.requested_info ?? null;
     }
     if (lead.status === 'rejected') {
-        return lead.rejection_reason ?? null;
+        const parts = [lead.rejection_reason, lead.rejection_comment].filter(
+            Boolean,
+        );
+        return parts.length > 0 ? parts.join(' — ') : null;
     }
     return null;
 }

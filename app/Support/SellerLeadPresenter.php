@@ -69,6 +69,8 @@ final class SellerLeadPresenter
             'size_m2' => $lead->size_m2 !== null ? (float) $lead->size_m2 : null,
             'notes' => $lead->notes,
             'rejection_reason' => $lead->rejection_reason ?? $latestAudit?->rejection_reason,
+            'rejection_reason_code' => $lead->rejection_reason_code,
+            'rejection_comment' => $lead->rejection_comment,
             'requested_info' => $latestAudit?->requested_info,
             'scheme' => $lead->scheme ? [
                 'id' => $lead->scheme->id,

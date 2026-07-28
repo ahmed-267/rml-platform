@@ -46,6 +46,10 @@ interface SellerDetail {
         approval_status?: string | null;
     } | null;
     approved_at: string | null;
+    rejection_reason?: string | null;
+    rejection_comment?: string | null;
+    rejected_at?: string | null;
+    rejected_by?: { id: number; name: string } | null;
     created_at: string | null;
 }
 
@@ -100,6 +104,7 @@ export default function SellersShow({
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.admin.sellers;
     const common = translations.admin.common;
+    const rejection = translations.rejection;
     const statuses = translations.statuses;
     const roles = translations.roles;
     const leadStatuses = translations.lead_statuses;
@@ -165,6 +170,34 @@ export default function SellersShow({
             </dl>
         </ProfileCard>
     );
+
+    const rejectionCard =
+        seller.approval_status === 'rejected' ? (
+            <ProfileCard title={rejection?.reason ?? common.reject}>
+                <dl className="grid gap-3 sm:grid-cols-2">
+                    <ProfileField
+                        label={rejection?.rejected_by ?? common.reject}
+                        value={seller.rejected_by?.name ?? '—'}
+                    />
+                    <ProfileField
+                        label={rejection?.rejected_at ?? common.joined_date}
+                        value={formatDateTime(seller.rejected_at, app.locale)}
+                    />
+                    <ProfileField
+                        label={rejection?.reason ?? common.reject}
+                        value={seller.rejection_reason ?? '—'}
+                    />
+                    <ProfileField
+                        label={
+                            rejection?.rejection_comment ??
+                            rejection?.comment ??
+                            common.reject
+                        }
+                        value={seller.rejection_comment ?? '—'}
+                    />
+                </dl>
+            </ProfileCard>
+        ) : null;
 
     const companyCard = (
         <ProfileCard title={common.company_details}>
@@ -513,6 +546,7 @@ export default function SellersShow({
                         {stack(
                             <>
                                 {personalCard}
+                                {rejectionCard}
                                 {performanceCard}
                                 {staffCard}
                                 {activityCard}
@@ -531,6 +565,7 @@ export default function SellersShow({
                 : stack(
                       <>
                           {personalCard}
+                          {rejectionCard}
                           {companyCard}
                           {performanceCard}
                           {recentLeadsCard}
