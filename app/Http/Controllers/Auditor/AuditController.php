@@ -87,7 +87,7 @@ class AuditController extends Controller
         $checkedCount = collect($checklist)->where('checked', true)->count();
         $totalCount = count($checklist);
 
-        $lead->loadMissing(['survey', 'latestCatastroSnapshot']);
+        $lead->loadMissing(['survey.measurementSections', 'survey.evidence', 'latestCatastroSnapshot']);
 
         return Inertia::render('Auditor/Audits/Show', [
             'lead' => AuditorLeadPresenter::present($lead),
@@ -101,6 +101,9 @@ class AuditController extends Controller
             'survey' => SurveySummary::forLead($lead, $request->user(), 'auditor'),
             'catastro' => app(\App\Services\Catastro\CatastroLookupService::class)
                 ->presentForLead($lead, includeProtected: true),
+            'pre_installation' => app(\App\Services\Survey\PreInstallationComparisonService::class)
+                ->forLead($lead),
+            'audit_outcome' => $audit->status?->preInstallationOutcomeKey(),
             'can_lookup_catastro' => (bool) $request->user()?->can(\App\Support\Permissions::LOOKUP_CATASTRO),
             'can_review_catastro' => (bool) $request->user()?->can(\App\Support\Permissions::REVIEW_CATASTRO),
         ]);
@@ -138,6 +141,24 @@ class AuditController extends Controller
         return redirect()
             ->route('auditor.audits.index', ['tab' => self::TAB_MY_AUDITS])
             ->with('success', __('rml.auditor.audit.request_info_flash'));
+    }
+
+    public function requestReSurvey(RequestMoreInfoRequest $request, Lead $lead): RedirectResponse
+    {
+        $this->workflow->requestReSurvey($request->user(), $lead, $request->validated());
+
+        return redirect()
+            ->route('auditor.audits.index', ['tab' => self::TAB_MY_AUDITS])
+            ->with('success', __('rml.auditor.audit.re_survey_flash'));
+    }
+
+    public function requestManualVerification(RequestMoreInfoRequest $request, Lead $lead): RedirectResponse
+    {
+        $this->workflow->requestManualVerification($request->user(), $lead, $request->validated());
+
+        return redirect()
+            ->route('auditor.audits.index', ['tab' => self::TAB_MY_AUDITS])
+            ->with('success', __('rml.auditor.audit.manual_verification_flash'));
     }
 
     private function resolveTab(mixed $tab): string

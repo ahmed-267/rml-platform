@@ -385,6 +385,8 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             Route::post('/audits/{lead}/recommend-accept', [AuditorAuditController::class, 'recommendAccept'])->name('audits.recommend-accept');
             Route::post('/audits/{lead}/recommend-reject', [AuditorAuditController::class, 'recommendReject'])->name('audits.recommend-reject');
             Route::post('/audits/{lead}/request-info', [AuditorAuditController::class, 'requestInfo'])->name('audits.request-info');
+            Route::post('/audits/{lead}/request-re-survey', [AuditorAuditController::class, 'requestReSurvey'])->name('audits.request-re-survey');
+            Route::post('/audits/{lead}/request-manual-verification', [AuditorAuditController::class, 'requestManualVerification'])->name('audits.request-manual-verification');
             Route::post('/leads/{lead}/survey/start', [LeadSurveyController::class, 'start'])->name('surveys.start');
             Route::get('/leads/{lead}/survey', [LeadSurveyController::class, 'show'])->name('surveys.show');
             Route::post('/leads/{lead}/survey/draft', [LeadSurveyController::class, 'storeDraft'])->name('surveys.draft');

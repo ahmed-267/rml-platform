@@ -190,6 +190,28 @@ export interface SharedTranslations {
         catastro_status: string;
         [key: string]: unknown;
     };
+    pre_installation?: {
+        journey_title?: string;
+        overview?: string;
+        customer?: string;
+        property?: string;
+        catastro?: string;
+        survey?: string;
+        audit?: string;
+        sale?: string;
+        history?: string;
+        comparison_title?: string;
+        warnings_title?: string;
+        submitted?: string;
+        catastro_col?: string;
+        survey_col?: string;
+        not_available?: string;
+        no_comparison?: string;
+        no_survey_yet?: string;
+        no_audit_decision?: string;
+        audit_outcomes?: Record<string, string>;
+        [key: string]: unknown;
+    };
 }
 
 export type PageProps<

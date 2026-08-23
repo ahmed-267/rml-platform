@@ -263,7 +263,7 @@ class LeadBoughtController extends Controller
             };
         }
 
-        $lead->loadMissing(['survey', 'latestCatastroSnapshot']);
+        $lead->loadMissing(['survey.measurementSections', 'survey.evidence', 'latestCatastroSnapshot']);
         $surveySummary = \App\Support\SurveySummary::forLead($lead, $request->user(), 'admin');
         if (
             $sellable
@@ -283,6 +283,8 @@ class LeadBoughtController extends Controller
             'survey' => $surveySummary,
             'catastro' => app(\App\Services\Catastro\CatastroLookupService::class)
                 ->presentForLead($lead, includeProtected: true),
+            'pre_installation' => app(\App\Services\Survey\PreInstallationComparisonService::class)
+                ->forLead($lead),
             'can_lookup_catastro' => (bool) $request->user()?->can(\App\Support\Permissions::LOOKUP_CATASTRO),
             'can_review_catastro' => (bool) $request->user()?->can(\App\Support\Permissions::REVIEW_CATASTRO),
         ];

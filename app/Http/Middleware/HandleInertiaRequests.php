@@ -109,6 +109,7 @@ class HandleInertiaRequests extends Middleware
             'location' => __('rml.location'),
             'survey' => __('rml.survey'),
             'catastro' => __('rml.catastro'),
+            'pre_installation' => __('rml.pre_installation'),
         ];
 
         return match ($portal) {

@@ -386,7 +386,7 @@ class LocalisationTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->where('app.locale', 'en')
                 ->where('translations.auditor.dashboard.title', 'Dashboard')
-                ->where('translations.auditor.nav.assigned_audits', 'Assigned Audits'));
+                ->where('translations.auditor.nav.assigned_audits', 'My Pre-Installation Audits'));
 
         $this->actingAs($auditor)
             ->from(route('auditor.dashboard'))
@@ -399,7 +399,7 @@ class LocalisationTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->where('app.locale', 'es')
                 ->where('tab', 'my-audits')
-                ->where('translations.auditor.audits_hub.index_title', 'Auditorías')
+                ->where('translations.auditor.audits_hub.index_title', 'Auditorías preinstalación')
                 ->where('translations.auditor.nav.messages', 'Mensajes'));
 
         $this->actingAs($auditor)

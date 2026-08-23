@@ -266,19 +266,28 @@ export default function SellerLeadsShow({
                     <h2 className="text-base font-semibold text-rml-text">
                         {surveyT.card_title}
                     </h2>
-                    <div className="flex flex-wrap gap-2">
-                        <StatusBadge
-                            label={
-                                surveyT.statuses?.[
-                                    survey.status as keyof typeof surveyT.statuses
-                                ] ?? survey.status
-                            }
-                            tone="neutral"
-                        />
-                    </div>
-                    <p className="text-sm text-rml-muted">
-                        {surveyT.eligibility}: {survey.eligibility_status}
-                    </p>
+                    {!survey.exists ? (
+                        <p className="text-sm text-rml-muted">
+                            {translations.pre_installation?.no_survey_yet ??
+                                'No Pre-Installation Survey has been started yet.'}
+                        </p>
+                    ) : (
+                        <>
+                            <div className="flex flex-wrap gap-2">
+                                <StatusBadge
+                                    label={
+                                        surveyT.statuses?.[
+                                            survey.status as keyof typeof surveyT.statuses
+                                        ] ?? survey.status
+                                    }
+                                    tone="neutral"
+                                />
+                            </div>
+                            <p className="text-sm text-rml-muted">
+                                {surveyT.eligibility}: {survey.eligibility_status}
+                            </p>
+                        </>
+                    )}
                 </section>
             )}
 

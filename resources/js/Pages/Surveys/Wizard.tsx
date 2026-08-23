@@ -137,7 +137,7 @@ interface SurveyFormData {
     risks: {
         codes: string[];
         severity: string;
-        installation_impact: string;
+        affected_section: string;
         follow_up_required: boolean;
         specialist_required: boolean;
         notes: string;
@@ -371,7 +371,9 @@ export default function SurveyWizard({
     const steps = options.steps;
     const stepProgress = survey.step_progress;
     const completed = stepProgress?.completed ?? [];
-    const reachable = stepProgress?.reachable ?? steps;
+    const reachable =
+        stepProgress?.reachable ??
+        (steps.length > 0 ? [steps[0]] : []);
     const requiredFields =
         options.required_fields ?? survey.required_fields ?? {};
     const fieldOptions = options.field_options ?? {};
@@ -520,7 +522,10 @@ export default function SurveyWizard({
                     ? (risksDefaults.codes as string[])
                     : [],
                 severity: asStr(risksDefaults.severity),
-                installation_impact: asStr(risksDefaults.installation_impact),
+                affected_section: asStr(
+                    risksDefaults.affected_section ??
+                        risksDefaults.installation_impact,
+                ),
                 follow_up_required: asBool(risksDefaults.follow_up_required),
                 specialist_required: asBool(risksDefaults.specialist_required),
                 notes: asStr(risksDefaults.notes),
@@ -650,7 +655,13 @@ export default function SurveyWizard({
             keys.push('loft_hatch.proposed_location');
         }
 
-        for (const key of keys) {
+        const evidenceCategoryKeys =
+            step === 'evidence'
+                ? keys.filter((key) => !key.includes('.'))
+                : [];
+        const formKeys = keys.filter((key) => !evidenceCategoryKeys.includes(key));
+
+        for (const key of formKeys) {
             const value =
                 key === 'measurement_sections'
                     ? data.measurement_sections
@@ -671,6 +682,20 @@ export default function SurveyWizard({
                 } else {
                     next[key] = requiredMessage;
                 }
+            }
+        }
+
+        for (const category of evidenceCategoryKeys) {
+            const present = (survey.evidence ?? []).some(
+                (item) => item.category === category,
+            );
+            if (!present) {
+                next[`evidence.${category}`] =
+                    (errorMessages.evidence_required ??
+                        'Required evidence missing: :category').replace(
+                        ':category',
+                        category,
+                    );
             }
         }
 
@@ -2625,11 +2650,40 @@ export default function SurveyWizard({
                         {!['insulation', 'double-glazing', 'heat-pumps'].includes(
                             schemeSlug,
                         ) && (
-                            <Alert variant="info">
-                                Scheme-specific fields will appear when the lead
-                                scheme is insulation, double-glazing or
-                                heat-pumps.
-                            </Alert>
+                            <div className="space-y-3">
+                                <Alert variant="info">
+                                    Scheme-specific fields will appear when the
+                                    lead scheme is insulation, double-glazing or
+                                    heat-pumps. Confirm suitability to complete
+                                    this step.
+                                </Alert>
+                                <Select
+                                    label={
+                                        t.fields.installation_suitability ??
+                                        'Installation suitability'
+                                    }
+                                    required={req(
+                                        'scheme_inspection.suitable_for_installation',
+                                    )}
+                                    value={asStr(
+                                        data.scheme_inspection
+                                            .suitable_for_installation,
+                                    )}
+                                    disabled={!can_edit}
+                                    onChange={(e) =>
+                                        updateScheme(
+                                            'suitable_for_installation',
+                                            e.target.value,
+                                        )
+                                    }
+                                    error={
+                                        formErrors[
+                                            'scheme_inspection.suitable_for_installation'
+                                        ]
+                                    }
+                                    options={fieldSelect('suitability')}
+                                />
+                            </div>
                         )}
                     </section>
                 )}
@@ -2892,18 +2946,18 @@ export default function SurveyWizard({
                         <Select
                             label={
                                 (t.fields as Record<string, string>)
-                                    .installation_impact ??
-                                'Installation impact'
+                                    .affected_section ??
+                                'Affected survey section'
                             }
-                            value={data.risks.installation_impact}
+                            value={data.risks.affected_section}
                             disabled={!can_edit}
                             onChange={(e) =>
                                 setData('risks', {
                                     ...data.risks,
-                                    installation_impact: e.target.value,
+                                    affected_section: e.target.value,
                                 })
                             }
-                            options={fieldSelect('installation_impact')}
+                            options={fieldSelect('affected_section')}
                         />
                         <Select
                             label={t.fields.surveyor_recommendation}

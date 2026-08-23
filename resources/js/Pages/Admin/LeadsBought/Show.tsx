@@ -9,6 +9,10 @@ import { BackLink } from '@/Components/admin/BackLink';
 import { LocationCard } from '@/Components/admin/LocationCard';
 import { CatastroVerificationCard } from '@/Components/catastro/CatastroVerificationCard';
 import type { CatastroPanelPayload } from '@/Components/catastro/CatastroVerificationCard';
+import {
+    PreInstallationComparisonPanel,
+    type PreInstallationComparisonPayload,
+} from '@/Components/pre-installation/PreInstallationComparisonPanel';
 import { SellerQuickViewModal } from '@/Components/admin/SellerQuickViewModal';
 import {
     Button,
@@ -94,6 +98,7 @@ export default function LeadsBoughtShow({
     sellable_reason = null,
     survey = null,
     catastro = null,
+    pre_installation = null,
     can_lookup_catastro = false,
     can_review_catastro = false,
 }: {
@@ -113,12 +118,14 @@ export default function LeadsBoughtShow({
         catastro_status: string;
     } | null;
     catastro?: CatastroPanelPayload | null;
+    pre_installation?: PreInstallationComparisonPayload | null;
     can_lookup_catastro?: boolean;
     can_review_catastro?: boolean;
 }) {
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.admin.leads_bought;
     const surveyT = translations.survey;
+    const preT = translations.pre_installation;
     const auditT = translations.admin.audit;
     const common = translations.admin.common;
     const rejection = translations.rejection;
@@ -223,51 +230,15 @@ export default function LeadsBoughtShow({
                 </div>
             </div>
 
-            {survey && (
-                <section className="rml-card space-y-2 p-4 sm:p-5">
-                    <h2 className="text-base font-semibold text-rml-text">
-                        {surveyT.card_title}
-                    </h2>
-                    <div className="flex flex-wrap gap-2">
-                        <StatusBadge
-                            label={
-                                surveyT.statuses?.[
-                                    survey.status as keyof typeof surveyT.statuses
-                                ] ?? survey.status
-                            }
-                            tone="neutral"
-                        />
-                        <StatusBadge
-                            label={`${surveyT.catastro_status}: ${
-                                surveyT.catastro_statuses?.[
-                                    survey.catastro_status as keyof typeof surveyT.catastro_statuses
-                                ] ?? survey.catastro_status
-                            }`}
-                            tone="info"
-                        />
-                    </div>
-                    <p className="text-sm text-rml-muted">
-                        {surveyT.eligibility}: {survey.eligibility_status}
-                    </p>
-                </section>
-            )}
-
-            {catastro && (
-                <CatastroVerificationCard
-                    leadId={lead.id}
-                    catastro={catastro}
-                    routePrefix="admin"
-                    canLookup={can_lookup_catastro}
-                    canReview={can_review_catastro}
-                />
-            )}
-
             <section className="rml-card grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
                 <DetailRow
-                    label={auditT.summary}
+                    label={preT?.overview ?? auditT.summary}
                     value={`${lead.scheme?.name ?? '—'} · ${lead.zone?.code ?? '—'}`}
                 />
-                <DetailRow label={common.customer} value={customerName} />
+                <DetailRow
+                    label={preT?.customer ?? common.customer}
+                    value={customerName}
+                />
                 <DetailRow label={common.phone} value={lead.customer_phone} />
                 <DetailRow
                     label={common.email}
@@ -286,7 +257,7 @@ export default function LeadsBoughtShow({
                     }
                 />
                 <DetailRow
-                    label={t.seller_payout ?? t.buying_price}
+                    label={preT?.sale ?? (t.seller_payout ?? t.buying_price)}
                     value={formatMoney(lead.buying_price)}
                 />
                 <DetailRow
@@ -310,7 +281,7 @@ export default function LeadsBoughtShow({
                 geocodeRoute={route('admin.leads.geocode', lead.id)}
                 updateRoute={route('admin.leads.location', lead.id)}
                 labels={{
-                    title: locationT?.title ?? '',
+                    title: preT?.property ?? locationT?.title ?? '',
                     status: locationT?.status ?? '',
                     latitude: locationT?.latitude ?? '',
                     longitude: locationT?.longitude ?? '',
@@ -325,6 +296,85 @@ export default function LeadsBoughtShow({
                     statuses: locationT?.statuses ?? {},
                 }}
             />
+
+            {catastro && (
+                <CatastroVerificationCard
+                    leadId={lead.id}
+                    catastro={catastro}
+                    routePrefix="admin"
+                    canLookup={can_lookup_catastro}
+                    canReview={can_review_catastro}
+                />
+            )}
+
+            {survey && (
+                <section className="rml-card space-y-2 p-4 sm:p-5">
+                    <h2 className="text-base font-semibold text-rml-text">
+                        {preT?.survey ?? surveyT.card_title}
+                    </h2>
+                    {!survey.exists ? (
+                        <p className="text-sm text-rml-muted">
+                            {preT?.no_survey_yet ??
+                                'No Pre-Installation Survey has been started yet.'}
+                        </p>
+                    ) : (
+                        <>
+                            <div className="flex flex-wrap gap-2">
+                                <StatusBadge
+                                    label={
+                                        surveyT.statuses?.[
+                                            survey.status as keyof typeof surveyT.statuses
+                                        ] ?? survey.status
+                                    }
+                                    tone="neutral"
+                                />
+                                <StatusBadge
+                                    label={`${surveyT.catastro_status}: ${
+                                        surveyT.catastro_statuses?.[
+                                            survey.catastro_status as keyof typeof surveyT.catastro_statuses
+                                        ] ?? survey.catastro_status
+                                    }`}
+                                    tone="info"
+                                />
+                            </div>
+                            <p className="text-sm text-rml-muted">
+                                {surveyT.eligibility}: {survey.eligibility_status}
+                            </p>
+                        </>
+                    )}
+                </section>
+            )}
+
+            <PreInstallationComparisonPanel
+                comparison={pre_installation}
+                title={
+                    preT?.comparison_title ??
+                    'Submitted vs Catastro vs Survey'
+                }
+                submittedLabel={preT?.submitted ?? 'Submitted'}
+                catastroLabel={preT?.catastro_col ?? 'Catastro'}
+                surveyLabel={preT?.survey_col ?? 'Survey'}
+                warningsTitle={preT?.warnings_title ?? 'Discrepancy warnings'}
+                emptyLabel={preT?.not_available ?? '—'}
+                emptyState={preT?.no_comparison}
+            />
+
+            <section className="rml-card space-y-2 p-4 sm:p-5">
+                <h2 className="text-base font-semibold text-rml-text">
+                    {preT?.audit ?? 'Pre-Installation Audit'}
+                </h2>
+                <p className="text-sm text-rml-muted">
+                    {preT?.no_audit_decision ??
+                        'Use Audit lead to record the Pre-Installation Audit decision.'}
+                </p>
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setModalOpen(true)}
+                >
+                    {t.audit_lead}
+                </Button>
+            </section>
 
             {(lead.rejection_reason ||
                 lead.rejection_comment ||

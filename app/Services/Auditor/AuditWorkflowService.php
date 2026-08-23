@@ -342,6 +342,130 @@ class AuditWorkflowService
         });
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function requestReSurvey(User $actor, Lead $lead, array $data): LeadAudit
+    {
+        $reason = trim((string) ($data['requested_info'] ?? $data['comment'] ?? ''));
+        if ($reason === '') {
+            throw ValidationException::withMessages([
+                'requested_info' => __('rml.auditor.audit.re_survey_reason_required'),
+            ]);
+        }
+
+        return DB::transaction(function () use ($actor, $lead, $data, $reason) {
+            $audit = $this->ensureAssignedAudit($actor, $lead);
+            $previous = $audit->status?->value;
+            $this->assertNotFinalised($audit);
+            $this->syncChecklist($audit, $data['checklist'] ?? []);
+
+            $audit->fill([
+                'status' => AuditDecisionStatus::ReSurveyRequired,
+                'audit_notes' => $data['audit_notes'] ?? $audit->audit_notes,
+                'requested_info' => $reason,
+                'rejection_reason' => null,
+                'completed_at' => now(),
+            ])->save();
+
+            $lead->update(['status' => LeadStatus::NeedsMoreInformation]);
+
+            $lead->loadMissing('survey');
+            if ($lead->survey && in_array($lead->survey->status, [
+                \App\Enums\SurveyStatus::Submitted,
+                \App\Enums\SurveyStatus::UnderReview,
+                \App\Enums\SurveyStatus::Resubmitted,
+            ], true)) {
+                app(\App\Services\Survey\LeadSurveyService::class)->requestCorrection($lead->survey, $actor, [
+                    'correction_request' => $reason,
+                    'correction_sections' => $data['correction_sections'] ?? ['measurements', 'evidence'],
+                ]);
+            } elseif ($lead->survey && $lead->survey->status->isEditableBySurveyor()) {
+                $lead->survey->forceFill([
+                    'correction_request' => $reason,
+                    'correction_sections' => $data['correction_sections'] ?? ['measurements', 'evidence'],
+                ])->save();
+            }
+
+            $this->notifySeller($actor, $lead, $reason);
+            $this->notifyInternal(
+                $actor,
+                $lead,
+                'Pre-installation re-survey required',
+                $reason,
+                MessageThreadCategory::EvidenceIssue,
+            );
+
+            $this->auditLogService->log(
+                'lead.pre_installation_re_survey_required',
+                $lead,
+                null,
+                [
+                    'audit_id' => $audit->id,
+                    'previous_status' => $previous,
+                    'status' => AuditDecisionStatus::ReSurveyRequired->value,
+                    'requested_info' => $reason,
+                    'by' => 'auditor',
+                ],
+                $actor,
+            );
+
+            return $audit->fresh(['checklistResults']);
+        });
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    public function requestManualVerification(User $actor, Lead $lead, array $data): LeadAudit
+    {
+        $reason = trim((string) ($data['requested_info'] ?? $data['comment'] ?? ''));
+        if ($reason === '') {
+            throw ValidationException::withMessages([
+                'requested_info' => __('rml.auditor.audit.manual_verification_reason_required'),
+            ]);
+        }
+
+        return DB::transaction(function () use ($actor, $lead, $data, $reason) {
+            $audit = $this->ensureAssignedAudit($actor, $lead);
+            $previous = $audit->status?->value;
+            $this->assertNotFinalised($audit);
+            $this->syncChecklist($audit, $data['checklist'] ?? []);
+
+            $audit->fill([
+                'status' => AuditDecisionStatus::ManualVerificationRequired,
+                'audit_notes' => $data['audit_notes'] ?? $audit->audit_notes,
+                'requested_info' => $reason,
+                'rejection_reason' => null,
+                'completed_at' => now(),
+            ])->save();
+
+            $this->notifyInternal(
+                $actor,
+                $lead,
+                'Pre-installation manual verification required',
+                $reason,
+                MessageThreadCategory::LeadReview,
+            );
+
+            $this->auditLogService->log(
+                'lead.pre_installation_manual_verification_required',
+                $lead,
+                null,
+                [
+                    'audit_id' => $audit->id,
+                    'previous_status' => $previous,
+                    'status' => AuditDecisionStatus::ManualVerificationRequired->value,
+                    'requested_info' => $reason,
+                    'by' => 'auditor',
+                ],
+                $actor,
+            );
+
+            return $audit->fresh(['checklistResults']);
+        });
+    }
+
     public function canAccessAudit(User $actor, LeadAudit $audit): bool
     {
         if ($this->canViewAllAssignments($actor)) {

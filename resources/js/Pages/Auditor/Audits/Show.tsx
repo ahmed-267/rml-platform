@@ -14,6 +14,10 @@ import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import { rejectionReasonOptions } from '@/lib/rejection-reasons';
 import { CatastroVerificationCard } from '@/Components/catastro/CatastroVerificationCard';
 import type { CatastroPanelPayload } from '@/Components/catastro/CatastroVerificationCard';
+import {
+    PreInstallationComparisonPanel,
+    type PreInstallationComparisonPayload,
+} from '@/Components/pre-installation/PreInstallationComparisonPanel';
 import type { PageProps } from '@/types';
 
 interface ChecklistItem {
@@ -77,6 +81,8 @@ export default function AuditorAuditShow({
     can_recommend,
     survey = null,
     catastro = null,
+    pre_installation = null,
+    audit_outcome = null,
     can_lookup_catastro = false,
     can_review_catastro = false,
 }: {
@@ -94,12 +100,15 @@ export default function AuditorAuditShow({
         catastro_status: string;
     } | null;
     catastro?: CatastroPanelPayload | null;
+    pre_installation?: PreInstallationComparisonPayload | null;
+    audit_outcome?: string | null;
     can_lookup_catastro?: boolean;
     can_review_catastro?: boolean;
 }) {
     const { translations } = usePage<PageProps>().props;
     const t = translations.auditor.audit;
     const surveyT = translations.survey;
+    const preT = translations.pre_installation;
     const common = translations.auditor.common;
     const rejection = translations.rejection;
     const auditStatuses = translations.audit_statuses ?? {};
@@ -185,26 +194,36 @@ export default function AuditorAuditShow({
                 {survey && (
                     <section className="rml-card space-y-2 p-4 sm:p-5">
                         <h2 className="text-base font-semibold text-rml-text">
-                            {surveyT.card_title}
+                            {preT?.survey ?? surveyT.card_title}
                         </h2>
-                        <div className="flex flex-wrap gap-2">
-                            <StatusBadge
-                                label={
-                                    surveyT.statuses?.[
-                                        survey.status as keyof typeof surveyT.statuses
-                                    ] ?? survey.status
-                                }
-                                tone="neutral"
-                            />
-                            <StatusBadge
-                                label={`${surveyT.catastro_status}: ${
-                                    surveyT.catastro_statuses?.[
-                                        survey.catastro_status as keyof typeof surveyT.catastro_statuses
-                                    ] ?? survey.catastro_status
-                                }`}
-                                tone="info"
-                            />
-                        </div>
+                        {!survey.exists ? (
+                            <p className="text-sm text-rml-muted">
+                                {preT?.no_survey_yet}
+                            </p>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                <StatusBadge
+                                    label={
+                                        surveyT.statuses?.[
+                                            survey.status as keyof typeof surveyT.statuses
+                                        ] ?? survey.status
+                                    }
+                                    tone="neutral"
+                                />
+                                {audit_outcome && (
+                                    <StatusBadge
+                                        label={
+                                            preT?.audit_outcomes?.[
+                                                audit_outcome as keyof NonNullable<
+                                                    typeof preT.audit_outcomes
+                                                >
+                                            ] ?? audit_outcome
+                                        }
+                                        tone="info"
+                                    />
+                                )}
+                            </div>
+                        )}
                     </section>
                 )}
 
@@ -217,6 +236,22 @@ export default function AuditorAuditShow({
                         canReview={can_review_catastro}
                     />
                 )}
+
+                <PreInstallationComparisonPanel
+                    comparison={pre_installation}
+                    title={
+                        preT?.comparison_title ??
+                        'Submitted vs Catastro vs Survey'
+                    }
+                    submittedLabel={preT?.submitted ?? 'Submitted'}
+                    catastroLabel={preT?.catastro_col ?? 'Catastro'}
+                    surveyLabel={preT?.survey_col ?? 'Survey'}
+                    warningsTitle={
+                        preT?.warnings_title ?? 'Discrepancy warnings'
+                    }
+                    emptyLabel={preT?.not_available ?? '—'}
+                    emptyState={preT?.no_comparison}
+                />
 
                 {lead.audit?.is_final && (
                     <Alert variant="info" title={t.final_decision_title}>
@@ -532,6 +567,54 @@ export default function AuditorAuditShow({
                                 }
                             >
                                 {t.request_info}
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={
+                                    processing ||
+                                    (requestedInfo.trim() === '' &&
+                                        comment.trim() === '')
+                                }
+                                onClick={() =>
+                                    post(
+                                        route(
+                                            'auditor.audits.request-re-survey',
+                                            lead.id,
+                                        ),
+                                        {
+                                            requested_info:
+                                                requestedInfo.trim() ||
+                                                comment.trim(),
+                                        },
+                                    )
+                                }
+                            >
+                                {t.request_re_survey}
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={
+                                    processing ||
+                                    (requestedInfo.trim() === '' &&
+                                        comment.trim() === '')
+                                }
+                                onClick={() =>
+                                    post(
+                                        route(
+                                            'auditor.audits.request-manual-verification',
+                                            lead.id,
+                                        ),
+                                        {
+                                            requested_info:
+                                                requestedInfo.trim() ||
+                                                comment.trim(),
+                                        },
+                                    )
+                                }
+                            >
+                                {t.request_manual_verification}
                             </Button>
                         </div>
                     </section>

@@ -55,7 +55,7 @@ class AuditorPortalTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->component('Auditor/Audits/Index')
                 ->where('tab', 'my-audits')
-                ->where('translations.auditor.audits_hub.index_title', 'Audits'));
+                ->where('translations.auditor.audits_hub.index_title', 'Pre-Installation Audits'));
 
         $this->actingAs($auditor)
             ->get(route('auditor.audits.index', ['tab' => 'audit-queue']))
@@ -235,5 +235,59 @@ class AuditorPortalTest extends TestCase
             'auditor_user_id' => $auditor->id,
         ]);
         $this->assertDatabaseHas('audit_logs', ['action' => 'lead.auditor_assigned']);
+    }
+
+    public function test_auditor_can_request_re_survey_with_reason(): void
+    {
+        $auditor = User::query()->where('email', 'auditor@rml.test')->firstOrFail();
+        $lead = Lead::query()->where('lead_reference', 'LD-1044')->firstOrFail();
+
+        $this->actingAs($auditor)
+            ->post(route('auditor.audits.request-re-survey', $lead), [
+                'requested_info' => '',
+            ])
+            ->assertSessionHasErrors('requested_info');
+
+        $this->actingAs($auditor)
+            ->post(route('auditor.audits.request-re-survey', $lead), [
+                'requested_info' => 'Re-measure loft area and retake front exterior photos.',
+            ])
+            ->assertRedirect(route('auditor.audits.index', ['tab' => 'my-audits']));
+
+        $audit = LeadAudit::query()->where('lead_id', $lead->id)->latest('id')->firstOrFail();
+        $this->assertSame(AuditDecisionStatus::ReSurveyRequired, $audit->status);
+        $this->assertSame(LeadStatus::NeedsMoreInformation, $lead->fresh()->status);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'lead.pre_installation_re_survey_required']);
+    }
+
+    public function test_auditor_can_request_manual_verification_with_reason(): void
+    {
+        $auditor = User::query()->where('email', 'auditor@rml.test')->firstOrFail();
+        $lead = Lead::query()->where('lead_reference', 'LD-1047')->firstOrFail();
+
+        $this->actingAs($auditor)
+            ->post(route('auditor.audits.request-manual-verification', $lead), [
+                'requested_info' => 'Catastro municipality mismatch needs offline check.',
+            ])
+            ->assertRedirect(route('auditor.audits.index', ['tab' => 'my-audits']));
+
+        $audit = LeadAudit::query()->where('lead_id', $lead->id)->latest('id')->firstOrFail();
+        $this->assertSame(AuditDecisionStatus::ManualVerificationRequired, $audit->status);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'lead.pre_installation_manual_verification_required']);
+    }
+
+    public function test_auditor_show_includes_pre_installation_comparison(): void
+    {
+        $auditor = User::query()->where('email', 'auditor@rml.test')->firstOrFail();
+        $lead = Lead::query()->where('lead_reference', 'LD-1044')->firstOrFail();
+
+        $this->actingAs($auditor)
+            ->get(route('auditor.audits.show', $lead))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Auditor/Audits/Show')
+                ->has('pre_installation.rows')
+                ->has('pre_installation.warnings')
+                ->where('audit_outcome', fn ($value) => is_string($value) || $value === null));
     }
 }

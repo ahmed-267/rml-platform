@@ -79,7 +79,7 @@ const adminNav: NavItem[] = [
 const auditorNav: NavItem[] = [
     { label: 'Dashboard', labelKey: 'dashboard', href: '/auditor/dashboard' },
     {
-        label: 'Audits',
+        label: 'Pre-Installation Audits',
         labelKey: 'audits',
         href: '/auditor/audits?tab=my-audits',
         match: ['/auditor/audits', '/auditor/assigned-audits', '/auditor/completed-audits'],

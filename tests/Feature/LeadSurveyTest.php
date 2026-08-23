@@ -405,6 +405,72 @@ class LeadSurveyTest extends TestCase
                 ->where('breadcrumbs.2.label', __('rml.survey.title')));
     }
 
+    public function test_continue_requires_prior_steps_still_complete(): void
+    {
+        $seller = User::query()->where('email', 'seller.admin@rml.test')->firstOrFail();
+        $lead = $this->leadForSeller($seller);
+        $service = app(LeadSurveyService::class);
+        $survey = $service->ensureForLead($lead, $seller);
+
+        $payload = $this->validSurveyPayload();
+        $survey = $service->saveDraft($survey, $seller, array_merge($payload, [
+            'intent' => 'continue',
+            'current_step' => 'property',
+            'advance_to' => 'measurements',
+        ]));
+
+        $this->assertSame('measurements', $survey->current_step);
+        $this->assertContains('property', $service->completedSteps($survey));
+
+        $survey = $service->saveDraft($survey, $seller, [
+            'intent' => 'draft',
+            'current_step' => 'measurements',
+            'confirmed_address' => '',
+        ]);
+        $this->assertNotContains('property', $service->completedSteps($survey));
+        // Draft snaps back to earliest incomplete step when later steps are locked.
+        $this->assertSame('property', $survey->current_step);
+
+        try {
+            $service->saveDraft($survey, $seller, [
+                'intent' => 'continue',
+                'current_step' => 'property',
+                'advance_to' => 'measurements',
+                'confirmed_address' => '',
+                'survey_date' => now()->toDateString(),
+                'property_type' => 'detached',
+                'occupancy_type' => 'owner_occupied',
+                'occupied' => true,
+                'homeowner_present' => true,
+                'general_condition' => 'good',
+                'location_confirmed' => true,
+                'access' => $payload['access'],
+                'loft_hatch' => $payload['loft_hatch'],
+            ]);
+            $this->fail('Expected ValidationException when prior step incomplete');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertArrayHasKey('confirmed_address', $e->errors());
+        }
+
+        $survey->refresh();
+        $this->assertSame('property', $survey->current_step);
+    }
+
+    public function test_empty_scheme_step_is_not_marked_complete(): void
+    {
+        $seller = User::query()->where('email', 'seller.admin@rml.test')->firstOrFail();
+        $lead = $this->leadForSeller($seller, 'heat-pumps');
+        $service = app(LeadSurveyService::class);
+        $survey = $service->ensureForLead($lead, $seller);
+        $survey->forceFill([
+            'scheme_inspection' => [],
+        ])->save();
+
+        $errors = $service->validateStep($survey->fresh(), 'scheme');
+        $this->assertNotEmpty($errors);
+        $this->assertNotContains('scheme', $service->completedSteps($survey->fresh()));
+    }
+
     /**
      * @return array<string, mixed>
      */

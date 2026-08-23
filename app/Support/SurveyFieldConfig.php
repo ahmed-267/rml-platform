@@ -211,12 +211,14 @@ final class SurveyFieldConfig
                 'high',
                 'critical',
             ],
-            'installation_impact' => [
-                'none',
-                'delay',
-                'additional_labour',
-                'cannot_proceed',
-                'specialist_required',
+            'affected_section' => [
+                'property',
+                'measurements',
+                'scheme',
+                'evidence',
+                'homeowner',
+                'access',
+                'other',
             ],
             'note_visibility' => [
                 'seller',
@@ -296,8 +298,13 @@ final class SurveyFieldConfig
                 'measurement_date',
                 'measurement_sections',
             ],
-            'scheme' => [],
-            'evidence' => [],
+            'scheme' => [
+                'scheme_inspection.suitable_for_installation',
+            ],
+            'evidence' => [
+                'front_exterior',
+                'installation_area',
+            ],
             'homeowner' => [
                 'homeowner_confirmation.name',
                 'homeowner_confirmation.relationship',

@@ -258,26 +258,40 @@ class LeadSurveyService
 
             if ($intent === 'continue') {
                 $fromStep = $requestedStep ?? $this->earliestIncompleteStep($survey);
-                $errors = $this->validateStep($survey, $fromStep);
-                if ($errors !== []) {
-                    throw ValidationException::withMessages($errors + [
-                        'step' => __('rml.survey.errors.step_incomplete'),
-                    ]);
-                }
-
                 $fromIndex = array_search($fromStep, self::STEPS, true);
-                $target = $advanceTo
-                    ?? self::STEPS[min((int) $fromIndex + 1, count(self::STEPS) - 1)];
-                if (! $this->canAccessStep($survey, $target) && $target !== self::STEPS[min((int) $fromIndex + 1, count(self::STEPS) - 1)]) {
+                if ($fromIndex === false) {
                     throw ValidationException::withMessages([
                         'current_step' => __('rml.survey.errors.step_locked'),
                     ]);
                 }
-                // After validating fromStep, next step is unlocked.
+
+                // Require every step up to and including fromStep to be valid
+                // after persist — prevent advancing while earlier required data
+                // was cleared in the same payload.
+                $prefixErrors = [];
+                for ($i = 0; $i <= (int) $fromIndex; $i++) {
+                    $prefixErrors = array_merge(
+                        $prefixErrors,
+                        $this->validateStep($survey, self::STEPS[$i]),
+                    );
+                }
+                if ($prefixErrors !== []) {
+                    throw ValidationException::withMessages($prefixErrors + [
+                        'step' => __('rml.survey.errors.step_incomplete'),
+                    ]);
+                }
+
                 $nextIndex = min((int) $fromIndex + 1, count(self::STEPS) - 1);
-                $survey->current_step = $advanceTo && array_search($advanceTo, self::STEPS, true) === $nextIndex
-                    ? $advanceTo
-                    : self::STEPS[$nextIndex];
+                $sequentialNext = self::STEPS[$nextIndex];
+                $target = $advanceTo ?? $sequentialNext;
+
+                if ($target !== $sequentialNext || ! $this->canAccessStep($survey, $target)) {
+                    throw ValidationException::withMessages([
+                        'current_step' => __('rml.survey.errors.step_locked'),
+                    ]);
+                }
+
+                $survey->current_step = $target;
             } else {
                 // Draft: keep user on a valid reachable step; never unlock via draft alone.
                 $earliest = $this->earliestIncompleteStep($survey);
@@ -1070,6 +1084,14 @@ class LeadSurveyService
                     'field' => __('rml.survey.fields.installation_suitability'),
                 ]);
             }
+        } else {
+            // Unknown / unset scheme: still require an explicit suitability answer
+            // so an empty scheme step cannot mark as complete and unlock later steps.
+            if (! $this->filled($inspection['suitable_for_installation'] ?? null)) {
+                $errors['scheme_inspection.suitable_for_installation'] = __('rml.survey.errors.field_required', [
+                    'field' => __('rml.survey.fields.installation_suitability'),
+                ]);
+            }
         }
 
         return $errors;
@@ -1148,7 +1170,8 @@ class LeadSurveyService
             if (! $this->filled($risks['severity'] ?? null)) {
                 $errors['risks.severity'] = __('rml.survey.errors.risk_severity_required');
             }
-            if (! $this->filled($risks['affected_section'] ?? null)) {
+            $affected = $risks['affected_section'] ?? $risks['installation_impact'] ?? null;
+            if (! $this->filled($affected)) {
                 $errors['risks.affected_section'] = __('rml.survey.errors.risk_section_required');
             }
         }
