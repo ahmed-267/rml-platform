@@ -23,33 +23,46 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             hint,
             error,
             id,
+            name,
             options,
             placeholder,
+            required,
             ...props
         },
         ref,
     ) => {
-        const selectId = id ?? props.name;
+        const selectId = id ?? name;
+        const errorField = name ?? selectId;
 
         return (
-            <div className="w-full space-y-1.5">
+            <div
+                className="w-full space-y-1.5"
+                data-error-field={errorField || undefined}
+            >
                 {label && (
                     <label
                         htmlFor={selectId}
                         className="block text-sm font-medium text-rml-text"
                     >
                         {label}
-                        {props.required && (
-                            <span className="ml-0.5 text-rml-red">*</span>
-                        )}
+                        {required ? (
+                            <span className="ml-0.5 text-rml-red" aria-hidden>
+                                *
+                            </span>
+                        ) : null}
                     </label>
                 )}
                 <select
                     ref={ref}
                     id={selectId}
+                    name={name}
+                    required={required}
+                    aria-invalid={error ? true : undefined}
+                    data-error-field={errorField || undefined}
                     className={cn(
                         'block w-full rounded-lg border border-rml-border bg-white px-3.5 py-2.5 text-sm text-rml-text shadow-sm rml-focus-ring focus:border-rml-primary disabled:bg-rml-background disabled:text-rml-muted',
-                        error && 'border-rml-red focus:border-rml-red focus-visible:ring-rml-red',
+                        error &&
+                            'border-rml-red focus:border-rml-red focus-visible:ring-rml-red',
                         className,
                     )}
                     {...props}

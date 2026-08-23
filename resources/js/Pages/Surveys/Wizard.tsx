@@ -16,9 +16,12 @@ import {
 import { useScrollToFirstError } from '@/hooks/use-scroll-to-first-error';
 import {
     boolToYesNo,
+    formatSurveyError,
     isMissingRequiredValue,
     isRequiredField,
     readNestedFormValue,
+    scrollToSurveyError,
+    surveyFieldLabel,
     toSelectOptions,
     yesNoOptions,
     yesNoToBool,
@@ -408,7 +411,7 @@ export default function SurveyWizard({
     const noAccessDefaults = survey.no_access ?? {};
     const loftDefaults = survey.loft_hatch ?? {};
 
-    const { data, setData, post, processing, errors, isDirty, transform, setError } =
+    const { data, setData, post, processing, errors, isDirty, transform, setError, clearErrors } =
         useForm<SurveyFormData>({
             current_step: initialStep,
             survey_date: asStr(survey.survey_date),
@@ -550,10 +553,33 @@ export default function SurveyWizard({
 
     const stepIndex = steps.indexOf(step);
     const schemeSlug = options.scheme_slug ?? '';
-    const formErrors = {
-        ...(errors as Record<string, string | undefined>),
-        ...localErrors,
-    };
+    const fieldLabels = (t.fields as Record<string, string> | undefined) ?? {};
+    const formErrors = useMemo(() => {
+        const merged: Record<string, string | undefined> = {
+            ...(errors as Record<string, string | undefined>),
+            ...localErrors,
+        };
+        const resolved: Record<string, string | undefined> = {};
+        for (const [key, value] of Object.entries(merged)) {
+            if (!value) {
+                resolved[key] = value;
+                continue;
+            }
+            if (value.includes(':field') || value.includes(':category')) {
+                resolved[key] = formatSurveyError(
+                    value,
+                    {
+                        field: surveyFieldLabel(key, fieldLabels),
+                        category: key.split('.').pop() ?? key,
+                    },
+                    value,
+                );
+            } else {
+                resolved[key] = value;
+            }
+        }
+        return resolved;
+    }, [errors, localErrors, fieldLabels]);
     const showNoAccess =
         data.access.access_safe === false ||
         data.access.keys_unavailable === true ||
@@ -634,10 +660,21 @@ export default function SurveyWizard({
     const applyLocalRequiredErrors = (): boolean => {
         const keys = [...(requiredFields[step] ?? [])];
         const next: Record<string, string> = {};
-        const requiredMessage =
-            (t.errors as Record<string, string> | undefined)?.field_required ??
-            'Required';
-        const errorMessages = (t.errors as Record<string, string> | undefined) ?? {};
+        const errorMessages =
+            (t.errors as Record<string, string> | undefined) ?? {};
+        const fieldLabels = (t.fields as Record<string, string> | undefined) ?? {};
+        const requiredFor = (key: string) =>
+            formatSurveyError(
+                errorMessages.field_required,
+                { field: surveyFieldLabel(key, fieldLabels) },
+                `${surveyFieldLabel(key, fieldLabels)} is required.`,
+            );
+
+        if (step === 'property' && schemeSlug === 'insulation') {
+            if (!keys.includes('loft_hatch.existing_hatch')) {
+                keys.push('loft_hatch.existing_hatch');
+            }
+        }
 
         if (step === 'property' && showNoAccess) {
             keys.push(
@@ -680,7 +717,7 @@ export default function SurveyWizard({
                         errorMessages.measurement_required ??
                         'Enter a surveyed installation area greater than zero.';
                 } else {
-                    next[key] = requiredMessage;
+                    next[key] = requiredFor(key);
                 }
             }
         }
@@ -690,12 +727,11 @@ export default function SurveyWizard({
                 (item) => item.category === category,
             );
             if (!present) {
-                next[`evidence.${category}`] =
-                    (errorMessages.evidence_required ??
-                        'Required evidence missing: :category').replace(
-                        ':category',
-                        category,
-                    );
+                next[`evidence.${category}`] = formatSurveyError(
+                    errorMessages.evidence_required,
+                    { category },
+                    `Required evidence missing: ${category}`,
+                );
             }
         }
 
@@ -709,7 +745,7 @@ export default function SurveyWizard({
             data.measurement_sections.forEach((section, index) => {
                 if (!section.section_type) {
                     next[`measurement_sections.${index}.section_type`] =
-                        requiredMessage;
+                        requiredFor('section_type');
                 }
 
                 const calculated = parseFloat(section.calculated_area_m2);
@@ -725,9 +761,12 @@ export default function SurveyWizard({
                 }
 
                 if (!section.area_not_accessed && !hasArea) {
+                    next[`measurement_sections.${index}.length_m`] =
+                        errorMessages.measurement_required ??
+                        'Enter length and width, or a manual area greater than zero.';
                     next[`measurement_sections.${index}.calculated_area_m2`] =
                         errorMessages.measurement_required ??
-                        'Enter a surveyed installation area greater than zero.';
+                        'Enter length and width, or a manual area greater than zero.';
                 }
 
                 if (
@@ -743,10 +782,17 @@ export default function SurveyWizard({
             });
         }
 
+        clearErrors();
         setLocalErrors(next);
         Object.entries(next).forEach(([key, message]) => {
             setError(key as keyof SurveyFormData, message);
         });
+
+        const firstKey = Object.keys(next)[0];
+        if (firstKey) {
+            scrollToSurveyError(firstKey);
+        }
+
         return Object.keys(next).length > 0;
     };
 
@@ -787,9 +833,13 @@ export default function SurveyWizard({
             advance_to: next,
         }));
         post(routes.draft, {
-            preserveScroll: true,
+            preserveScroll: false,
             onSuccess: () => {
                 setLocalErrors({});
+            },
+            onError: (pageErrors) => {
+                const first = Object.keys(pageErrors)[0];
+                scrollToSurveyError(first);
             },
         });
     };
@@ -972,27 +1022,29 @@ export default function SurveyWizard({
                 {t.required_info ?? 'Required information'}
             </Alert>
             {Object.keys(formErrors).length > 0 && (
-                <Alert
-                    variant="error"
-                    title={
-                        (t.errors as Record<string, string> | undefined)
-                            ?.step_incomplete ??
-                        'Complete the required fields before continuing.'
-                    }
-                >
-                    <ul className="mt-1 list-disc space-y-1 pl-4 text-sm">
-                        {Array.from(
-                            new Set(
-                                Object.values(formErrors).filter(
-                                    (message): message is string =>
-                                        Boolean(message),
+                <div data-validation-summary>
+                    <Alert
+                        variant="error"
+                        title={
+                            (t.errors as Record<string, string> | undefined)
+                                ?.step_incomplete ??
+                            'Complete the required fields before continuing.'
+                        }
+                    >
+                        <ul className="mt-1 list-disc space-y-1 pl-4 text-sm">
+                            {Array.from(
+                                new Set(
+                                    Object.values(formErrors).filter(
+                                        (message): message is string =>
+                                            Boolean(message),
+                                    ),
                                 ),
-                            ),
-                        ).map((message) => (
-                            <li key={message}>{message}</li>
-                        ))}
-                    </ul>
-                </Alert>
+                            ).map((message) => (
+                                <li key={message}>{message}</li>
+                            ))}
+                        </ul>
+                    </Alert>
+                </div>
             )}
 
             <Stepper
@@ -1532,6 +1584,7 @@ export default function SurveyWizard({
                                 </h2>
                                 <div className="grid gap-3 sm:grid-cols-2">
                                     <Select
+                                        name="loft_hatch.existing_hatch"
                                         label={
                                             (t.fields as Record<string, string>)
                                                 .existing_hatch ??
@@ -1553,7 +1606,10 @@ export default function SurveyWizard({
                                                 'loft_hatch.existing_hatch'
                                             ]
                                         }
-                                        required={req('loft_hatch.existing_hatch')}
+                                        required={
+                                            schemeSlug === 'insulation' ||
+                                            req('loft_hatch.existing_hatch')
+                                        }
                                     />
                                     <FormInput
                                         label={
@@ -1723,6 +1779,7 @@ export default function SurveyWizard({
                                     error={formErrors.surveyed_floor_area_m2}
                                 />
                                 <FormInput
+                                    name="surveyed_installation_area_m2"
                                     label={t.fields.surveyed_installation_area}
                                     type="number"
                                     step="0.01"
@@ -1742,6 +1799,7 @@ export default function SurveyWizard({
                                     )}
                                 />
                                 <Select
+                                    name="measurement_method"
                                     label={t.fields.measurement_method}
                                     value={data.measurement_method}
                                     disabled={!can_edit}
@@ -1756,6 +1814,7 @@ export default function SurveyWizard({
                                     required={req('measurement_method')}
                                 />
                                 <Select
+                                    name="measurement_confidence"
                                     label={t.fields.measurement_confidence}
                                     value={data.measurement_confidence}
                                     disabled={!can_edit}
@@ -1772,6 +1831,7 @@ export default function SurveyWizard({
                                     required={req('measurement_confidence')}
                                 />
                                 <FormInput
+                                    name="measurement_date"
                                     label={t.fields.measurement_date}
                                     type="date"
                                     value={data.measurement_date}
@@ -1828,6 +1888,11 @@ export default function SurveyWizard({
                                     </Button>
                                 )}
                             </div>
+                            <p className="text-sm text-rml-muted">
+                                Add at least one section. Enter length and width
+                                so area calculates automatically, or enter a
+                                manual area and explain why.
+                            </p>
                             {formErrors.measurement_sections && (
                                 <Alert variant="error">
                                     {formErrors.measurement_sections}
@@ -1840,13 +1905,42 @@ export default function SurveyWizard({
                                         'Add at least one measured section before continuing.'}
                                 </p>
                             )}
-                            {data.measurement_sections.map((section, index) => (
+                            {data.measurement_sections.map((section, index) => {
+                                const sectionHasError = Object.keys(
+                                    formErrors,
+                                ).some((key) =>
+                                    key.startsWith(
+                                        `measurement_sections.${index}.`,
+                                    ),
+                                );
+                                const needsArea =
+                                    !section.area_not_accessed &&
+                                    !(
+                                        parseFloat(section.manual_area_m2) > 0 ||
+                                        parseFloat(section.calculated_area_m2) >
+                                            0
+                                    );
+
+                                return (
                                 <div
                                     key={section.id ?? `new-${index}`}
-                                    className="space-y-3 rounded-xl border border-rml-border p-3"
+                                    data-measurement-section={index}
+                                    className={`space-y-3 rounded-xl border p-3 ${
+                                        sectionHasError
+                                            ? 'border-rml-red ring-2 ring-rml-red/20'
+                                            : 'border-rml-border'
+                                    }`}
                                 >
+                                    {sectionHasError && (
+                                        <Alert variant="error">
+                                            Complete the highlighted fields in
+                                            this measured section before
+                                            continuing.
+                                        </Alert>
+                                    )}
                                     <div className="grid gap-3 sm:grid-cols-2">
                                         <FormInput
+                                            name={`measurement_sections.${index}.name`}
                                             label={t.fields.section_name}
                                             value={section.name}
                                             disabled={!can_edit}
@@ -1859,6 +1953,7 @@ export default function SurveyWizard({
                                             }
                                         />
                                         <Select
+                                            name={`measurement_sections.${index}.section_type`}
                                             label={t.fields.section_type}
                                             value={section.section_type}
                                             disabled={!can_edit}
@@ -1880,6 +1975,7 @@ export default function SurveyWizard({
                                             required
                                         />
                                         <FormInput
+                                            name={`measurement_sections.${index}.length_m`}
                                             label={t.fields.length_m}
                                             type="number"
                                             step="0.01"
@@ -1892,8 +1988,16 @@ export default function SurveyWizard({
                                                     e.target.value,
                                                 )
                                             }
+                                            error={
+                                                formErrors[
+                                                    `measurement_sections.${index}.length_m`
+                                                ]
+                                            }
+                                            required={needsArea}
+                                            hint="Used with width to calculate area"
                                         />
                                         <FormInput
+                                            name={`measurement_sections.${index}.width_m`}
                                             label={t.fields.width_m}
                                             type="number"
                                             step="0.01"
@@ -1906,6 +2010,7 @@ export default function SurveyWizard({
                                                     e.target.value,
                                                 )
                                             }
+                                            required={needsArea}
                                         />
                                         <FormInput
                                             label={t.fields.height_m}
@@ -1922,6 +2027,7 @@ export default function SurveyWizard({
                                             }
                                         />
                                         <FormInput
+                                            name={`measurement_sections.${index}.calculated_area_m2`}
                                             label={t.fields.calculated_area}
                                             value={section.calculated_area_m2}
                                             disabled
@@ -1930,9 +2036,10 @@ export default function SurveyWizard({
                                                     `measurement_sections.${index}.calculated_area_m2`
                                                 ]
                                             }
-                                            required={!section.area_not_accessed}
+                                            hint="Auto-calculated from length × width"
                                         />
                                         <FormInput
+                                            name={`measurement_sections.${index}.manual_area_m2`}
                                             label={t.fields.manual_area}
                                             type="number"
                                             step="0.01"
@@ -1945,6 +2052,7 @@ export default function SurveyWizard({
                                                     e.target.value,
                                                 )
                                             }
+                                            hint="Optional override — reason required if used"
                                         />
                                         <Select
                                             label={t.fields.measurement_method}
@@ -1980,6 +2088,7 @@ export default function SurveyWizard({
                                         />
                                     </div>
                                     <Textarea
+                                        name={`measurement_sections.${index}.notes`}
                                         label={
                                             section.manual_area_m2.trim() !== ''
                                                 ? ((t.fields as Record<string, string>)
@@ -2063,7 +2172,8 @@ export default function SurveyWizard({
                                         </Button>
                                     )}
                                 </div>
-                            ))}
+                                );
+                            })}
                         </section>
                     </div>
                 )}

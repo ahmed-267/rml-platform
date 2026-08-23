@@ -2776,6 +2776,7 @@ return [
             'risk_section_required' => 'Select which survey section the risk affects.',
             'step_incomplete' => 'Complete the required fields before continuing.',
             'step_locked' => 'That step is locked until earlier steps are complete.',
+            'section_area_required' => 'Enter length and width, or a manual area greater than zero, for each measured section.',
         ],
         'yes' => 'Yes',
         'no' => 'No',

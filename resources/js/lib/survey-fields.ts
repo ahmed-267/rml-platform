@@ -113,3 +113,92 @@ export function readNestedFormValue(
 
     return current;
 }
+
+/** Replace Laravel-style :field / :category placeholders in survey error templates. */
+export function formatSurveyError(
+    template: string | undefined,
+    replacements: Record<string, string>,
+    fallback: string,
+): string {
+    let message = template && template.trim() !== '' ? template : fallback;
+    for (const [key, value] of Object.entries(replacements)) {
+        message = message.replaceAll(`:${key}`, value);
+    }
+    // Guard against unsubstituted placeholders showing as ":field is required."
+    if (message.includes(':field') && replacements.field) {
+        message = message.replaceAll(':field', replacements.field);
+    }
+    return message;
+}
+
+/** Map form error keys to human labels for required-message substitution. */
+export function surveyFieldLabel(
+    key: string,
+    fields: Record<string, string> | undefined,
+): string {
+    const leaf = key.includes('.') ? (key.split('.').pop() ?? key) : key;
+    const fromFields = fields?.[leaf] ?? fields?.[key];
+    if (fromFields) {
+        return fromFields;
+    }
+    return leaf.replaceAll('_', ' ');
+}
+
+/**
+ * Scroll / focus the first invalid survey control.
+ * Prefer data-error-field (set by FormInput/Select/Textarea via name).
+ */
+export function scrollToSurveyError(fieldKey: string | undefined): void {
+    if (!fieldKey || typeof document === 'undefined') {
+        return;
+    }
+
+    const tryFind = (): HTMLElement | null => {
+        const selectors = [
+            `[data-error-field="${CSS.escape(fieldKey)}"]`,
+            `[name="${CSS.escape(fieldKey)}"]`,
+            `[data-validation-summary]`,
+        ];
+        for (const selector of selectors) {
+            try {
+                const el = document.querySelector(selector);
+                if (el instanceof HTMLElement) {
+                    return el;
+                }
+            } catch {
+                // ignore invalid selectors
+            }
+        }
+
+        if (fieldKey.startsWith('measurement_sections.')) {
+            const match = /^measurement_sections\.(\d+)/.exec(fieldKey);
+            if (match) {
+                const section = document.querySelector(
+                    `[data-measurement-section="${match[1]}"]`,
+                );
+                if (section instanceof HTMLElement) {
+                    return section;
+                }
+            }
+        }
+
+        return null;
+    };
+
+    window.requestAnimationFrame(() => {
+        const el = tryFind();
+        if (!el) {
+            return;
+        }
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const focusable =
+            el.matches('input, select, textarea, button')
+                ? el
+                : el.querySelector<HTMLElement>('input, select, textarea, button');
+        if (focusable && !focusable.hasAttribute('disabled')) {
+            window.setTimeout(() => {
+                focusable.focus({ preventScroll: true });
+            }, 200);
+        }
+    });
+}

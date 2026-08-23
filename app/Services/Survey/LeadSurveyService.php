@@ -1017,7 +1017,8 @@ class LeadSurveyService
                 }
                 $area = $section->manual_area_m2 ?? $section->calculated_area_m2;
                 if (! $section->area_not_accessed && ($area === null || (float) $area <= 0)) {
-                    $errors["measurement_sections.$index.calculated_area_m2"] = __('rml.survey.errors.measurement_required');
+                    $errors["measurement_sections.$index.calculated_area_m2"] = __('rml.survey.errors.section_area_required');
+                    $errors["measurement_sections.$index.length_m"] = __('rml.survey.errors.section_area_required');
                 }
                 if ($section->manual_area_m2 !== null && ! $this->filled($section->notes)) {
                     $errors["measurement_sections.$index.notes"] = __('rml.survey.errors.manual_area_reason_required');
