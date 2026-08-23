@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from 'react';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import { AuditChecklist } from '@/Components/ui/AuditChecklist';
 import {
@@ -12,6 +12,8 @@ import {
 } from '@/Components/ui';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import { rejectionReasonOptions } from '@/lib/rejection-reasons';
+import { CatastroVerificationCard } from '@/Components/catastro/CatastroVerificationCard';
+import type { CatastroPanelPayload } from '@/Components/catastro/CatastroVerificationCard';
 import type { PageProps } from '@/types';
 
 interface ChecklistItem {
@@ -73,14 +75,31 @@ export default function AuditorAuditShow({
     lead,
     checklist: initialChecklist,
     can_recommend,
+    survey = null,
+    catastro = null,
+    can_lookup_catastro = false,
+    can_review_catastro = false,
 }: {
     lead: LeadPayload;
     checklist: ChecklistItem[];
     checklist_progress: { checked: number; total: number; percent: number };
     can_recommend: boolean;
+    survey?: {
+        exists: boolean;
+        status: string;
+        action: string;
+        action_label: string;
+        href: string | null;
+        eligibility_status: string;
+        catastro_status: string;
+    } | null;
+    catastro?: CatastroPanelPayload | null;
+    can_lookup_catastro?: boolean;
+    can_review_catastro?: boolean;
 }) {
     const { translations } = usePage<PageProps>().props;
     const t = translations.auditor.audit;
+    const surveyT = translations.survey;
     const common = translations.auditor.common;
     const rejection = translations.rejection;
     const auditStatuses = translations.audit_statuses ?? {};
@@ -137,6 +156,15 @@ export default function AuditorAuditShow({
         <AppLayout
             title={t.page_title}
             subtitle={lead.lead_reference}
+            headerActions={
+                survey?.href ? (
+                    <Link href={survey.href}>
+                        <Button size="sm" variant="secondary">
+                            {survey.action_label}
+                        </Button>
+                    </Link>
+                ) : undefined
+            }
         >
             <Head title={`${t.page_title} · ${lead.lead_reference}`} />
 
@@ -147,11 +175,48 @@ export default function AuditorAuditShow({
                             tab: 'my-audits',
                         })}
                         label={common.back}
+                        useHistory={false}
                     />
                     <p className="font-mono text-lg font-semibold text-rml-text">
                         {lead.lead_reference}
                     </p>
                 </div>
+
+                {survey && (
+                    <section className="rml-card space-y-2 p-4 sm:p-5">
+                        <h2 className="text-base font-semibold text-rml-text">
+                            {surveyT.card_title}
+                        </h2>
+                        <div className="flex flex-wrap gap-2">
+                            <StatusBadge
+                                label={
+                                    surveyT.statuses?.[
+                                        survey.status as keyof typeof surveyT.statuses
+                                    ] ?? survey.status
+                                }
+                                tone="neutral"
+                            />
+                            <StatusBadge
+                                label={`${surveyT.catastro_status}: ${
+                                    surveyT.catastro_statuses?.[
+                                        survey.catastro_status as keyof typeof surveyT.catastro_statuses
+                                    ] ?? survey.catastro_status
+                                }`}
+                                tone="info"
+                            />
+                        </div>
+                    </section>
+                )}
+
+                {catastro && (
+                    <CatastroVerificationCard
+                        leadId={lead.id}
+                        catastro={catastro}
+                        routePrefix="auditor"
+                        canLookup={can_lookup_catastro}
+                        canReview={can_review_catastro}
+                    />
+                )}
 
                 {lead.audit?.is_final && (
                     <Alert variant="info" title={t.final_decision_title}>

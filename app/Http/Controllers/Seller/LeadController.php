@@ -15,6 +15,7 @@ use App\Support\LeadStatusPresentation;
 use App\Support\ListPagination;
 use App\Support\ListSort;
 use App\Support\SellerLeadPresenter;
+use App\Support\SurveySummary;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -174,9 +175,16 @@ class LeadController extends Controller
     {
         abort_unless($request->user()?->can('view', $lead), 403);
 
+        $lead->loadMissing(['survey', 'latestCatastroSnapshot']);
+
         return Inertia::render('Seller/Leads/Show', [
             'lead' => SellerLeadPresenter::present($lead, $request->user()),
             'schemes' => $this->schemesForForm(),
+            'survey' => SurveySummary::forLead($lead, $request->user(), 'seller'),
+            'catastro' => app(\App\Services\Catastro\CatastroLookupService::class)
+                ->presentForLead($lead, includeProtected: false),
+            'can_lookup_catastro' => false,
+            'can_review_catastro' => false,
         ]);
     }
 

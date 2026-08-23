@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<consulta_dnp xmlns="http://www.catastro.meh.es/">
+  <control>
+    <cudnp>1</cudnp>
+    <cucons>1</cucons>
+  </control>
+  <bico>
+    <bi>
+      <idbi>
+        <cn>UR</cn>
+        <rc>
+          <pc1>9872023</pc1>
+          <pc2>VH5797S</pc2>
+          <car>0001</car>
+          <cc1>W</cc1>
+          <cc2>X</cc2>
+        </rc>
+      </idbi>
+      <dt>
+        <np>CIUDAD REAL</np>
+        <nm>SANTA CRUZ DE MUDELA</nm>
+        <locs>
+          <lous>
+            <lourb>
+              <dir>
+                <tv>CL</tv>
+                <nv>GLORIA</nv>
+                <pnp>51</pnp>
+              </dir>
+              <loint>
+                <es>T</es>
+                <pt>OD</pt>
+                <pu>OS</pu>
+              </loint>
+              <dp>13730</dp>
+            </lourb>
+          </lous>
+        </locs>
+      </dt>
+      <ldt>CL GLORIA 51 13730 SANTA CRUZ DE MUDELA (CIUDAD REAL)</ldt>
+      <debi>
+        <luso>Residencial</luso>
+        <sfc>308</sfc>
+        <ant>1980</ant>
+      </debi>
+    </bi>
+    <finca>
+      <ldt>CL GLORIA 51 SANTA CRUZ DE MUDELA (CIUDAD REAL)</ldt>
+      <dff>
+        <ss>397</ss>
+      </dff>
+    </finca>
+  </bico>
+</consulta_dnp>

@@ -7,6 +7,8 @@ use App\Models\CommissionRule;
 use App\Models\Lead;
 use App\Models\PricingRule;
 use App\Models\Zone;
+use App\Support\PayoutSettings;
+use App\Support\PricingSettings;
 use Illuminate\Support\Collection;
 
 class LeadPricingService
@@ -28,6 +30,13 @@ class LeadPricingService
             return null;
         }
 
+        $configured = PayoutSettings::calculateSuggested($size, $lead->selling_price !== null
+            ? (float) $lead->selling_price
+            : null);
+        if ($configured !== null) {
+            return $configured;
+        }
+
         $rate = CommissionRule::query()
             ->where('applies_to', CommissionAppliesTo::SellerCompany->value)
             ->where('active', true)
@@ -35,7 +44,7 @@ class LeadPricingService
             ->orderByDesc('id')
             ->value('rate_per_m2');
 
-        $perM2 = $rate !== null ? (float) $rate : self::SELLER_PAYOUT_PER_M2;
+        $perM2 = $rate !== null ? (float) $rate : PayoutSettings::ratePerM2();
 
         return round($size * $perM2, 2);
     }
@@ -73,6 +82,24 @@ class LeadPricingService
         $size = $lead->size_m2 !== null ? (float) $lead->size_m2 : null;
         $zone = $lead->zone ?? ($lead->zone_id ? Zone::query()->find($lead->zone_id) : null);
 
+        if (PricingSettings::calculationMethod() === 'fixed') {
+            $fixed = PricingSettings::fixedSellingPrice();
+            $sellingPrice = PricingSettings::applyMinimum($fixed);
+
+            return [
+                'selling_price' => $sellingPrice,
+                'price_per_m2' => null,
+                'size_m2' => $size,
+                'zone_code' => $zone?->code,
+                'formula' => 'fixed_selling_price',
+                'breakdown' => [
+                    'method' => 'fixed',
+                    'currency' => PricingSettings::currency(),
+                    'tax_percent' => PricingSettings::taxPercent(),
+                ],
+            ];
+        }
+
         $rule ??= $this->resolveRule($lead->scheme_id, $lead->zone_id);
 
         if ($rule === null || $size === null || $size <= 0) {
@@ -89,7 +116,7 @@ class LeadPricingService
         }
 
         $pricePerM2 = (float) $rule->price_per_m2;
-        $sellingPrice = round($size * $pricePerM2, 2);
+        $sellingPrice = PricingSettings::applyMinimum(round($size * $pricePerM2, 2));
 
         return [
             'selling_price' => $sellingPrice,

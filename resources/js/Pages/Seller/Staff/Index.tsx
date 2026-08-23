@@ -14,6 +14,7 @@ import {
     tableActionIcons,
 } from '@/Components/ui';
 import { useIsMobile } from '@/hooks/use-media-query';
+import { useClientTableSort } from '@/hooks/use-list-sort';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import type { PageProps } from '@/types';
 
@@ -131,19 +132,50 @@ export default function StaffIndex({
 
     const pending = invitations.filter((row) => row.status === 'pending');
 
-    const tabItems = [
-        { id: 'staff', label: t.staff_roster ?? t.tab_staff_info },
-        ...(can_manage_staff
-            ? [{ id: 'invite', label: t.tab_invite_staff }]
-            : []),
-    ];
-
     const roleLabel = (role: string | null) => {
         if (!role) {
             return '—';
         }
         return translations.roles?.[role] ?? role;
     };
+
+    const { sortedRows: sortedStaff, sortableHeader: staffSortableHeader } =
+        useClientTableSort(staff, {
+            defaultSort: 'name',
+            defaultDirection: 'asc',
+            sortAscLabel: common.sort_asc,
+            sortDescLabel: common.sort_desc,
+            accessors: {
+                name: (row) => row.name ?? row.email ?? '',
+                email: (row) => row.email ?? '',
+                role: (row) => roleLabel(row.role),
+                status: (row) => row.approval_status ?? '',
+                rate: (row) => row.commission_rate ?? -1,
+                leads: (row) => row.leads_submitted,
+            },
+        });
+
+    const {
+        sortedRows: sortedInvitations,
+        sortableHeader: invitationSortableHeader,
+    } = useClientTableSort(pending, {
+        defaultSort: 'email',
+        defaultDirection: 'asc',
+        sortAscLabel: common.sort_asc,
+        sortDescLabel: common.sort_desc,
+        accessors: {
+            email: (row) => row.email,
+            status: (row) => row.status ?? '',
+            expires: (row) => row.expires_at ?? '',
+        },
+    });
+
+    const tabItems = [
+        { id: 'staff', label: t.staff_roster ?? t.tab_staff_info },
+        ...(can_manage_staff
+            ? [{ id: 'invite', label: t.tab_invite_staff }]
+            : []),
+    ];
 
     const staffTable = (
         <section className="space-y-3">
@@ -199,28 +231,37 @@ export default function StaffIndex({
                 />
             ) : (
                 <DataTable
-                    data={staff}
+                    data={sortedStaff}
                     getRowId={(row) => String(row.user_id)}
                     emptyMessage={t.empty_staff}
                     columns={[
                         {
                             id: 'name',
-                            header: t.name ?? t.staff_member,
+                            header: staffSortableHeader(
+                                t.name ?? t.staff_member,
+                                'name',
+                            ),
                             cell: (row) => row.name ?? '—',
                         },
                         {
                             id: 'email',
-                            header: translations.seller.profile.email,
+                            header: staffSortableHeader(
+                                translations.seller.profile.email,
+                                'email',
+                            ),
                             cell: (row) => row.email ?? '—',
                         },
                         {
                             id: 'role',
-                            header: common.role ?? t.role,
+                            header: staffSortableHeader(
+                                common.role ?? t.role,
+                                'role',
+                            ),
                             cell: (row) => roleLabel(row.role),
                         },
                         {
                             id: 'status',
-                            header: common.status,
+                            header: staffSortableHeader(common.status, 'status'),
                             cell: (row) =>
                                 row.approval_status ? (
                                     <StatusBadge
@@ -238,7 +279,10 @@ export default function StaffIndex({
                         },
                         {
                             id: 'rate',
-                            header: t.commission_percent ?? t.commission_rate,
+                            header: staffSortableHeader(
+                                t.commission_percent ?? t.commission_rate,
+                                'rate',
+                            ),
                             cell: (row) =>
                                 row.commission_rate != null
                                     ? `${row.commission_rate}%`
@@ -246,7 +290,10 @@ export default function StaffIndex({
                         },
                         {
                             id: 'leads',
-                            header: t.leads_submitted,
+                            header: staffSortableHeader(
+                                t.leads_submitted,
+                                'leads',
+                            ),
                             cell: (row) => row.leads_submitted,
                         },
                         ...(can_manage_commissions
@@ -341,18 +388,24 @@ export default function StaffIndex({
                     />
                 ) : (
                     <DataTable
-                        data={pending}
+                        data={sortedInvitations}
                         getRowId={(row) => String(row.id)}
                         emptyMessage={t.empty_invites}
                         columns={[
                             {
                                 id: 'email',
-                                header: t.invite_email,
+                                header: invitationSortableHeader(
+                                    t.invite_email,
+                                    'email',
+                                ),
                                 cell: (row) => row.email,
                             },
                             {
                                 id: 'status',
-                                header: common.status,
+                                header: invitationSortableHeader(
+                                    common.status,
+                                    'status',
+                                ),
                                 cell: (row) =>
                                     row.status ? (
                                         <StatusBadge
@@ -368,7 +421,10 @@ export default function StaffIndex({
                             },
                             {
                                 id: 'expires',
-                                header: t.expires,
+                                header: invitationSortableHeader(
+                                    t.expires,
+                                    'expires',
+                                ),
                                 cell: (row) =>
                                     row.expires_at
                                         ? new Date(

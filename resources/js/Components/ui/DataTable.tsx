@@ -15,6 +15,9 @@ export interface DataTableProps<T> {
     getRowId: (row: T) => string;
     emptyMessage?: string;
     className?: string;
+    tableClassName?: string;
+    dense?: boolean;
+    fixedLayout?: boolean;
     onRowClick?: (row: T) => void;
 }
 
@@ -24,8 +27,13 @@ export function DataTable<T>({
     getRowId,
     emptyMessage = 'No records found.',
     className,
+    tableClassName,
+    dense = false,
+    fixedLayout = false,
     onRowClick,
 }: DataTableProps<T>) {
+    const cellPad = dense ? 'px-2.5 py-2' : 'px-4 py-3';
+
     return (
         <div
             className={cn(
@@ -34,7 +42,15 @@ export function DataTable<T>({
             )}
         >
             <div className="overflow-x-auto overscroll-x-contain">
-                <table className="w-max min-w-full border-collapse divide-y divide-rml-border text-left text-sm">
+                <table
+                    className={cn(
+                        'border-collapse divide-y divide-rml-border text-left text-sm',
+                        fixedLayout
+                            ? 'w-full table-fixed'
+                            : 'w-max min-w-full',
+                        tableClassName,
+                    )}
+                >
                     <thead className="bg-rml-background">
                         <tr>
                             {columns.map((column) => (
@@ -42,7 +58,9 @@ export function DataTable<T>({
                                         key={column.id}
                                         scope="col"
                                         className={cn(
-                                            'whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-rml-muted',
+                                            cellPad,
+                                            'text-xs font-semibold uppercase tracking-wide text-rml-muted',
+                                            !fixedLayout && 'whitespace-nowrap',
                                             column.className,
                                         )}
                                     >
@@ -56,7 +74,10 @@ export function DataTable<T>({
                             <tr>
                                 <td
                                     colSpan={columns.length}
-                                    className="px-4 py-10 text-center text-rml-muted"
+                                    className={cn(
+                                        cellPad,
+                                        'py-10 text-center text-rml-muted',
+                                    )}
                                 >
                                     {emptyMessage}
                                 </td>
@@ -75,7 +96,10 @@ export function DataTable<T>({
                                             <td
                                                 key={column.id}
                                                 className={cn(
-                                                    'whitespace-nowrap px-4 py-3 text-rml-text',
+                                                    cellPad,
+                                                    'text-rml-text',
+                                                    !fixedLayout &&
+                                                        'whitespace-nowrap',
                                                     column.className,
                                                 )}
                                             >

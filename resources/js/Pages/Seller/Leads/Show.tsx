@@ -10,6 +10,8 @@ import {
     StatusBadge,
 } from '@/Components/ui';
 import type { UploadedFileMeta } from '@/Components/ui/FileUpload';
+import { CatastroSellerStatusCard } from '@/Components/catastro/CatastroSellerStatusCard';
+import type { CatastroPanelPayload } from '@/Components/catastro/CatastroVerificationCard';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import {
     formatSellerMoney,
@@ -102,14 +104,31 @@ function DetailRow({
     );
 }
 
+interface SurveySummaryProp {
+    exists: boolean;
+    status: string;
+    action: string;
+    action_label: string;
+    href: string | null;
+    eligibility_status: string;
+    can_conduct?: boolean;
+    can_review?: boolean;
+}
+
 export default function SellerLeadsShow({
     lead,
+    survey = null,
+    catastro = null,
 }: {
     lead: SellerLead;
     schemes: SchemeOption[];
+    survey?: SurveySummaryProp | null;
+    catastro?: CatastroPanelPayload | null;
+    can_lookup_catastro?: boolean;
 }) {
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.seller.leads;
+    const surveyT = translations.survey;
     const common = translations.seller.common;
     const payoutLabels = sellerPayoutLabels(translations);
     const leadStatuses = translations.lead_statuses;
@@ -195,16 +214,29 @@ export default function SellerLeadsShow({
             title={t.show_title}
             subtitle={lead.lead_reference}
             headerActions={
-                (lead.status === 'draft' ||
-                    lead.status === 'pending_evidence') && (
-                    <Link href={route('seller.leads.edit', lead.id)}>
-                        <Button size="sm">
-                            {lead.status === 'draft'
-                                ? (t.continue_draft ?? t.edit_draft)
-                                : t.edit_draft}
-                        </Button>
-                    </Link>
-                )
+                <div className="flex flex-wrap items-center gap-2">
+                    {survey?.href && (
+                        <Link
+                            href={survey.href}
+                            method={survey.action === 'start' ? 'post' : 'get'}
+                            as={survey.action === 'start' ? 'button' : 'a'}
+                        >
+                            <Button size="sm" variant="secondary">
+                                {survey.action_label}
+                            </Button>
+                        </Link>
+                    )}
+                    {(lead.status === 'draft' ||
+                        lead.status === 'pending_evidence') && (
+                        <Link href={route('seller.leads.edit', lead.id)}>
+                            <Button size="sm">
+                                {lead.status === 'draft'
+                                    ? (t.continue_draft ?? t.edit_draft)
+                                    : t.edit_draft}
+                            </Button>
+                        </Link>
+                    )}
+                </div>
             }
         >
             <Head title={`${t.show_title} · ${lead.lead_reference}`} />
@@ -213,6 +245,7 @@ export default function SellerLeadsShow({
                 <BackLink
                     href={route('seller.leads.index')}
                     label={common.back}
+                    useHistory={false}
                 />
                 <p className="font-mono text-lg font-semibold text-rml-text">
                     {lead.lead_reference}
@@ -227,6 +260,37 @@ export default function SellerLeadsShow({
                     />
                 )}
             </div>
+
+            {survey && (
+                <section className="rml-card space-y-2 p-4 sm:p-5">
+                    <h2 className="text-base font-semibold text-rml-text">
+                        {surveyT.card_title}
+                    </h2>
+                    <div className="flex flex-wrap gap-2">
+                        <StatusBadge
+                            label={
+                                surveyT.statuses?.[
+                                    survey.status as keyof typeof surveyT.statuses
+                                ] ?? survey.status
+                            }
+                            tone="neutral"
+                        />
+                    </div>
+                    <p className="text-sm text-rml-muted">
+                        {surveyT.eligibility}: {survey.eligibility_status}
+                    </p>
+                </section>
+            )}
+
+            {catastro && (
+                <CatastroSellerStatusCard
+                    cadastralReference={
+                        catastro.lead_submitted?.cadastral_reference ?? null
+                    }
+                    sellerStatus={catastro.seller_status ?? null}
+                    enabled={catastro.enabled !== false}
+                />
+            )}
 
             {(lead.rejection_reason ||
                 lead.rejection_comment ||

@@ -17,6 +17,7 @@ use App\Services\Auditor\AuditWorkflowService;
 use App\Support\AuditorLeadPresenter;
 use App\Support\ListPagination;
 use App\Support\ListSort;
+use App\Support\SurveySummary;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -86,6 +87,8 @@ class AuditController extends Controller
         $checkedCount = collect($checklist)->where('checked', true)->count();
         $totalCount = count($checklist);
 
+        $lead->loadMissing(['survey', 'latestCatastroSnapshot']);
+
         return Inertia::render('Auditor/Audits/Show', [
             'lead' => AuditorLeadPresenter::present($lead),
             'checklist' => $checklist,
@@ -95,6 +98,11 @@ class AuditController extends Controller
                 'percent' => $totalCount > 0 ? round(($checkedCount / $totalCount) * 100) : 0,
             ],
             'can_recommend' => ! in_array($audit->status?->value, ['accepted', 'rejected'], true),
+            'survey' => SurveySummary::forLead($lead, $request->user(), 'auditor'),
+            'catastro' => app(\App\Services\Catastro\CatastroLookupService::class)
+                ->presentForLead($lead, includeProtected: true),
+            'can_lookup_catastro' => (bool) $request->user()?->can(\App\Support\Permissions::LOOKUP_CATASTRO),
+            'can_review_catastro' => (bool) $request->user()?->can(\App\Support\Permissions::REVIEW_CATASTRO),
         ]);
     }
 

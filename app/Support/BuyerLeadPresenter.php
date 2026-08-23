@@ -99,6 +99,10 @@ final class BuyerLeadPresenter
                 ->map(fn (LeadEvidenceFile $file) => SellerLeadPresenter::evidenceMeta($file))
                 ->values()
                 ->all(),
+            // Exact pin only after payment release.
+            'latitude' => $lead->latitude !== null ? (float) $lead->latitude : null,
+            'longitude' => $lead->longitude !== null ? (float) $lead->longitude : null,
+            'formatted_address' => $lead->formatted_address,
         ]);
     }
 

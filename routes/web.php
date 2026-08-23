@@ -6,10 +6,14 @@ use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\BuyerController as AdminBuyerController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DomainFoundationController;
+use App\Http\Controllers\Admin\AdminLeadController;
+use App\Http\Controllers\Admin\AdminSaleController;
 use App\Http\Controllers\Admin\LeadAuditController;
 use App\Http\Controllers\Admin\LeadBoughtController;
 use App\Http\Controllers\Admin\LeadEvidenceController;
 use App\Http\Controllers\Admin\LeadHubController;
+use App\Http\Controllers\Admin\LeadLocationController;
+use App\Http\Controllers\Admin\LeadPackageController;
 use App\Http\Controllers\Admin\LeadSoldController;
 use App\Http\Controllers\Admin\MessageController as AdminMessageController;
 use App\Http\Controllers\Admin\PaymentController as AdminPaymentController;
@@ -28,6 +32,7 @@ use App\Http\Controllers\Buyer\PackageController as BuyerPackageController;
 use App\Http\Controllers\Buyer\PaymentController as BuyerPaymentController;
 use App\Http\Controllers\Buyer\ProfileController as BuyerProfileController;
 use App\Http\Controllers\Buyer\PurchaseController as BuyerPurchaseController;
+use App\Http\Controllers\Catastro\LeadCatastroController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\InvoiceDownloadController;
 use App\Http\Controllers\LocaleController;
@@ -43,6 +48,7 @@ use App\Http\Controllers\Seller\PaymentController as SellerPaymentController;
 use App\Http\Controllers\Seller\ProfileController as SellerProfileController;
 use App\Http\Controllers\Seller\StaffController;
 use App\Http\Controllers\Seller\StaffInvitationController;
+use App\Http\Controllers\Survey\LeadSurveyController;
 use App\Http\Controllers\Webhooks\MollieWebhookController;
 use App\Http\Controllers\Webhooks\StripeWebhookController;
 use App\Support\Permissions;
@@ -107,6 +113,8 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             })->name('sellers.index');
             Route::get('/sellers/{user}', [AdminSellerController::class, 'show'])->name('sellers.show');
             Route::put('/sellers/{user}', [AdminSellerController::class, 'update'])->name('sellers.update');
+            Route::post('/sellers/{user}/geocode-company', [AdminSellerController::class, 'geocodeCompany'])->name('sellers.geocode-company');
+            Route::put('/sellers/{user}/company-location', [AdminSellerController::class, 'updateCompanyLocation'])->name('sellers.company-location');
             Route::post('/sellers/{user}/approve', [AdminSellerController::class, 'approve'])->name('sellers.approve');
             Route::post('/sellers/{user}/reject', [AdminSellerController::class, 'reject'])->name('sellers.reject');
             Route::post('/sellers/{user}/suspend', [AdminSellerController::class, 'suspend'])->name('sellers.suspend');
@@ -121,6 +129,8 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             })->name('buyers.index');
             Route::get('/buyers/{user}', [AdminBuyerController::class, 'show'])->name('buyers.show');
             Route::put('/buyers/{user}', [AdminBuyerController::class, 'update'])->name('buyers.update');
+            Route::post('/buyers/{user}/geocode-company', [AdminBuyerController::class, 'geocodeCompany'])->name('buyers.geocode-company');
+            Route::put('/buyers/{user}/company-location', [AdminBuyerController::class, 'updateCompanyLocation'])->name('buyers.company-location');
             Route::post('/buyers/{user}/approve', [AdminBuyerController::class, 'approve'])->name('buyers.approve');
             Route::post('/buyers/{user}/reject', [AdminBuyerController::class, 'reject'])->name('buyers.reject');
             Route::post('/buyers/{user}/suspend', [AdminBuyerController::class, 'suspend'])->name('buyers.suspend');
@@ -140,6 +150,8 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             Route::post('/users/{user}/assign-audits', [AdminUserController::class, 'assignAudits'])->name('users.assign-audits');
 
             Route::get('/leads', [LeadHubController::class, 'index'])->name('leads.index');
+            Route::get('/leads/create', [AdminLeadController::class, 'create'])->name('leads.create');
+            Route::post('/leads', [AdminLeadController::class, 'store'])->name('leads.store');
             Route::get('/leads-bought', function (\Illuminate\Http\Request $request) {
                 return redirect()->route('admin.leads.index', array_merge(
                     $request->query(),
@@ -147,6 +159,24 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
                 ));
             })->name('leads-bought.index');
             Route::get('/leads-bought/{lead}', [LeadBoughtController::class, 'show'])->name('leads-bought.show');
+            Route::post('/leads/{lead}/survey/start', [LeadSurveyController::class, 'start'])->name('surveys.start');
+            Route::get('/leads/{lead}/survey', [LeadSurveyController::class, 'show'])->name('surveys.show');
+            Route::post('/leads/{lead}/survey/draft', [LeadSurveyController::class, 'storeDraft'])->name('surveys.draft');
+            Route::post('/leads/{lead}/survey/submit', [LeadSurveyController::class, 'submit'])->name('surveys.submit');
+            Route::post('/leads/{lead}/survey/evidence', [LeadSurveyController::class, 'uploadEvidence'])->name('surveys.evidence');
+            Route::delete('/leads/{lead}/survey/evidence/{evidence}', [LeadSurveyController::class, 'destroyEvidence'])->name('surveys.evidence.destroy');
+            Route::get('/leads/{lead}/survey/evidence/{evidence}/download', [LeadSurveyController::class, 'downloadEvidence'])->name('surveys.evidence.download');
+            Route::post('/leads/{lead}/survey/correction', [LeadSurveyController::class, 'requestCorrection'])->name('surveys.correction');
+            Route::post('/leads/{lead}/survey/approve', [LeadSurveyController::class, 'approve'])->name('surveys.approve');
+            Route::post('/leads/{lead}/survey/reject', [LeadSurveyController::class, 'reject'])->name('surveys.reject');
+            Route::post('/leads/{lead}/geocode', [LeadLocationController::class, 'geocode'])->name('leads.geocode');
+            Route::put('/leads/{lead}/location', [LeadLocationController::class, 'updateCoordinates'])->name('leads.location');
+            Route::post('/leads/{lead}/catastro/check', [LeadCatastroController::class, 'check'])->name('catastro.check');
+            Route::post('/leads/{lead}/catastro/reference', [LeadCatastroController::class, 'lookupByReference'])->name('catastro.lookup.reference');
+            Route::put('/leads/{lead}/catastro/reference', [LeadCatastroController::class, 'updateReference'])->name('catastro.reference.update');
+            Route::post('/leads/{lead}/catastro/address', [LeadCatastroController::class, 'lookupByAddress'])->name('catastro.lookup.address');
+            Route::post('/leads/{lead}/catastro/snapshots/{snapshot}/select', [LeadCatastroController::class, 'selectResult'])->name('catastro.select');
+            Route::post('/leads/{lead}/catastro/snapshots/{snapshot}/review', [LeadCatastroController::class, 'review'])->name('catastro.review');
 
             Route::get('/leads-sold', function (\Illuminate\Http\Request $request) {
                 return redirect()->route('admin.leads.index', array_merge(
@@ -155,6 +185,21 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
                 ));
             })->name('leads-sold.index');
             Route::get('/leads-sold/{lead}', [LeadSoldController::class, 'show'])->name('leads-sold.show');
+
+            Route::get('/packages', function (\Illuminate\Http\Request $request) {
+                return redirect()->route('admin.leads.index', array_merge(
+                    $request->query(),
+                    ['tab' => 'packages'],
+                ));
+            })->name('packages.index');
+            Route::get('/packages/create', [LeadPackageController::class, 'create'])->name('packages.create');
+            Route::post('/packages', [LeadPackageController::class, 'store'])->name('packages.store');
+            Route::get('/packages/{package}', [LeadPackageController::class, 'show'])->name('packages.show');
+            Route::post('/packages/{package}/cancel', [LeadPackageController::class, 'cancel'])->name('packages.cancel');
+            Route::post('/packages/{package}/assign-buyer', [LeadPackageController::class, 'assignBuyer'])->name('packages.assign-buyer');
+
+            Route::get('/sales/create', [AdminSaleController::class, 'create'])->name('sales.create');
+            Route::post('/sales', [AdminSaleController::class, 'store'])->name('sales.store');
 
             Route::get('/leads/{lead}/audit', [LeadAuditController::class, 'show'])->name('leads.audit.show');
             Route::get('/leads/{lead}/audit/data', [LeadAuditController::class, 'data'])->name('leads.audit.data');
@@ -208,6 +253,7 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
                 Route::put('/settings/templates/{template}/versions/{version}/activate', [SettingController::class, 'activateTemplateVersion'])->name('settings.templates.versions.activate');
                 Route::put('/settings/templates/{template}/versions/{version}/deactivate', [SettingController::class, 'deactivateTemplateVersion'])->name('settings.templates.versions.deactivate');
                 Route::put('/settings/general', [SettingController::class, 'updateGeneral'])->name('settings.general.update');
+                Route::put('/settings/leads-packages', [SettingController::class, 'updateLeadsPackages'])->name('settings.leads-packages.update');
                 Route::delete('/settings/logs/{auditLog}', [SettingController::class, 'destroyAuditLog'])->name('settings.logs.destroy');
             });
 
@@ -231,6 +277,16 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             Route::post('/leads/{lead}/evidence', [SellerLeadController::class, 'updateEvidence'])->name('leads.evidence');
             Route::get('/leads/evidence/{evidence}/view', [LeadEvidenceController::class, 'view'])->name('leads.evidence.view');
             Route::get('/leads/evidence/{evidence}/download', [LeadEvidenceController::class, 'download'])->name('leads.evidence.download');
+            Route::post('/leads/{lead}/survey/start', [LeadSurveyController::class, 'start'])->name('surveys.start');
+            Route::get('/leads/{lead}/survey', [LeadSurveyController::class, 'show'])->name('surveys.show');
+            Route::post('/leads/{lead}/survey/draft', [LeadSurveyController::class, 'storeDraft'])->name('surveys.draft');
+            Route::post('/leads/{lead}/survey/submit', [LeadSurveyController::class, 'submit'])->name('surveys.submit');
+            Route::post('/leads/{lead}/survey/evidence', [LeadSurveyController::class, 'uploadEvidence'])->name('surveys.evidence');
+            Route::delete('/leads/{lead}/survey/evidence/{evidence}', [LeadSurveyController::class, 'destroyEvidence'])->name('surveys.evidence.destroy');
+            Route::get('/leads/{lead}/survey/evidence/{evidence}/download', [LeadSurveyController::class, 'downloadEvidence'])->name('surveys.evidence.download');
+            Route::post('/leads/{lead}/survey/correction', [LeadSurveyController::class, 'requestCorrection'])->name('surveys.correction');
+            Route::post('/leads/{lead}/survey/approve', [LeadSurveyController::class, 'approve'])->name('surveys.approve');
+            Route::post('/leads/{lead}/survey/reject', [LeadSurveyController::class, 'reject'])->name('surveys.reject');
 
             Route::get('/audited-leads', [AuditedLeadController::class, 'index'])->name('audited-leads');
 
@@ -287,6 +343,7 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
 
             Route::get('/purchases', [BuyerPurchaseController::class, 'index'])->name('purchases.index');
             Route::get('/purchases/{purchase}', [BuyerPurchaseController::class, 'show'])->name('purchases.show');
+            Route::delete('/purchases/{purchase}', [BuyerPurchaseController::class, 'destroy'])->name('purchases.destroy');
             Route::post('/purchases/{purchase}/whatsapp', [BuyerPurchaseController::class, 'sendWhatsApp'])->name('purchases.whatsapp');
 
             Route::get('/leads/evidence/{evidence}/view', [LeadEvidenceController::class, 'view'])->name('leads.evidence.view');
@@ -328,6 +385,22 @@ Route::middleware(['auth', 'verified', 'approved'])->group(function () {
             Route::post('/audits/{lead}/recommend-accept', [AuditorAuditController::class, 'recommendAccept'])->name('audits.recommend-accept');
             Route::post('/audits/{lead}/recommend-reject', [AuditorAuditController::class, 'recommendReject'])->name('audits.recommend-reject');
             Route::post('/audits/{lead}/request-info', [AuditorAuditController::class, 'requestInfo'])->name('audits.request-info');
+            Route::post('/leads/{lead}/survey/start', [LeadSurveyController::class, 'start'])->name('surveys.start');
+            Route::get('/leads/{lead}/survey', [LeadSurveyController::class, 'show'])->name('surveys.show');
+            Route::post('/leads/{lead}/survey/draft', [LeadSurveyController::class, 'storeDraft'])->name('surveys.draft');
+            Route::post('/leads/{lead}/survey/submit', [LeadSurveyController::class, 'submit'])->name('surveys.submit');
+            Route::post('/leads/{lead}/survey/evidence', [LeadSurveyController::class, 'uploadEvidence'])->name('surveys.evidence');
+            Route::delete('/leads/{lead}/survey/evidence/{evidence}', [LeadSurveyController::class, 'destroyEvidence'])->name('surveys.evidence.destroy');
+            Route::get('/leads/{lead}/survey/evidence/{evidence}/download', [LeadSurveyController::class, 'downloadEvidence'])->name('surveys.evidence.download');
+            Route::post('/leads/{lead}/survey/correction', [LeadSurveyController::class, 'requestCorrection'])->name('surveys.correction');
+            Route::post('/leads/{lead}/survey/approve', [LeadSurveyController::class, 'approve'])->name('surveys.approve');
+            Route::post('/leads/{lead}/survey/reject', [LeadSurveyController::class, 'reject'])->name('surveys.reject');
+            Route::post('/leads/{lead}/catastro/check', [LeadCatastroController::class, 'check'])->name('catastro.check');
+            Route::post('/leads/{lead}/catastro/reference', [LeadCatastroController::class, 'lookupByReference'])->name('catastro.lookup.reference');
+            Route::put('/leads/{lead}/catastro/reference', [LeadCatastroController::class, 'updateReference'])->name('catastro.reference.update');
+            Route::post('/leads/{lead}/catastro/address', [LeadCatastroController::class, 'lookupByAddress'])->name('catastro.lookup.address');
+            Route::post('/leads/{lead}/catastro/snapshots/{snapshot}/select', [LeadCatastroController::class, 'selectResult'])->name('catastro.select');
+            Route::post('/leads/{lead}/catastro/snapshots/{snapshot}/review', [LeadCatastroController::class, 'review'])->name('catastro.review');
 
             Route::get('/leads/evidence/{evidence}/view', [LeadEvidenceController::class, 'view'])->name('leads.evidence.view');
             Route::get('/leads/evidence/{evidence}/download', [LeadEvidenceController::class, 'download'])->name('leads.evidence.download');

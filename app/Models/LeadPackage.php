@@ -29,6 +29,7 @@ class LeadPackage extends Model
         'estimated_total',
         'status',
         'created_by_user_id',
+        'buyer_company_id',
     ];
 
     /**
@@ -57,6 +58,11 @@ class LeadPackage extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    public function buyerCompany(): BelongsTo
+    {
+        return $this->belongsTo(Company::class, 'buyer_company_id');
     }
 
     public function leads(): BelongsToMany

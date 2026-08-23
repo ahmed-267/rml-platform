@@ -106,12 +106,19 @@ class HandleInertiaRequests extends Middleware
             'documents' => __('rml.documents'),
             'validation' => __('rml.validation'),
             'rejection' => __('rml.rejection'),
+            'location' => __('rml.location'),
+            'survey' => __('rml.survey'),
+            'catastro' => __('rml.catastro'),
         ];
 
         return match ($portal) {
             'seller' => $shared + ['seller' => __('rml.seller')],
             'buyer' => $shared + ['buyer' => __('rml.buyer')],
-            'admin' => $shared + ['admin' => __('rml.admin')],
+            // Seller lead labels reused by Admin Create Lead wizard.
+            'admin' => $shared + [
+                'admin' => __('rml.admin'),
+                'seller' => __('rml.seller'),
+            ],
             'auditor' => $shared + ['auditor' => __('rml.auditor')],
             default => $shared + [
                 'seller' => __('rml.seller'),

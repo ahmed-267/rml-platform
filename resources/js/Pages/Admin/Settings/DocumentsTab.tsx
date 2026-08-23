@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import {
     Button,
@@ -16,6 +16,8 @@ import {
     tableActionIcons,
 } from '@/Components/ui';
 import { useIsMobile } from '@/hooks/use-media-query';
+import { useClientTableSort } from '@/hooks/use-list-sort';
+import { cn } from '@/lib/cn';
 import type { TemplateRow, TemplateVersionRow } from './types';
 
 type DocumentTabKind = 'agreements' | 'terms' | 'gdpr';
@@ -45,6 +47,64 @@ function templateToForm(template: TemplateRow): TemplateFormData {
     };
 }
 
+function TemplateVersionsTable({
+    template,
+    versions,
+    t,
+    common,
+    versionActions,
+}: {
+    template: TemplateRow;
+    versions: TemplateVersionRow[];
+    t: Record<string, string>;
+    common: Record<string, string>;
+    versionActions: (
+        template: TemplateRow,
+        version: TemplateVersionRow,
+    ) => ReactNode;
+}) {
+    const { sortedRows, sortableHeader } = useClientTableSort(versions, {
+        defaultSort: 'version',
+        defaultDirection: 'desc',
+        sortAscLabel: common.sort_asc,
+        sortDescLabel: common.sort_desc,
+        accessors: {
+            version: (row) => row.version,
+            status: (row) => (row.is_active ? 1 : 0),
+        },
+    });
+
+    return (
+        <DataTable
+            data={sortedRows}
+            getRowId={(row) => String(row.id)}
+            emptyMessage={common.empty}
+            columns={[
+                {
+                    id: 'version',
+                    header: sortableHeader(t.version, 'version'),
+                    cell: (row) => row.version,
+                },
+                {
+                    id: 'status',
+                    header: sortableHeader(common.status, 'status'),
+                    cell: (row) => (
+                        <StatusBadge
+                            label={row.is_active ? t.active : t.inactive}
+                            tone={row.is_active ? 'success' : 'neutral'}
+                        />
+                    ),
+                },
+                {
+                    id: 'actions',
+                    header: common.actions,
+                    cell: (row) => versionActions(template, row),
+                },
+            ]}
+        />
+    );
+}
+
 export default function DocumentsTab({
     tabKind,
     templates,
@@ -52,6 +112,7 @@ export default function DocumentsTab({
     t,
     common,
     templateTypes,
+    embedded = false,
 }: {
     tabKind: DocumentTabKind;
     templates: TemplateRow[];
@@ -59,6 +120,7 @@ export default function DocumentsTab({
     t: Record<string, string>;
     common: Record<string, string>;
     templateTypes: Record<string, string>;
+    embedded?: boolean;
 }) {
     const isMobile = useIsMobile();
     const [creating, setCreating] = useState(false);
@@ -98,6 +160,19 @@ export default function DocumentsTab({
         }
         return templateTypes[type] ?? type;
     };
+
+    const { sortedRows, sortableHeader } = useClientTableSort(templates, {
+        defaultSort: 'name',
+        defaultDirection: 'asc',
+        sortAscLabel: common.sort_asc,
+        sortDescLabel: common.sort_desc,
+        accessors: {
+            name: (row) => row.name,
+            type: (row) => typeLabel(row.type),
+            version: (row) => row.active_version ?? '',
+            status: (row) => (row.active_version_id ? 1 : 0),
+        },
+    });
 
     const sectionTitle =
         tabKind === 'agreements'
@@ -247,18 +322,32 @@ export default function DocumentsTab({
 
     return (
         <div className="space-y-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <h2 className="text-base font-semibold text-rml-text">
-                        {sectionTitle}
-                    </h2>
-                    <p className="text-xs text-rml-muted">{sectionSubtitle}</p>
-                </div>
-                {availableTypeOptions.length > 0 && (
-                    <Button size="sm" onClick={openCreate}>
-                        {t.add_template}
-                    </Button>
+            <div
+                className={cn(
+                    'flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between',
+                    embedded && 'sm:items-center',
                 )}
+            >
+                {!embedded && (
+                    <div>
+                        <h2 className="text-base font-semibold text-rml-text">
+                            {sectionTitle}
+                        </h2>
+                        {sectionSubtitle && (
+                            <p className="mt-0.5 text-sm text-rml-muted">
+                                {sectionSubtitle}
+                            </p>
+                        )}
+                    </div>
+                )}
+                <Button
+                    size="sm"
+                    onClick={openCreate}
+                    className={embedded ? 'ml-auto' : undefined}
+                    disabled={availableTypeOptions.length === 0}
+                >
+                    {t.add_template}
+                </Button>
             </div>
 
             {templates.length === 0 ? (
@@ -293,28 +382,28 @@ export default function DocumentsTab({
                 />
             ) : (
                 <DataTable
-                    data={templates}
+                    data={sortedRows}
                     getRowId={(row) => String(row.id)}
                     emptyMessage={common.empty}
                     columns={[
                         {
                             id: 'name',
-                            header: common.name,
+                            header: sortableHeader(common.name, 'name'),
                             cell: (row) => row.name,
                         },
                         {
                             id: 'type',
-                            header: t.template_type,
+                            header: sortableHeader(t.template_type, 'type'),
                             cell: (row) => typeLabel(row.type),
                         },
                         {
                             id: 'version',
-                            header: t.version,
+                            header: sortableHeader(t.version, 'version'),
                             cell: (row) => row.active_version ?? '—',
                         },
                         {
                             id: 'status',
-                            header: common.status,
+                            header: sortableHeader(common.status, 'status'),
                             cell: (row) => (
                                 <StatusBadge
                                     label={
@@ -423,44 +512,12 @@ export default function DocumentsTab({
                                 <h3 className="mb-2 text-sm font-semibold">
                                     {t.versions}
                                 </h3>
-                                <DataTable
-                                    data={viewTemplate.versions ?? []}
-                                    getRowId={(row) => String(row.id)}
-                                    emptyMessage={common.empty}
-                                    columns={[
-                                        {
-                                            id: 'version',
-                                            header: t.version,
-                                            cell: (row) => row.version,
-                                        },
-                                        {
-                                            id: 'status',
-                                            header: common.status,
-                                            cell: (row) => (
-                                                <StatusBadge
-                                                    label={
-                                                        row.is_active
-                                                            ? t.active
-                                                            : t.inactive
-                                                    }
-                                                    tone={
-                                                        row.is_active
-                                                            ? 'success'
-                                                            : 'neutral'
-                                                    }
-                                                />
-                                            ),
-                                        },
-                                        {
-                                            id: 'actions',
-                                            header: common.actions,
-                                            cell: (row) =>
-                                                versionActions(
-                                                    viewTemplate,
-                                                    row,
-                                                ),
-                                        },
-                                    ]}
+                                <TemplateVersionsTable
+                                    template={viewTemplate}
+                                    versions={viewTemplate.versions ?? []}
+                                    t={t}
+                                    common={common}
+                                    versionActions={versionActions}
                                 />
                             </div>
                         )}

@@ -53,6 +53,16 @@ class LeadAvailabilityService
                 });
             });
 
+        if (config('rml.leads.require_onsite_survey')) {
+            $query->where('survey_eligibility_status', 'survey_approved');
+        } else {
+            // Once a survey workflow has started, only approved surveys remain eligible.
+            $query->where(function (Builder $surveyQuery) {
+                $surveyQuery->whereNull('survey_eligibility_status')
+                    ->orWhere('survey_eligibility_status', 'survey_approved');
+            });
+        }
+
         return $query;
     }
 

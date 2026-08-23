@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\ApprovalStatus;
 use App\Enums\CompanyType;
+use App\Enums\GeocodingStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -27,6 +28,10 @@ class Company extends Model
         'country',
         'latitude',
         'longitude',
+        'formatted_address',
+        'geocoding_status',
+        'geocoded_at',
+        'geocoding_error',
         'notes',
         'approved_at',
         'approved_by',
@@ -40,9 +45,11 @@ class Company extends Model
         return [
             'type' => CompanyType::class,
             'approval_status' => ApprovalStatus::class,
+            'geocoding_status' => GeocodingStatus::class,
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'approved_at' => 'datetime',
+            'geocoded_at' => 'datetime',
         ];
     }
 

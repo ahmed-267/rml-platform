@@ -68,6 +68,7 @@ final class SellerLeadPresenter
             'epc_rating' => $lead->epc_rating,
             'size_m2' => $lead->size_m2 !== null ? (float) $lead->size_m2 : null,
             'notes' => $lead->notes,
+            'cadastral_reference' => $lead->cadastral_reference,
             'rejection_reason' => $lead->rejection_reason ?? $latestAudit?->rejection_reason,
             'rejection_reason_code' => $lead->rejection_reason_code,
             'rejection_comment' => $lead->rejection_comment,

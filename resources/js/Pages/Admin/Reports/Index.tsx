@@ -19,6 +19,7 @@ import {
     Tabs,
 } from '@/Components/ui';
 import { formatMoney } from '@/lib/admin-helpers';
+import { useClientTableSort } from '@/hooks/use-list-sort';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import type { PageProps } from '@/types';
 
@@ -204,6 +205,81 @@ export default function ReportsIndex({
         count,
     }));
 
+    const sortLabels = {
+        sortAscLabel: common.sort_asc,
+        sortDescLabel: common.sort_desc,
+    };
+
+    const {
+        sortedRows: sortedPipelineRows,
+        sortableHeader: pipelineSortableHeader,
+    } = useClientTableSort(pipelineRows, {
+        defaultSort: 'status',
+        defaultDirection: 'asc',
+        ...sortLabels,
+        accessors: {
+            status: (row) =>
+                leadStatusLabel(row.status, leadStatuses).toLowerCase(),
+            count: (row) => row.count,
+        },
+    });
+
+    const {
+        sortedRows: sortedRegistrationRows,
+        sortableHeader: registrationSortableHeader,
+    } = useClientTableSort(registrationRows, {
+        defaultSort: 'status',
+        defaultDirection: 'asc',
+        ...sortLabels,
+        accessors: {
+            status: (row) => (statuses[row.status] ?? row.status).toLowerCase(),
+            count: (row) => row.count,
+        },
+    });
+
+    const {
+        sortedRows: sortedMonthlyRows,
+        sortableHeader: monthlySortableHeader,
+    } = useClientTableSort(monthlyRows, {
+        defaultSort: 'month',
+        defaultDirection: 'asc',
+        ...sortLabels,
+        accessors: {
+            month: (row) => row.month,
+            count: (row) => row.count,
+        },
+    });
+
+    const {
+        sortedRows: sortedSellerPerformance,
+        sortableHeader: sellerSortableHeader,
+    } = useClientTableSort(seller_performance, {
+        defaultSort: 'name',
+        defaultDirection: 'asc',
+        ...sortLabels,
+        accessors: {
+            name: (row) => row.name,
+            submitted: (row) => row.submitted,
+            accepted: (row) => row.accepted,
+            rate: (row) => row.acceptance_rate,
+        },
+    });
+
+    const {
+        sortedRows: sortedBuyerPerformance,
+        sortableHeader: buyerSortableHeader,
+    } = useClientTableSort(buyer_performance, {
+        defaultSort: 'name',
+        defaultDirection: 'asc',
+        ...sortLabels,
+        accessors: {
+            name: (row) => row.name,
+            leads: (row) => row.leads_bought,
+            spent: (row) => row.spent,
+            avg: (row) => row.avg_per_lead,
+        },
+    });
+
     const overviewPanel = (
         <div className="space-y-6">
             <section className="space-y-3">
@@ -277,12 +353,15 @@ export default function ReportsIndex({
                     <p className="text-sm text-rml-muted">{common.empty}</p>
                 ) : (
                     <DataTable
-                        data={pipelineRows}
+                        data={sortedPipelineRows}
                         getRowId={(r) => r.status}
                         columns={[
                             {
                                 id: 'status',
-                                header: common.status,
+                                header: pipelineSortableHeader(
+                                    common.status,
+                                    'status',
+                                ),
                                 cell: (r) => (
                                     <StatusBadge
                                         label={leadStatusLabel(
@@ -295,7 +374,7 @@ export default function ReportsIndex({
                             },
                             {
                                 id: 'count',
-                                header: t.count,
+                                header: pipelineSortableHeader(t.count, 'count'),
                                 cell: (r) => r.count,
                             },
                         ]}
@@ -409,27 +488,39 @@ export default function ReportsIndex({
                     />
                 ) : (
                     <DataTable
-                        data={seller_performance}
+                        data={sortedSellerPerformance}
                         getRowId={(r) => r.name}
                         columns={[
                             {
                                 id: 'name',
-                                header: common.company,
+                                header: sellerSortableHeader(
+                                    common.company,
+                                    'name',
+                                ),
                                 cell: (r) => r.name,
                             },
                             {
                                 id: 'submitted',
-                                header: t.legend_submitted,
+                                header: sellerSortableHeader(
+                                    t.legend_submitted,
+                                    'submitted',
+                                ),
                                 cell: (r) => r.submitted,
                             },
                             {
                                 id: 'accepted',
-                                header: t.legend_accepted,
+                                header: sellerSortableHeader(
+                                    t.legend_accepted,
+                                    'accepted',
+                                ),
                                 cell: (r) => r.accepted,
                             },
                             {
                                 id: 'rate',
-                                header: t.acceptance_rate,
+                                header: sellerSortableHeader(
+                                    t.acceptance_rate,
+                                    'rate',
+                                ),
                                 cell: (r) => `${r.acceptance_rate}%`,
                             },
                         ]}
@@ -448,27 +539,39 @@ export default function ReportsIndex({
                     />
                 ) : (
                     <DataTable
-                        data={buyer_performance}
+                        data={sortedBuyerPerformance}
                         getRowId={(r) => r.name}
                         columns={[
                             {
                                 id: 'name',
-                                header: common.company,
+                                header: buyerSortableHeader(
+                                    common.company,
+                                    'name',
+                                ),
                                 cell: (r) => r.name,
                             },
                             {
                                 id: 'leads',
-                                header: t.legend_leads_bought,
+                                header: buyerSortableHeader(
+                                    t.legend_leads_bought,
+                                    'leads',
+                                ),
                                 cell: (r) => r.leads_bought,
                             },
                             {
                                 id: 'spent',
-                                header: t.legend_spent,
+                                header: buyerSortableHeader(
+                                    t.legend_spent,
+                                    'spent',
+                                ),
                                 cell: (r) => formatMoney(r.spent),
                             },
                             {
                                 id: 'avg',
-                                header: t.legend_avg_per_lead,
+                                header: buyerSortableHeader(
+                                    t.legend_avg_per_lead,
+                                    'avg',
+                                ),
                                 cell: (r) => formatMoney(r.avg_per_lead),
                             },
                         ]}
@@ -488,12 +591,15 @@ export default function ReportsIndex({
                     <p className="text-sm text-rml-muted">{common.empty}</p>
                 ) : (
                     <DataTable
-                        data={registrationRows}
+                        data={sortedRegistrationRows}
                         getRowId={(r) => r.status}
                         columns={[
                             {
                                 id: 'status',
-                                header: common.status,
+                                header: registrationSortableHeader(
+                                    common.status,
+                                    'status',
+                                ),
                                 cell: (r) => (
                                     <StatusBadge
                                         label={
@@ -505,7 +611,10 @@ export default function ReportsIndex({
                             },
                             {
                                 id: 'count',
-                                header: t.count,
+                                header: registrationSortableHeader(
+                                    t.count,
+                                    'count',
+                                ),
                                 cell: (r) => r.count,
                             },
                         ]}
@@ -521,17 +630,17 @@ export default function ReportsIndex({
                     <p className="text-sm text-rml-muted">{common.empty}</p>
                 ) : (
                     <DataTable
-                        data={monthlyRows}
+                        data={sortedMonthlyRows}
                         getRowId={(r) => r.month}
                         columns={[
                             {
                                 id: 'month',
-                                header: t.month,
+                                header: monthlySortableHeader(t.month, 'month'),
                                 cell: (r) => r.month,
                             },
                             {
                                 id: 'count',
-                                header: t.count,
+                                header: monthlySortableHeader(t.count, 'count'),
                                 cell: (r) => r.count,
                             },
                         ]}

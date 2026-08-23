@@ -72,6 +72,20 @@ final class Permissions
 
     public const MANAGE_SELLER_STAFF = 'manage_seller_staff';
 
+    public const MANAGE_PACKAGES = 'manage_packages';
+
+    public const CREATE_ADMIN_LEADS = 'create_admin_leads';
+
+    public const SELL_TO_BUYERS = 'sell_to_buyers';
+
+    public const CONDUCT_SURVEYS = 'conduct_surveys';
+
+    public const REVIEW_SURVEYS = 'review_surveys';
+
+    public const LOOKUP_CATASTRO = 'lookup_catastro';
+
+    public const REVIEW_CATASTRO = 'review_catastro';
+
     /**
      * @return list<string>
      */
@@ -111,6 +125,13 @@ final class Permissions
             self::MANAGE_MESSAGES,
             self::MESSAGE_SUPPORT,
             self::MANAGE_SELLER_STAFF,
+            self::MANAGE_PACKAGES,
+            self::CREATE_ADMIN_LEADS,
+            self::SELL_TO_BUYERS,
+            self::CONDUCT_SURVEYS,
+            self::REVIEW_SURVEYS,
+            self::LOOKUP_CATASTRO,
+            self::REVIEW_CATASTRO,
         ];
     }
 
@@ -135,6 +156,13 @@ final class Permissions
                 self::MANAGE_PAYMENTS,
                 self::VIEW_REPORTS,
                 self::MANAGE_MESSAGES,
+                self::MANAGE_PACKAGES,
+                self::CREATE_ADMIN_LEADS,
+                self::SELL_TO_BUYERS,
+                self::CONDUCT_SURVEYS,
+                self::REVIEW_SURVEYS,
+                self::LOOKUP_CATASTRO,
+                self::REVIEW_CATASTRO,
             ],
             UserRole::InternalAuditor->value => [
                 self::VIEW_AUDITOR_DASHBOARD,
@@ -142,6 +170,9 @@ final class Permissions
                 self::AUDIT_LEADS,
                 self::VIEW_CUSTOMER_DETAILS,
                 self::MESSAGE_SUPPORT,
+                self::REVIEW_SURVEYS,
+                self::LOOKUP_CATASTRO,
+                self::REVIEW_CATASTRO,
             ],
             UserRole::SellerCompanyAdmin->value => [
                 self::VIEW_SELLER_DASHBOARD,
@@ -151,6 +182,7 @@ final class Permissions
                 self::MANAGE_STAFF_COMMISSIONS,
                 self::MANAGE_SELLER_STAFF,
                 self::MESSAGE_SUPPORT,
+                self::CONDUCT_SURVEYS,
             ],
             UserRole::SellerStaff->value => [
                 self::VIEW_SELLER_DASHBOARD,
@@ -158,6 +190,7 @@ final class Permissions
                 self::VIEW_OWN_LEADS,
                 self::VIEW_OWN_COMMISSIONS,
                 self::MESSAGE_SUPPORT,
+                self::CONDUCT_SURVEYS,
             ],
             UserRole::IndividualSellerAgent->value => [
                 self::VIEW_SELLER_DASHBOARD,
@@ -165,6 +198,7 @@ final class Permissions
                 self::VIEW_OWN_LEADS,
                 self::VIEW_OWN_COMMISSIONS,
                 self::MESSAGE_SUPPORT,
+                self::CONDUCT_SURVEYS,
             ],
             UserRole::BuyerAdmin->value => [
                 self::VIEW_BUYER_DASHBOARD,

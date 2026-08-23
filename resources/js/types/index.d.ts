@@ -133,6 +133,63 @@ export interface SharedTranslations {
         accounts?: Record<string, string>;
         payments?: Record<string, string>;
     };
+    location?: {
+        title?: string;
+        company_title?: string;
+        status?: string;
+        latitude?: string;
+        longitude?: string;
+        formatted_address?: string;
+        geocoded_at?: string;
+        geocoding_error?: string;
+        cadastral_reference?: string;
+        retry?: string;
+        edit_coordinates?: string;
+        save_coordinates?: string;
+        cancel?: string;
+        statuses?: Record<string, string>;
+    };
+    survey: {
+        title: string;
+        subtitle: string;
+        save_draft: string;
+        continue: string;
+        back: string;
+        submit: string;
+        last_saved: string;
+        unsaved_warning: string;
+        required_info?: string;
+        catastro_disclaimer: string;
+        not_ownership: string;
+        read_only: string;
+        comparison_title: string;
+        comparison_hint: string;
+        ai_guidance_title: string;
+        ai_guidance: Record<string, string>;
+        actions: Record<string, string>;
+        statuses: Record<string, string>;
+        catastro_statuses: Record<string, string>;
+        providers: Record<string, string>;
+        steps: Record<string, string>;
+        sections: Record<string, string>;
+        fields: Record<string, string>;
+        access_fields: Record<string, string>;
+        no_access_fields: Record<string, string>;
+        methods: Record<string, string>;
+        yes: string;
+        no: string;
+        add_section: string;
+        remove_section: string;
+        upload_evidence: string;
+        capture_photo: string;
+        approve: string;
+        reject: string;
+        request_correction: string;
+        card_title: string;
+        eligibility: string;
+        catastro_status: string;
+        [key: string]: unknown;
+    };
 }
 
 export type PageProps<

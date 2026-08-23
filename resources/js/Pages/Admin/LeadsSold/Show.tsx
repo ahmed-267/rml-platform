@@ -1,7 +1,10 @@
 import { Head, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import { BackLink } from '@/Components/admin/BackLink';
+import { LocationCard } from '@/Components/admin/LocationCard';
 import { ProfileCard, ProfileField } from '@/Components/admin/ProfileCard';
+import { CatastroVerificationCard } from '@/Components/catastro/CatastroVerificationCard';
+import type { CatastroPanelPayload } from '@/Components/catastro/CatastroVerificationCard';
 import { StatusBadge } from '@/Components/ui';
 import { formatDateTime, formatMoney } from '@/lib/admin-helpers';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
@@ -59,13 +62,31 @@ interface SoldLead {
         created_at: string | null;
     }>;
     sold_at: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    formatted_address?: string | null;
+    geocoding_status?: string | null;
+    geocoded_at?: string | null;
+    geocoding_error?: string | null;
+    cadastral_reference?: string | null;
 }
 
-export default function LeadsSoldShow({ lead }: { lead: SoldLead }) {
+export default function LeadsSoldShow({
+    lead,
+    catastro = null,
+    can_lookup_catastro = false,
+    can_review_catastro = false,
+}: {
+    lead: SoldLead;
+    catastro?: CatastroPanelPayload | null;
+    can_lookup_catastro?: boolean;
+    can_review_catastro?: boolean;
+}) {
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.admin.leads_sold;
     const lb = translations.admin.leads_bought;
     const common = translations.admin.common;
+    const locationT = translations.location;
     const leadStatuses = translations.lead_statuses;
     const paymentStatuses = translations.payment_statuses;
     const paymentMethods = translations.payment_methods ?? {};
@@ -383,6 +404,39 @@ export default function LeadsSoldShow({ lead }: { lead: SoldLead }) {
                     )}
                 </ProfileCard>
             </div>
+
+            {catastro && (
+                <CatastroVerificationCard
+                    leadId={lead.id}
+                    catastro={catastro}
+                    routePrefix="admin"
+                    canLookup={can_lookup_catastro}
+                    canReview={can_review_catastro}
+                />
+            )}
+
+            <LocationCard
+                location={lead}
+                locale={app.locale}
+                showCadastral
+                geocodeRoute={route('admin.leads.geocode', lead.id)}
+                updateRoute={route('admin.leads.location', lead.id)}
+                labels={{
+                    title: locationT?.title ?? '',
+                    status: locationT?.status ?? '',
+                    latitude: locationT?.latitude ?? '',
+                    longitude: locationT?.longitude ?? '',
+                    formatted_address: locationT?.formatted_address ?? '',
+                    geocoded_at: locationT?.geocoded_at ?? '',
+                    geocoding_error: locationT?.geocoding_error ?? '',
+                    cadastral_reference: locationT?.cadastral_reference,
+                    retry: locationT?.retry ?? '',
+                    edit_coordinates: locationT?.edit_coordinates ?? '',
+                    save_coordinates: locationT?.save_coordinates ?? '',
+                    cancel: locationT?.cancel ?? common.cancel,
+                    statuses: locationT?.statuses ?? {},
+                }}
+            />
         </AppLayout>
     );
 }

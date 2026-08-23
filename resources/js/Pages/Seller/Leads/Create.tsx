@@ -65,6 +65,7 @@ interface ExistingLead {
     city: string | null;
     postcode: string | null;
     country: string | null;
+    cadastral_reference?: string | null;
     property_type: string | null;
     epc_rating: string | null;
     notes: string | null;
@@ -100,6 +101,7 @@ interface LeadFormData {
     city: string;
     postcode: string;
     country: string;
+    cadastral_reference: string;
     property_type: string;
     epc_rating: string;
     notes: string;
@@ -227,6 +229,7 @@ export default function SellerLeadsCreate({
             city: lead?.city ?? '',
             postcode: lead?.postcode ?? '',
             country: lead?.country ?? DEFAULT_COUNTRY,
+            cadastral_reference: lead?.cadastral_reference ?? '',
             property_type: lead?.property_type ?? '',
             epc_rating: lead?.epc_rating ?? '',
             notes: lead?.notes ?? '',
@@ -1099,6 +1102,23 @@ export default function SellerLeadsCreate({
                                 error={fieldError('country')}
                                 onChange={(e) =>
                                     setData('country', e.target.value)
+                                }
+                            />
+                            <FormInput
+                                label={
+                                    translations.location
+                                        ?.cadastral_reference ??
+                                    t.input_cadastral_reference
+                                }
+                                name="cadastral_reference"
+                                className="sm:col-span-2"
+                                value={data.cadastral_reference}
+                                error={fieldError('cadastral_reference')}
+                                onChange={(e) =>
+                                    setData(
+                                        'cadastral_reference',
+                                        e.target.value,
+                                    )
                                 }
                             />
                             <Select

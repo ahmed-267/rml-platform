@@ -3,29 +3,35 @@ import AppLayout from '@/Layouts/AppLayout';
 import { Tabs } from '@/Components/ui';
 import type { PageProps } from '@/types';
 import CommissionsTab from './CommissionsTab';
-import DocumentsTab from './DocumentsTab';
 import GeneralTab from './GeneralTab';
+import LeadsPackagesTab from './LeadsPackagesTab';
 import LogsTab from './LogsTab';
 import SchemesTab from './SchemesTab';
-import {
-    AGREEMENT_TYPES,
-    GDPR_TYPES,
-    TERMS_TYPES,
-    type AuditLogRow,
-    type CommissionRuleRow,
-    type SchemeRow,
-    type TemplateRow,
+import type {
+    AuditLogRow,
+    CommissionRuleRow,
+    SchemeRow,
+    TemplateRow,
 } from './types';
 import type { Paginator } from '@/lib/admin-helpers';
 
-const DOCUMENT_TABS = ['agreements', 'terms', 'gdpr'] as const;
+type SettingsBag = Record<string, string | number | boolean | null>;
 
 export default function SettingsIndex({
     tab,
     schemes,
     commission_rules,
-    templates,
+    agreement_templates = [],
+    terms_templates = [],
+    gdpr_templates = [],
     general,
+    package_settings = {},
+    lead_settings = {},
+    pricing_settings = {},
+    payout_settings = {},
+    reservation_settings = {},
+    catastro_settings = {},
+    scheme_requirements = [],
     logs,
     log_filters,
     log_users = [],
@@ -35,8 +41,28 @@ export default function SettingsIndex({
     tab: string;
     schemes: SchemeRow[];
     commission_rules: CommissionRuleRow[];
-    templates: TemplateRow[];
+    templates?: TemplateRow[];
+    agreement_templates?: TemplateRow[];
+    terms_templates?: TemplateRow[];
+    gdpr_templates?: TemplateRow[];
     general: Record<string, string | null>;
+    package_settings?: SettingsBag;
+    lead_settings?: SettingsBag;
+    pricing_settings?: SettingsBag;
+    payout_settings?: SettingsBag;
+    reservation_settings?: SettingsBag;
+    catastro_settings?: SettingsBag;
+    scheme_requirements?: Array<{
+        id: number;
+        name: string;
+        slug: string;
+        require_internal_audit?: boolean;
+        require_homeowner_agreement?: boolean;
+        require_epc?: boolean;
+        require_photos?: boolean;
+        min_measurement?: number | null;
+        max_measurement?: number | null;
+    }>;
     logs: Paginator<AuditLogRow> | null;
     log_filters: {
         action?: string | null;
@@ -64,8 +90,8 @@ export default function SettingsIndex({
     const activeTab = [
         'schemes',
         'commissions',
+        'leads_packages',
         'general',
-        ...DOCUMENT_TABS,
         'logs',
     ].includes(tab)
         ? tab
@@ -90,22 +116,13 @@ export default function SettingsIndex({
             label: t.tab_commissions,
             count: commission_rules.length,
         },
+        {
+            id: 'leads_packages',
+            label:
+                (t as { tab_leads_packages?: string }).tab_leads_packages ??
+                'Leads & Packages',
+        },
         { id: 'general', label: t.tab_general },
-        {
-            id: 'agreements',
-            label: t.tab_agreements,
-            count: activeTab === 'agreements' ? templates.length : undefined,
-        },
-        {
-            id: 'terms',
-            label: t.tab_terms,
-            count: activeTab === 'terms' ? templates.length : undefined,
-        },
-        {
-            id: 'gdpr',
-            label: t.tab_gdpr,
-            count: activeTab === 'gdpr' ? templates.length : undefined,
-        },
         { id: 'logs', label: t.tab_logs },
     ];
 
@@ -129,34 +146,26 @@ export default function SettingsIndex({
                         common={common}
                     />
                 )}
+                {activeTab === 'leads_packages' && (
+                    <LeadsPackagesTab
+                        leadSettings={lead_settings}
+                        packageSettings={package_settings}
+                        pricingSettings={pricing_settings}
+                        payoutSettings={payout_settings}
+                        reservationSettings={reservation_settings}
+                        catastroSettings={catastro_settings}
+                        schemes={scheme_requirements}
+                        t={t}
+                        common={common}
+                    />
+                )}
                 {activeTab === 'general' && (
-                    <GeneralTab general={general} t={t} common={common} />
-                )}
-                {activeTab === 'agreements' && (
-                    <DocumentsTab
-                        tabKind="agreements"
-                        templates={templates}
-                        allowedTypes={AGREEMENT_TYPES}
-                        t={t}
-                        common={common}
-                        templateTypes={templateTypes}
-                    />
-                )}
-                {activeTab === 'terms' && (
-                    <DocumentsTab
-                        tabKind="terms"
-                        templates={templates}
-                        allowedTypes={TERMS_TYPES}
-                        t={t}
-                        common={common}
-                        templateTypes={templateTypes}
-                    />
-                )}
-                {activeTab === 'gdpr' && (
-                    <DocumentsTab
-                        tabKind="gdpr"
-                        templates={templates}
-                        allowedTypes={GDPR_TYPES}
+                    <GeneralTab
+                        general={general}
+                        packageSettings={package_settings}
+                        agreementTemplates={agreement_templates}
+                        termsTemplates={terms_templates}
+                        gdprTemplates={gdpr_templates}
                         t={t}
                         common={common}
                         templateTypes={templateTypes}

@@ -1,0 +1,21 @@
+{
+  "kind": "single",
+  "properties": [
+    {
+      "cadastral_reference": "2749704YJ0624N0001DI",
+      "cadastral_address": "CL GUAYANA-MOJONERA 3 46388 GODELLETA (VALENCIA)",
+      "province": "VALENCIA",
+      "municipality": "GODELLETA",
+      "street_type": "CL",
+      "street_name": "GUAYANA-MOJONERA",
+      "street_number": "3",
+      "postcode": "46388",
+      "property_use": "Residencial",
+      "constructed_area_m2": 94,
+      "parcel_area_m2": null,
+      "construction_year": 1976,
+      "floor": null,
+      "door": null
+    }
+  ]
+}

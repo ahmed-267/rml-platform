@@ -109,6 +109,16 @@ class LeadAuditController extends Controller
                 || $actor?->can(Permissions::ACCEPT_REJECT_LEADS)
             ),
             'auditors' => $this->auditorOptions(),
+            'catastro' => app(\App\Services\Catastro\CatastroLookupService::class)
+                ->presentForLead($lead, includeProtected: true),
+            'can_lookup_catastro' => (bool) (
+                $actor?->can(Permissions::LOOKUP_CATASTRO)
+                || $actor?->hasRole('super_admin')
+            ),
+            'can_review_catastro' => (bool) (
+                $actor?->can(Permissions::REVIEW_CATASTRO)
+                || $actor?->hasRole('super_admin')
+            ),
         ];
     }
 

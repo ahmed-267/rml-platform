@@ -48,6 +48,7 @@ use App\Models\Zone;
 use App\Services\AuditLogService;
 use App\Services\CommissionService;
 use App\Services\LeadPricingService;
+use App\Support\SpanishLocations;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -70,6 +71,9 @@ class DomainDemoSeeder extends Seeder
         $warmHomes = $this->company('CalorHogar Instalaciones SL', CompanyType::Buyer, 'Madrid', '28002', $admin);
         $this->company('Instalpro Norte SA', CompanyType::Buyer, 'Bilbao', '48001', $admin);
         $this->company('GreenFit Costa del Sol', CompanyType::Buyer, 'Málaga', '29001', $admin);
+        $this->company('Levante Retrofit SL', CompanyType::Buyer, 'Valencia', '46003', $admin);
+        $this->company('Mediterránea Installers', CompanyType::Buyer, 'Alicante', '03003', $admin);
+        $this->company('Andalucía Heat Systems', CompanyType::Buyer, 'Sevilla', '41003', $admin);
 
         SellerProfile::query()->updateOrCreate(
             ['user_id' => $sellerAdmin->id],
@@ -133,122 +137,107 @@ class DomainDemoSeeder extends Seeder
         );
 
         $insulation = Scheme::query()->where('slug', 'insulation')->firstOrFail();
-        $zones = Zone::query()->where('scheme_id', $insulation->id)->get()->keyBy('code');
+        $glazing = Scheme::query()->where('slug', 'double-glazing')->firstOrFail();
+        $heatPumps = Scheme::query()->where('slug', 'heat-pumps')->firstOrFail();
+        $schemesBySlug = [
+            'insulation' => $insulation,
+            'double-glazing' => $glazing,
+            'heat-pumps' => $heatPumps,
+        ];
+        $zonesByScheme = [
+            'insulation' => Zone::query()->where('scheme_id', $insulation->id)->get()->keyBy('code'),
+            'double-glazing' => Zone::query()->where('scheme_id', $glazing->id)->get()->keyBy('code'),
+            'heat-pumps' => Zone::query()->where('scheme_id', $heatPumps->id)->get()->keyBy('code'),
+        ];
         $pricing = new LeadPricingService;
         $commissionService = new CommissionService;
         $auditLog = new AuditLogService;
 
         $leadDefinitions = [
-            [
-                'reference' => 'LD-1041',
-                'submitter' => $sellerAdmin,
-                'company' => $greenEnergy,
-                'zone' => 'D1',
-                'status' => LeadStatus::Listed,
-                'size' => 95,
-                'city' => 'Madrid',
-                'first' => 'Carlos',
-                'last' => 'Garcia',
-                'phone' => '+34600104101',
-            ],
-            [
-                'reference' => 'LD-1042',
-                'submitter' => $sellerStaff,
-                'company' => $greenEnergy,
-                'zone' => 'D2',
-                'status' => LeadStatus::Listed,
-                'size' => 110,
-                'city' => 'Alcala de Henares',
-                'first' => 'Maria',
-                'last' => 'Lopez',
-                'phone' => '+34600104102',
-            ],
-            [
-                'reference' => 'LD-1043',
-                'submitter' => $sellerStaff,
-                'company' => $greenEnergy,
-                'zone' => 'E1',
-                'status' => LeadStatus::Sold,
-                'size' => 84,
-                'city' => 'Getafe',
-                'first' => 'Javier',
-                'last' => 'Martin',
-                'phone' => '+34600104103',
-            ],
-            [
-                'reference' => 'LD-1044',
-                'submitter' => $agent,
-                'company' => $smithSurveys,
-                'zone' => 'E2',
-                'status' => LeadStatus::PendingValidation,
-                'size' => 72,
-                'city' => 'Barcelona',
-                'first' => 'Elena',
-                'last' => 'Ruiz',
-                'phone' => '+34600104104',
-            ],
-            [
-                'reference' => 'LD-1045',
-                'submitter' => $sellerAdmin,
-                'company' => $greenEnergy,
-                'zone' => 'D1',
-                'status' => LeadStatus::NeedsMoreInformation,
-                'size' => 60,
-                'city' => 'Leganes',
-                'first' => 'Pedro',
-                'last' => 'Sanchez',
-                'phone' => '+34600104105',
-            ],
-            [
-                'reference' => 'LD-1046',
-                'submitter' => $sellerAdmin,
-                'company' => $solarFirst,
-                'zone' => 'D2',
-                'status' => LeadStatus::Rejected,
-                'size' => 55,
-                'city' => 'Valencia',
-                'first' => 'Ana',
-                'last' => 'Torres',
-                'phone' => '+34600104106',
-            ],
-            [
-                'reference' => 'LD-1047',
-                'submitter' => $sellerAdmin,
-                'company' => $ecoHomes,
-                'zone' => 'E1',
-                'status' => LeadStatus::Submitted,
-                'size' => 100,
-                'city' => 'Sevilla',
-                'first' => 'Luis',
-                'last' => 'Navarro',
-                'phone' => '+34600104107',
-            ],
+            // ——— Sold (keep minimal — enough for sold tab / purchase demo) ———
+            ['reference' => 'LD-1043', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'insulation', 'zone' => 'E1', 'status' => LeadStatus::Sold, 'size' => 84, 'city' => 'Getafe', 'variant' => 0, 'first' => 'Javier', 'last' => 'Martin', 'phone' => '+34600104103', 'cadastral_reference' => '9872023VH5797S0001WX'],
+
+            // ——— Listed (priority — marketplace / package builder) ———
+            ['reference' => 'LD-1041', 'submitter' => $sellerAdmin, 'company' => $greenEnergy, 'scheme' => 'insulation', 'zone' => 'D1', 'status' => LeadStatus::Listed, 'size' => 95, 'city' => 'Madrid', 'variant' => 0, 'first' => 'Carlos', 'last' => 'Garcia', 'phone' => '+34600104101', 'cadastral_reference' => '9872023VH5797S0001WX'],
+            ['reference' => 'LD-1042', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'insulation', 'zone' => 'D2', 'status' => LeadStatus::Listed, 'size' => 110, 'city' => 'Valencia', 'variant' => 0, 'first' => 'Maria', 'last' => 'Lopez', 'phone' => '+34600104102', 'cadastral_reference' => '1302801VK4700F0001AA'],
+            ['reference' => 'LD-1048', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'insulation', 'zone' => 'D2', 'status' => LeadStatus::Listed, 'size' => 88, 'city' => 'Murcia', 'variant' => 0, 'first' => 'Carmen', 'last' => 'Gil', 'phone' => '+34600104108', 'cadastral_reference' => '4625001VH2786N0001XX'],
+            ['reference' => 'LD-1049', 'submitter' => $agent, 'company' => $smithSurveys, 'scheme' => 'insulation', 'zone' => 'E2', 'status' => LeadStatus::Listed, 'size' => 76, 'city' => 'Granada', 'variant' => 0, 'first' => 'Hugo', 'last' => 'Reyes', 'phone' => '+34600104109', 'cadastral_reference' => '4518801VK4720A0001CC'],
+            ['reference' => 'LD-1051', 'submitter' => $sellerAdmin, 'company' => $greenEnergy, 'scheme' => 'double-glazing', 'zone' => 'D1', 'status' => LeadStatus::Listed, 'size' => 48, 'city' => 'Madrid', 'variant' => 1, 'first' => 'Nuria', 'last' => 'Vega', 'phone' => '+34600104111', 'cadastral_reference' => '2807906VK4700A9999ZZ'],
+            ['reference' => 'LD-1052', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'double-glazing', 'zone' => 'D2', 'status' => LeadStatus::Listed, 'size' => 52, 'city' => 'Leganés', 'variant' => 0, 'first' => 'Alvaro', 'last' => 'Soto', 'phone' => '+34600104112'],
+            ['reference' => 'LD-1055', 'submitter' => $sellerAdmin, 'company' => $solarFirst, 'scheme' => 'heat-pumps', 'zone' => 'D1', 'status' => LeadStatus::Listed, 'size' => 120, 'city' => 'Valencia', 'variant' => 1, 'first' => 'Sofia', 'last' => 'Blanco', 'phone' => '+34600104115'],
+            ['reference' => 'LD-1058', 'submitter' => $agent, 'company' => $smithSurveys, 'scheme' => 'insulation', 'zone' => 'D1', 'status' => LeadStatus::Listed, 'size' => 70, 'city' => 'Alcalá de Henares', 'variant' => 0, 'first' => 'Oscar', 'last' => 'Prieto', 'phone' => '+34600104118', 'cadastral_reference' => '1302801VK4700F0002AB'],
+            ['reference' => 'LD-1061', 'submitter' => $sellerAdmin, 'company' => $ecoHomes, 'scheme' => 'double-glazing', 'zone' => 'D1', 'status' => LeadStatus::Listed, 'size' => 44, 'city' => 'Granada', 'variant' => 1, 'first' => 'Marina', 'last' => 'Gil', 'phone' => '+34600104121'],
+            ['reference' => 'LD-1063', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'insulation', 'zone' => 'D1', 'status' => LeadStatus::Listed, 'size' => 90, 'city' => 'Madrid', 'variant' => 2, 'first' => 'Raquel', 'last' => 'Herrera', 'phone' => '+34600104123'],
+            ['reference' => 'LD-1066', 'submitter' => $sellerAdmin, 'company' => $ecoHomes, 'scheme' => 'insulation', 'zone' => 'E1', 'status' => LeadStatus::Listed, 'size' => 102, 'city' => 'Sevilla', 'variant' => 0, 'first' => 'Felipe', 'last' => 'Ortega', 'phone' => '+34600104126'],
+            ['reference' => 'LD-1067', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'heat-pumps', 'zone' => 'E2', 'status' => LeadStatus::Listed, 'size' => 135, 'city' => 'Barcelona', 'variant' => 0, 'first' => 'Ines', 'last' => 'Marin', 'phone' => '+34600104127'],
+            ['reference' => 'LD-1068', 'submitter' => $agent, 'company' => $smithSurveys, 'scheme' => 'double-glazing', 'zone' => 'E1', 'status' => LeadStatus::Listed, 'size' => 41, 'city' => 'Bilbao', 'variant' => 0, 'first' => 'Gonzalo', 'last' => 'Pascual', 'phone' => '+34600104128'],
+            ['reference' => 'LD-1069', 'submitter' => $sellerAdmin, 'company' => $solarFirst, 'scheme' => 'insulation', 'zone' => 'D2', 'status' => LeadStatus::Listed, 'size' => 78, 'city' => 'Alicante', 'variant' => 0, 'first' => 'Pilar', 'last' => 'Cano', 'phone' => '+34600104129'],
+            ['reference' => 'LD-1070', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'heat-pumps', 'zone' => 'D1', 'status' => LeadStatus::Listed, 'size' => 118, 'city' => 'Zaragoza', 'variant' => 0, 'first' => 'Hector', 'last' => 'Suarez', 'phone' => '+34600104130'],
+            ['reference' => 'LD-1071', 'submitter' => $sellerAdmin, 'company' => $ecoHomes, 'scheme' => 'double-glazing', 'zone' => 'E2', 'status' => LeadStatus::Listed, 'size' => 39, 'city' => 'Málaga', 'variant' => 0, 'first' => 'Ainhoa', 'last' => 'Vidal', 'phone' => '+34600104131'],
+
+            // ——— Pending Review (Submitted / PendingValidation) ———
+            ['reference' => 'LD-1044', 'submitter' => $agent, 'company' => $smithSurveys, 'scheme' => 'insulation', 'zone' => 'E2', 'status' => LeadStatus::PendingValidation, 'size' => 72, 'city' => 'Barcelona', 'variant' => 1, 'first' => 'Elena', 'last' => 'Ruiz', 'phone' => '+34600104104'],
+            ['reference' => 'LD-1047', 'submitter' => $sellerAdmin, 'company' => $ecoHomes, 'scheme' => 'insulation', 'zone' => 'E1', 'status' => LeadStatus::Submitted, 'size' => 100, 'city' => 'Alicante', 'variant' => 1, 'first' => 'Luis', 'last' => 'Navarro', 'phone' => '+34600104107'],
+            ['reference' => 'LD-1053', 'submitter' => $agent, 'company' => $smithSurveys, 'scheme' => 'double-glazing', 'zone' => 'E1', 'status' => LeadStatus::PendingValidation, 'size' => 40, 'city' => 'Barcelona', 'variant' => 2, 'first' => 'Paula', 'last' => 'Mendez', 'phone' => '+34600104113'],
+            ['reference' => 'LD-1056', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'heat-pumps', 'zone' => 'D2', 'status' => LeadStatus::Submitted, 'size' => 95, 'city' => 'Bilbao', 'variant' => 1, 'first' => 'Ruben', 'last' => 'Iglesias', 'phone' => '+34600104116'],
+            ['reference' => 'LD-1057', 'submitter' => $sellerAdmin, 'company' => $ecoHomes, 'scheme' => 'heat-pumps', 'zone' => 'E1', 'status' => LeadStatus::PendingValidation, 'size' => 110, 'city' => 'Málaga', 'variant' => 1, 'first' => 'Clara', 'last' => 'Nieto', 'phone' => '+34600104117'],
+            ['reference' => 'LD-1064', 'submitter' => $agent, 'company' => $smithSurveys, 'scheme' => 'insulation', 'zone' => 'E1', 'status' => LeadStatus::Submitted, 'size' => 68, 'city' => 'Barcelona', 'variant' => 0, 'first' => 'Andres', 'last' => 'Delgado', 'phone' => '+34600104124'],
+            ['reference' => 'LD-1065', 'submitter' => $sellerAdmin, 'company' => $solarFirst, 'scheme' => 'double-glazing', 'zone' => 'D2', 'status' => LeadStatus::PendingValidation, 'size' => 38, 'city' => 'Valencia', 'variant' => 2, 'first' => 'Lucia', 'last' => 'Serrano', 'phone' => '+34600104125'],
+            ['reference' => 'LD-1072', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'insulation', 'zone' => 'D1', 'status' => LeadStatus::Submitted, 'size' => 86, 'city' => 'Madrid', 'variant' => 3, 'first' => 'Noelia', 'last' => 'Romero', 'phone' => '+34600104132'],
+            ['reference' => 'LD-1073', 'submitter' => $sellerAdmin, 'company' => $solarFirst, 'scheme' => 'heat-pumps', 'zone' => 'E2', 'status' => LeadStatus::PendingValidation, 'size' => 125, 'city' => 'Sevilla', 'variant' => 1, 'first' => 'Jaime', 'last' => 'Calvo', 'phone' => '+34600104133'],
+            ['reference' => 'LD-1074', 'submitter' => $agent, 'company' => $smithSurveys, 'scheme' => 'double-glazing', 'zone' => 'D1', 'status' => LeadStatus::Submitted, 'size' => 35, 'city' => 'Zaragoza', 'variant' => 1, 'first' => 'Esther', 'last' => 'Luna', 'phone' => '+34600104134'],
+            ['reference' => 'LD-1075', 'submitter' => $sellerAdmin, 'company' => $ecoHomes, 'scheme' => 'insulation', 'zone' => 'D2', 'status' => LeadStatus::PendingValidation, 'size' => 92, 'city' => 'Murcia', 'variant' => 1, 'first' => 'Bruno', 'last' => 'Pena', 'phone' => '+34600104135'],
+            ['reference' => 'LD-1076', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'heat-pumps', 'zone' => 'E1', 'status' => LeadStatus::Submitted, 'size' => 108, 'city' => 'Alicante', 'variant' => 0, 'first' => 'Vera', 'last' => 'Sanz', 'phone' => '+34600104136'],
+
+            // ——— Needs Information ———
+            ['reference' => 'LD-1045', 'submitter' => $sellerAdmin, 'company' => $greenEnergy, 'scheme' => 'insulation', 'zone' => 'D1', 'status' => LeadStatus::NeedsMoreInformation, 'size' => 60, 'city' => 'Sevilla', 'variant' => 2, 'first' => 'Pedro', 'last' => 'Sanchez', 'phone' => '+34600104105'],
+            ['reference' => 'LD-1054', 'submitter' => $sellerAdmin, 'company' => $ecoHomes, 'scheme' => 'double-glazing', 'zone' => 'E2', 'status' => LeadStatus::NeedsMoreInformation, 'size' => 36, 'city' => 'Sevilla', 'variant' => 1, 'first' => 'Diego', 'last' => 'Ramos', 'phone' => '+34600104114'],
+            ['reference' => 'LD-1060', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'insulation', 'zone' => 'E2', 'status' => LeadStatus::NeedsMoreInformation, 'size' => 82, 'city' => 'Murcia', 'variant' => 0, 'first' => 'Tomas', 'last' => 'Campos', 'phone' => '+34600104120'],
+            ['reference' => 'LD-1077', 'submitter' => $agent, 'company' => $smithSurveys, 'scheme' => 'heat-pumps', 'zone' => 'D2', 'status' => LeadStatus::NeedsMoreInformation, 'size' => 99, 'city' => 'Madrid', 'variant' => 1, 'first' => 'Celia', 'last' => 'Flores', 'phone' => '+34600104137'],
+            ['reference' => 'LD-1078', 'submitter' => $sellerAdmin, 'company' => $solarFirst, 'scheme' => 'insulation', 'zone' => 'E1', 'status' => LeadStatus::NeedsMoreInformation, 'size' => 74, 'city' => 'Valencia', 'variant' => 0, 'first' => 'Mateo', 'last' => 'Aguilar', 'phone' => '+34600104138'],
+            ['reference' => 'LD-1079', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'double-glazing', 'zone' => 'D1', 'status' => LeadStatus::NeedsMoreInformation, 'size' => 42, 'city' => 'Bilbao', 'variant' => 0, 'first' => 'Olivia', 'last' => 'Benito', 'phone' => '+34600104139'],
+            ['reference' => 'LD-1080', 'submitter' => $sellerAdmin, 'company' => $ecoHomes, 'scheme' => 'insulation', 'zone' => 'D2', 'status' => LeadStatus::NeedsMoreInformation, 'size' => 81, 'city' => 'Málaga', 'variant' => 2, 'first' => 'Nicolas', 'last' => 'Rivas', 'phone' => '+34600104140'],
+            ['reference' => 'LD-1081', 'submitter' => $agent, 'company' => $smithSurveys, 'scheme' => 'heat-pumps', 'zone' => 'E2', 'status' => LeadStatus::NeedsMoreInformation, 'size' => 130, 'city' => 'Granada', 'variant' => 0, 'first' => 'Aitana', 'last' => 'Cortes', 'phone' => '+34600104141'],
+
+            // ——— Rejected (enough to filter, not flood) ———
+            ['reference' => 'LD-1046', 'submitter' => $sellerAdmin, 'company' => $solarFirst, 'scheme' => 'insulation', 'zone' => 'D2', 'status' => LeadStatus::Rejected, 'size' => 55, 'city' => 'Málaga', 'variant' => 0, 'first' => 'Ana', 'last' => 'Torres', 'phone' => '+34600104106'],
+            ['reference' => 'LD-1059', 'submitter' => $sellerAdmin, 'company' => $solarFirst, 'scheme' => 'insulation', 'zone' => 'D2', 'status' => LeadStatus::Rejected, 'size' => 58, 'city' => 'Alicante', 'variant' => 1, 'first' => 'Beatriz', 'last' => 'Leon', 'phone' => '+34600104119'],
+            ['reference' => 'LD-1082', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'double-glazing', 'zone' => 'E1', 'status' => LeadStatus::Rejected, 'size' => 33, 'city' => 'Barcelona', 'variant' => 1, 'first' => 'Kevin', 'last' => 'Mora', 'phone' => '+34600104142'],
+            ['reference' => 'LD-1083', 'submitter' => $sellerAdmin, 'company' => $ecoHomes, 'scheme' => 'heat-pumps', 'zone' => 'D1', 'status' => LeadStatus::Rejected, 'size' => 112, 'city' => 'Zaragoza', 'variant' => 1, 'first' => 'Natalia', 'last' => 'Gomez', 'phone' => '+34600104143'],
+
+            // ——— Cancelled ———
+            ['reference' => 'LD-1050', 'submitter' => $sellerAdmin, 'company' => $solarFirst, 'scheme' => 'insulation', 'zone' => 'D1', 'status' => LeadStatus::Cancelled, 'size' => 64, 'city' => 'Zaragoza', 'variant' => 0, 'first' => 'Irene', 'last' => 'Castro', 'phone' => '+34600104110'],
+            ['reference' => 'LD-1062', 'submitter' => $sellerAdmin, 'company' => $greenEnergy, 'scheme' => 'heat-pumps', 'zone' => 'E2', 'status' => LeadStatus::Cancelled, 'size' => 105, 'city' => 'Zaragoza', 'variant' => 1, 'first' => 'Ivan', 'last' => 'Molina', 'phone' => '+34600104122'],
+            ['reference' => 'LD-1084', 'submitter' => $agent, 'company' => $smithSurveys, 'scheme' => 'insulation', 'zone' => 'E1', 'status' => LeadStatus::Cancelled, 'size' => 71, 'city' => 'Valencia', 'variant' => 1, 'first' => 'Miriam', 'last' => 'Dominguez', 'phone' => '+34600104144'],
+            ['reference' => 'LD-1085', 'submitter' => $sellerStaff, 'company' => $greenEnergy, 'scheme' => 'double-glazing', 'zone' => 'D2', 'status' => LeadStatus::Cancelled, 'size' => 46, 'city' => 'Madrid', 'variant' => 0, 'first' => 'Adrian', 'last' => 'Ibanez', 'phone' => '+34600104145'],
         ];
 
         $leads = [];
         foreach ($leadDefinitions as $def) {
-            $zone = $zones[$def['zone']];
+            $schemeSlug = $def['scheme'] ?? 'insulation';
+            $scheme = $schemesBySlug[$schemeSlug];
+            $zone = $zonesByScheme[$schemeSlug][$def['zone']];
             $lead = Lead::query()->updateOrCreate(
                 ['lead_reference' => $def['reference']],
                 [
                     'submitted_by_user_id' => $def['submitter']->id,
                     'seller_company_id' => $def['company']->id,
-                    'scheme_id' => $insulation->id,
+                    'scheme_id' => $scheme->id,
                     'zone_id' => $zone->id,
                     'status' => $def['status'],
                     'customer_first_name' => $def['first'],
                     'customer_last_name' => $def['last'],
                     'customer_phone' => $def['phone'],
                     'customer_whatsapp' => $def['phone'],
-                    'customer_email' => Str::lower($def['first']).'.'.Str::lower($def['last']).'@example.es',
-                    'address_line_1' => $def['city'].' Demo Street 1',
-                    'city' => $def['city'],
-                    'postcode' => '2800'.substr($def['reference'], -1),
-                    'country' => 'ES',
-                    'property_type' => 'detached',
-                    'epc_rating' => 'E',
+                    'customer_email' => Str::lower($def['first']).'.'.Str::lower($def['last']).'.'.Str::lower($def['reference']).'@example.es',
+                    ...SpanishLocations::leadAttributes($def['city'], (int) ($def['variant'] ?? 0)),
+                    'property_type' => ['detached', 'semi_detached', 'terrace', 'flat'][((int) substr($def['reference'], -1)) % 4],
+                    'epc_rating' => ['D', 'E', 'F', 'G'][((int) substr($def['reference'], -1)) % 4],
                     'size_m2' => $def['size'],
-                    'distance_km' => 12.5 + ((int) substr($def['reference'], -1)),
+                    ...(array_key_exists('cadastral_reference', $def)
+                        ? ['cadastral_reference' => $def['cadastral_reference']]
+                        : []),
+                    'distance_km' => 6 + ((int) substr($def['reference'], -2) % 18) * 4.25,
                     'rejection_reason' => $def['status'] === LeadStatus::Rejected ? 'Incomplete evidence pack' : null,
                     'accepted_at' => in_array($def['status'], [LeadStatus::Listed, LeadStatus::Sold, LeadStatus::Priced], true) ? now()->subDays(5) : null,
                     'rejected_at' => $def['status'] === LeadStatus::Rejected ? now()->subDay() : null,
@@ -600,6 +589,8 @@ class DomainDemoSeeder extends Seeder
         User $approver,
         bool $individual = false,
     ): Company {
+        $location = SpanishLocations::companyAttributes($city);
+
         return Company::query()->updateOrCreate(
             ['name' => $name, 'type' => $type->value],
             [
@@ -608,12 +599,7 @@ class DomainDemoSeeder extends Seeder
                 'email' => Str::slug($name, '.').'@demo.rml.test',
                 'phone' => '+34911000000',
                 'whatsapp' => '+34610000000',
-                'address' => $city.' Business Park 1',
-                'city' => $city,
-                'postcode' => $postcode,
-                'country' => 'ES',
-                'latitude' => 40.4168,
-                'longitude' => -3.7038,
+                ...$location,
                 'notes' => 'Demo '.$type->value.' company',
                 'approved_at' => now(),
                 'approved_by' => $approver->id,

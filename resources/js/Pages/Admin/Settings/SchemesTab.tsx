@@ -18,6 +18,7 @@ import {
 } from '@/Components/ui';
 import { cn } from '@/lib/cn';
 import { useIsMobile } from '@/hooks/use-media-query';
+import { useClientTableSort } from '@/hooks/use-list-sort';
 import {
     buildSchemeSubmitData,
     emptySchemeForm,
@@ -1150,6 +1151,20 @@ export default function SchemesTab({
     const createForm = useForm<SchemeFormData>(emptySchemeForm());
     const editForm = useForm<SchemeFormData>(emptySchemeForm());
 
+    const { sortedRows, sortableHeader } = useClientTableSort(schemes, {
+        defaultSort: 'name',
+        defaultDirection: 'asc',
+        sortAscLabel: common.sort_asc,
+        sortDescLabel: common.sort_desc,
+        accessors: {
+            name: (row) => row.name,
+            lead_type: (row) => labelLeadType(t, row.lead_type),
+            pricing: (row) => pricingCell(row, t, common),
+            required_inputs: (row) => requiredInputsCell(row, t, common),
+            status: (row) => (row.active ? 1 : 0),
+        },
+    });
+
     const toggleViewSection = (id: ViewSectionId) => {
         setViewSections((prev) => ({ ...prev, [id]: !prev[id] }));
     };
@@ -1297,34 +1312,37 @@ export default function SchemesTab({
                 />
             ) : (
                 <DataTable
-                    data={schemes}
+                    data={sortedRows}
                     getRowId={(row) => String(row.id)}
                     emptyMessage={common.empty}
                     columns={[
                         {
                             id: 'name',
-                            header: t.scheme,
+                            header: sortableHeader(t.scheme, 'name'),
                             cell: (row) => row.name,
                         },
                         {
                             id: 'lead_type',
-                            header: t.lead_type,
+                            header: sortableHeader(t.lead_type, 'lead_type'),
                             cell: (row) => labelLeadType(t, row.lead_type),
                         },
                         {
                             id: 'pricing',
-                            header: t.pricing,
+                            header: sortableHeader(t.pricing, 'pricing'),
                             cell: (row) => pricingCell(row, t, common),
                         },
                         {
                             id: 'required_inputs',
-                            header: t.required_inputs,
+                            header: sortableHeader(
+                                t.required_inputs,
+                                'required_inputs',
+                            ),
                             cell: (row) =>
                                 requiredInputsCell(row, t, common),
                         },
                         {
                             id: 'status',
-                            header: common.status,
+                            header: sortableHeader(common.status, 'status'),
                             cell: (row) => (
                                 <StatusBadge
                                     label={row.active ? t.active : t.inactive}

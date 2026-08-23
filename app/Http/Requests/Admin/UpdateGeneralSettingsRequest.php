@@ -22,6 +22,18 @@ class UpdateGeneralSettingsRequest extends FormRequest
                 'default_currency' => strtoupper($this->input('default_currency')),
             ]);
         }
+
+        foreach ([
+            'package_allow_mixed_scheme',
+            'package_allow_without_buyer',
+            'package_reservation_lock',
+        ] as $boolKey) {
+            if ($this->has($boolKey)) {
+                $this->merge([
+                    $boolKey => filter_var($this->input($boolKey), FILTER_VALIDATE_BOOLEAN),
+                ]);
+            }
+        }
     }
 
     /**
@@ -36,6 +48,11 @@ class UpdateGeneralSettingsRequest extends FormRequest
             'default_currency' => ['nullable', 'string', Rule::in(['EUR', 'GBP', 'USD'])],
             'bank_transfer_instructions' => ['nullable', 'string', 'max:5000'],
             'company_name' => ['nullable', 'string', 'max:255'],
+            'package_default_status' => ['nullable', 'string', Rule::in(['draft', 'available'])],
+            'package_allow_mixed_scheme' => ['nullable', 'boolean'],
+            'package_allow_without_buyer' => ['nullable', 'boolean'],
+            'package_reservation_lock' => ['nullable', 'boolean'],
+            'package_expiry_days' => ['nullable', 'integer', 'min:1', 'max:365'],
         ];
     }
 

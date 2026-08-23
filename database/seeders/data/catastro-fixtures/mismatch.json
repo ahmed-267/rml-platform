@@ -1,0 +1,21 @@
+{
+  "kind": "single",
+  "properties": [
+    {
+      "cadastral_reference": "4625001VH2786N0001XX",
+      "cadastral_address": "CL INDUSTRIA 12 28001 MADRID (MADRID)",
+      "province": "MADRID",
+      "municipality": "MADRID",
+      "street_type": "CL",
+      "street_name": "INDUSTRIA",
+      "street_number": "12",
+      "postcode": "28001",
+      "property_use": "Industrial",
+      "constructed_area_m2": 450,
+      "parcel_area_m2": 600,
+      "construction_year": 1995,
+      "floor": "00",
+      "door": "01"
+    }
+  ]
+}

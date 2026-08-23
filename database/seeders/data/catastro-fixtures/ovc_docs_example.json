@@ -1,0 +1,21 @@
+{
+  "kind": "single",
+  "properties": [
+    {
+      "cadastral_reference": "9872023VH5797S0001WX",
+      "cadastral_address": "CL GLORIA 51 13730 SANTA CRUZ DE MUDELA (CIUDAD REAL)",
+      "province": "CIUDAD REAL",
+      "municipality": "SANTA CRUZ DE MUDELA",
+      "street_type": "CL",
+      "street_name": "GLORIA",
+      "street_number": "51",
+      "postcode": "13730",
+      "property_use": "Residencial",
+      "constructed_area_m2": 308,
+      "parcel_area_m2": 397,
+      "construction_year": 1980,
+      "floor": "OD",
+      "door": "OS"
+    }
+  ]
+}

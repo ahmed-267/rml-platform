@@ -10,6 +10,7 @@ use App\Models\Payout;
 use App\Models\Purchase;
 use App\Services\AuditLogService;
 use App\Services\Documents\InvoiceDocumentService;
+use App\Support\PayoutSettings;
 use App\Support\ReferenceGenerator;
 
 class SellerPayoutService
@@ -50,8 +51,24 @@ class SellerPayoutService
         $lead->loadMissing('submittedBy.sellerProfile');
         $sellerType = $lead->submittedBy?->sellerProfile?->seller_type;
         $isIndividualAgent = $sellerType === SellerType::IndividualAgent;
+        $isRmlInternal = ($lead->lead_source ?? null) === 'rml_internal'
+            || ($lead->seller_company_id === null && ! $isIndividualAgent);
+
+        if ($isRmlInternal && ! PayoutSettings::rmlInternalPayouts()) {
+            return null;
+        }
+        if ($isIndividualAgent && ! PayoutSettings::agentPayouts()) {
+            return null;
+        }
+        if (! $isIndividualAgent && ! $isRmlInternal && ! PayoutSettings::companyPayouts()) {
+            return null;
+        }
         // Staff under a company do not receive a separate RML payout — company does.
         if ($sellerType === SellerType::SellerStaff) {
+            if (! PayoutSettings::staffPayoutToCompany()) {
+                return null;
+            }
+
             return null;
         }
 

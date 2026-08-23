@@ -137,15 +137,15 @@ class PaymentController extends Controller
             PaymentStatus::Failed,
             PaymentStatus::Cancelled,
         ], true)) {
-            return redirect()
-                ->route($purchase ? 'buyer.purchases.show' : 'buyer.payments', $purchase ?? [])
-                ->withErrors(['payment' => __('rml.buyer.purchases.pay_error')]);
+            throw ValidationException::withMessages([
+                'payment' => __('rml.buyer.purchases.pay_error'),
+            ]);
         }
 
         if ($purchase && $purchase->status !== PurchaseStatus::Pending) {
-            return redirect()
-                ->route('buyer.purchases.show', $purchase)
-                ->withErrors(['payment' => __('rml.buyer.purchases.pay_error')]);
+            throw ValidationException::withMessages([
+                'payment' => __('rml.buyer.purchases.pay_error'),
+            ]);
         }
 
         $result = $this->paymentService->initiate($payment, $request->user());

@@ -123,9 +123,25 @@ class PaymentSettlementService
                     'paid_at' => now()->toIso8601String(),
                     'confirmed_via' => $metadata['confirmed_via'] ?? null,
                     'confirmation_note' => $metadata['confirmation_note'] ?? null,
+                    'payment_reference' => $payment->payment_reference,
                 ],
                 $actor,
             );
+
+            foreach ($purchases as $purchase) {
+                $this->auditLogService->log(
+                    'purchase.customer_details_released',
+                    $purchase,
+                    ['details_released' => false],
+                    [
+                        'details_released' => true,
+                        'payment_id' => $payment->id,
+                        'payment_reference' => $payment->payment_reference,
+                        'lead_ids' => $purchase->items->pluck('lead_id')->filter()->values()->all(),
+                    ],
+                    $actor,
+                );
+            }
 
             $payment = $payment->fresh(['purchases.items.lead', 'invoices', 'payerUser']) ?? $payment;
 
@@ -149,7 +165,8 @@ class PaymentSettlementService
                 'failed_at' => now(),
             ]);
 
-            if (! ($options['keep_purchase'] ?? false)) {
+            $keepPurchase = (bool) ($options['keep_purchase'] ?? false);
+            if (! $keepPurchase && \App\Support\ReservationSettings::shouldReleaseOnPaymentFail()) {
                 Purchase::query()
                     ->where('payment_id', $payment->id)
                     ->where('status', PurchaseStatus::Pending)
@@ -162,7 +179,8 @@ class PaymentSettlementService
                 null,
                 [
                     'status' => PaymentStatus::Failed->value,
-                    'keep_purchase' => (bool) ($options['keep_purchase'] ?? false),
+                    'keep_purchase' => $keepPurchase
+                        || ! \App\Support\ReservationSettings::shouldReleaseOnPaymentFail(),
                 ],
                 $actor,
             );

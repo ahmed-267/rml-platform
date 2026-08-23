@@ -35,6 +35,14 @@ class DistanceService
         return null;
     }
 
+    /**
+     * Straight-line distance in kilometres between two WGS84 coordinates.
+     */
+    public function betweenKm(float $lat1, float $lon1, float $lat2, float $lon2): float
+    {
+        return $this->haversineKm($lat1, $lon1, $lat2, $lon2);
+    }
+
     public function haversineKm(float $lat1, float $lon1, float $lat2, float $lon2): float
     {
         $earthRadiusKm = 6371.0;

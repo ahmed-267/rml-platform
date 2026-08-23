@@ -17,6 +17,10 @@ use Throwable;
 
 class RegistrationService
 {
+    public function __construct(
+        private readonly LocationService $locationService,
+    ) {}
+
     /**
      * @param  array{
      *     account_type: string,
@@ -63,6 +67,8 @@ class RegistrationService
                     'postcode' => $data['postcode'] ?? null,
                     'country' => $data['country'] ?? 'ES',
                 ]);
+
+                $this->locationService->geocodeCompany($company);
 
                 $user->assignRole(UserRole::SellerCompanyAdmin->value);
 
@@ -132,6 +138,8 @@ class RegistrationService
                 'postcode' => $data['postcode'] ?? null,
                 'country' => $data['country'] ?? 'ES',
             ]);
+
+            $this->locationService->geocodeCompany($company);
 
             $user->assignRole(UserRole::BuyerAdmin->value);
 

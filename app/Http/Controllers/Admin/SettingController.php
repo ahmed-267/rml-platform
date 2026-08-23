@@ -9,6 +9,7 @@ use App\Http\Requests\Admin\StoreSchemeRequest;
 use App\Http\Requests\Admin\StoreTemplateRequest;
 use App\Http\Requests\Admin\UpdateCommissionRequest;
 use App\Http\Requests\Admin\UpdateGeneralSettingsRequest;
+use App\Http\Requests\Admin\UpdateLeadsPackagesSettingsRequest;
 use App\Http\Requests\Admin\UpdatePricingRequest;
 use App\Http\Requests\Admin\UpdateSchemeRequest;
 use App\Http\Requests\Admin\UpdateTemplateRequest;
@@ -22,9 +23,15 @@ use App\Models\TemplateVersion;
 use App\Models\User;
 use App\Models\Zone;
 use App\Services\AuditLogService;
+use App\Support\CatastroSettings;
+use App\Support\LeadSettings;
 use App\Support\ListPagination;
 use App\Support\ListSort;
+use App\Support\PackageSettings;
+use App\Support\PayoutSettings;
 use App\Support\Permissions;
+use App\Support\PricingSettings;
+use App\Support\ReservationSettings;
 use App\Support\SchemeConfig;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -39,6 +46,8 @@ class SettingController extends Controller
 {
     private const GENERAL_CACHE_KEY = 'rml.platform_settings';
 
+    private const PACKAGE_CACHE_KEY = 'rml.package_settings';
+
     public function __construct(
         private readonly AuditLogService $auditLogService,
     ) {}
@@ -48,7 +57,10 @@ class SettingController extends Controller
         $this->authorize('viewAny', TemplateDocument::class);
 
         $tab = $request->string('tab')->toString();
-        $validTabs = ['schemes', 'commissions', 'general', 'agreements', 'terms', 'gdpr', 'logs'];
+        if (in_array($tab, ['agreements', 'terms', 'gdpr'], true)) {
+            $tab = 'general';
+        }
+        $validTabs = ['schemes', 'commissions', 'leads_packages', 'general', 'logs'];
         if (! in_array($tab, $validTabs, true)) {
             $tab = 'schemes';
         }
@@ -75,7 +87,21 @@ class SettingController extends Controller
             'commission_rules' => $visibleCommissionRules
                 ->map(fn (CommissionRule $rule) => $this->transformCommissionRule($rule)),
             'templates' => [],
+            'agreement_templates' => [],
+            'terms_templates' => [],
+            'gdpr_templates' => [],
             'general' => $tab === 'general' ? $this->generalSettings() : [],
+            'package_settings' => in_array($tab, ['general', 'leads_packages'], true)
+                ? PackageSettings::all()
+                : [],
+            'lead_settings' => $tab === 'leads_packages' ? LeadSettings::all() : [],
+            'pricing_settings' => $tab === 'leads_packages' ? PricingSettings::all() : [],
+            'payout_settings' => $tab === 'leads_packages' ? PayoutSettings::all() : [],
+            'reservation_settings' => $tab === 'leads_packages' ? ReservationSettings::all() : [],
+            'catastro_settings' => $tab === 'leads_packages' ? CatastroSettings::all() : [],
+            'scheme_requirements' => $tab === 'leads_packages'
+                ? $this->schemeRequirementsPayload()
+                : [],
             'logs' => null,
             'can_delete_logs' => $request->user()?->hasRole('super_admin') ?? false,
             'log_filters' => [
@@ -90,8 +116,15 @@ class SettingController extends Controller
             'log_actions' => [],
         ];
 
-        if (in_array($tab, ['agreements', 'terms', 'gdpr'], true)) {
-            $payload['templates'] = $this->templatesForTab($tab);
+        if ($tab === 'general') {
+            $payload['agreement_templates'] = $this->templatesForTab('agreements');
+            $payload['terms_templates'] = $this->templatesForTab('terms');
+            $payload['gdpr_templates'] = $this->templatesForTab('gdpr');
+            $payload['templates'] = [
+                ...$payload['agreement_templates'],
+                ...$payload['terms_templates'],
+                ...$payload['gdpr_templates'],
+            ];
         }
 
         if ($tab === 'logs' && $request->user()?->can('viewAny', AuditLog::class)) {
@@ -587,9 +620,44 @@ class SettingController extends Controller
 
     public function updateGeneral(UpdateGeneralSettingsRequest $request): RedirectResponse
     {
+        $data = $request->validated();
+
+        $packageMap = [
+            'package_default_status' => 'default_status',
+            'package_allow_mixed_scheme' => 'allow_mixed_scheme',
+            'package_allow_without_buyer' => 'allow_without_buyer',
+            'package_reservation_lock' => 'reservation_lock',
+            'package_expiry_days' => 'expiry_days',
+        ];
+
+        $packageUpdates = [];
+        foreach ($packageMap as $formKey => $cacheKey) {
+            if (array_key_exists($formKey, $data)) {
+                $value = $data[$formKey];
+                if ($cacheKey === 'expiry_days') {
+                    $value = (int) $value;
+                }
+                $packageUpdates[$cacheKey] = $value;
+                unset($data[$formKey]);
+            }
+        }
+
         $current = $this->generalSettings();
-        $updated = array_merge($current, $request->validated());
+        $updated = array_merge($current, $data);
         Cache::forever(self::GENERAL_CACHE_KEY, $updated);
+
+        if ($packageUpdates !== []) {
+            $result = PackageSettings::put($packageUpdates);
+            Cache::forever(self::PACKAGE_CACHE_KEY, $result['current']);
+
+            $this->auditLogService->log(
+                'settings.package_updated',
+                null,
+                $result['previous'],
+                $result['current'],
+                $request->user(),
+            );
+        }
 
         $this->auditLogService->log(
             'settings.general_updated',
@@ -684,17 +752,7 @@ class SettingController extends Controller
 
     private function templateTabForType(?string $type): string
     {
-        if ($type === null) {
-            return 'agreements';
-        }
-
-        return match ($type) {
-            TemplateDocumentType::SellerTerms->value,
-            TemplateDocumentType::BuyerTerms->value => 'terms',
-            TemplateDocumentType::SellerGdpr->value,
-            TemplateDocumentType::BuyerGdpr->value => 'gdpr',
-            default => 'agreements',
-        };
+        return 'general';
     }
 
     /**
@@ -1021,5 +1079,305 @@ class SettingController extends Controller
         $defaults = config('rml.platform', []);
 
         return array_merge($defaults, Cache::get(self::GENERAL_CACHE_KEY, []));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function packageSettings(): array
+    {
+        return PackageSettings::all();
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function schemeRequirementsPayload(): array
+    {
+        return Scheme::query()
+            ->orderBy('sort_order')
+            ->get(['id', 'name', 'slug', 'metadata'])
+            ->map(function (Scheme $scheme) {
+                $meta = is_array($scheme->metadata) ? $scheme->metadata : [];
+                $requirements = is_array($meta['requirements'] ?? null) ? $meta['requirements'] : [];
+
+                return [
+                    'id' => $scheme->id,
+                    'name' => $scheme->name,
+                    'slug' => $scheme->slug,
+                    'require_internal_audit' => (bool) ($requirements['require_internal_audit'] ?? true),
+                    'require_homeowner_agreement' => (bool) ($requirements['require_homeowner_agreement'] ?? true),
+                    'require_epc' => (bool) ($requirements['require_epc'] ?? false),
+                    'require_photos' => (bool) ($requirements['require_photos'] ?? true),
+                    'min_measurement' => isset($requirements['min_measurement'])
+                        ? (float) $requirements['min_measurement']
+                        : null,
+                    'max_measurement' => isset($requirements['max_measurement'])
+                        ? (float) $requirements['max_measurement']
+                        : null,
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    public function updateLeadsPackages(UpdateLeadsPackagesSettingsRequest $request): RedirectResponse
+    {
+        $data = $request->validated();
+
+        $leadKeys = [
+            'default_status_after_submission',
+            'require_internal_audit',
+            'allow_evidence_later',
+            'allow_seller_company_leads',
+            'allow_seller_agent_leads',
+            'rml_internal_creates_payouts',
+            'min_property_area_m2',
+            'max_property_area_m2',
+            'reservation_hours',
+            'sale_lock_hours',
+            'allow_rejected_resubmit',
+            'duplicate_detection',
+        ];
+        $packageKeys = [
+            'default_status',
+            'allow_mixed_scheme',
+            'allow_without_buyer',
+            'reservation_lock',
+            'expiry_days',
+            'allow_manual_creation',
+            'allow_installer_based_creation',
+            'allow_without_installer',
+            'allow_mixed_zone',
+            'min_leads',
+            'max_leads',
+            'min_area_m2',
+            'max_area_m2',
+            'default_search_radius_km',
+            'max_lead_distance_km',
+            'release_leads_on_expiry',
+        ];
+        $pricingKeys = [
+            'calculation_method',
+            'fixed_selling_price',
+            'minimum_selling_price',
+            'maximum_discount_percent',
+            'package_discount_percent_max',
+            'tax_percent',
+        ];
+        $reservationKeys = [
+            'lead_reservation_hours',
+            'abandoned_expires_hours',
+            'return_leads_to_listed',
+            'return_packages_to_available',
+            'allow_edit_reserved_package',
+            'on_payment_fail',
+        ];
+
+        $leadUpdates = $this->pickSettings($data, $leadKeys, [
+            'min_property_area_m2' => 'float',
+            'max_property_area_m2' => 'float',
+            'reservation_hours' => 'int',
+            'sale_lock_hours' => 'int',
+        ]);
+
+        $packageUpdates = $this->pickSettings($data, $packageKeys, [
+            'expiry_days' => 'int',
+            'min_leads' => 'int',
+            'max_leads' => 'int',
+            'min_area_m2' => 'float',
+            'max_area_m2' => 'float',
+            'default_search_radius_km' => 'float',
+            'max_lead_distance_km' => 'float',
+        ]);
+        if (array_key_exists('package_reservation_hours', $data)) {
+            $packageUpdates['reservation_hours'] = (int) $data['package_reservation_hours'];
+        }
+
+        $pricingUpdates = $this->pickSettings($data, $pricingKeys, [
+            'fixed_selling_price' => 'float_nullable',
+            'minimum_selling_price' => 'float',
+            'maximum_discount_percent' => 'float',
+            'package_discount_percent_max' => 'float',
+            'tax_percent' => 'float',
+        ]);
+        if (array_key_exists('pricing_allow_manual_override', $data)) {
+            $pricingUpdates['allow_manual_override'] = (bool) $data['pricing_allow_manual_override'];
+        }
+        $pricingUpdates['currency'] = 'EUR';
+
+        $payoutUpdates = [];
+        $payoutMap = [
+            'payout_method' => 'method',
+            'payout_fixed_amount' => 'fixed_amount',
+            'payout_rate_per_m2' => 'rate_per_m2',
+            'payout_percentage' => 'percentage',
+            'rml_internal_payouts' => 'rml_internal_payouts',
+            'company_payouts' => 'company_payouts',
+            'agent_payouts' => 'agent_payouts',
+            'staff_payout_to_company' => 'staff_payout_to_company',
+            'payout_allow_manual_override' => 'allow_manual_override',
+        ];
+        foreach ($payoutMap as $formKey => $cacheKey) {
+            if (! array_key_exists($formKey, $data)) {
+                continue;
+            }
+            $value = $data[$formKey];
+            if (in_array($cacheKey, ['fixed_amount', 'rate_per_m2', 'percentage'], true)) {
+                $value = $value === null || $value === '' ? null : (float) $value;
+            } elseif (str_contains($cacheKey, 'payout') || in_array($cacheKey, [
+                'rml_internal_payouts', 'company_payouts', 'agent_payouts',
+                'staff_payout_to_company', 'allow_manual_override',
+            ], true)) {
+                $value = (bool) $value;
+            }
+            $payoutUpdates[$cacheKey] = $value;
+        }
+
+        $reservationUpdates = $this->pickSettings($data, $reservationKeys, [
+            'lead_reservation_hours' => 'int',
+            'abandoned_expires_hours' => 'int',
+        ]);
+        if (array_key_exists('package_reservation_hours', $data)) {
+            $reservationUpdates['package_reservation_hours'] = (int) $data['package_reservation_hours'];
+        }
+
+        if ($leadUpdates !== []) {
+            $result = LeadSettings::put($leadUpdates);
+            $this->auditLogService->log(
+                'settings.leads_updated',
+                null,
+                $result['previous'],
+                $result['current'],
+                $request->user(),
+            );
+        }
+
+        if ($packageUpdates !== []) {
+            $result = PackageSettings::put($packageUpdates);
+            Cache::forever(self::PACKAGE_CACHE_KEY, $result['current']);
+            $this->auditLogService->log(
+                'settings.package_updated',
+                null,
+                $result['previous'],
+                $result['current'],
+                $request->user(),
+            );
+        }
+
+        if ($pricingUpdates !== []) {
+            $result = PricingSettings::put($pricingUpdates);
+            $this->auditLogService->log(
+                'settings.pricing_rules_updated',
+                null,
+                $result['previous'],
+                $result['current'],
+                $request->user(),
+            );
+        }
+
+        if ($payoutUpdates !== []) {
+            $result = PayoutSettings::put($payoutUpdates);
+            $this->auditLogService->log(
+                'settings.payout_rules_updated',
+                null,
+                $result['previous'],
+                $result['current'],
+                $request->user(),
+            );
+        }
+
+        if ($reservationUpdates !== []) {
+            $result = ReservationSettings::put($reservationUpdates);
+            $this->auditLogService->log(
+                'settings.reservation_rules_updated',
+                null,
+                $result['previous'],
+                $result['current'],
+                $request->user(),
+            );
+        }
+
+        $catastroUpdates = [];
+        foreach (['catastro_enabled' => 'enabled'] as $formKey => $cacheKey) {
+            if (array_key_exists($formKey, $data)) {
+                $catastroUpdates[$cacheKey] = (bool) $data[$formKey];
+            }
+        }
+        if ($catastroUpdates !== []) {
+            $result = CatastroSettings::put($catastroUpdates);
+            $this->auditLogService->log(
+                'settings.catastro_updated',
+                null,
+                $result['previous'],
+                $result['current'],
+                $request->user(),
+            );
+        }
+
+        if (! empty($data['schemes']) && is_array($data['schemes'])) {
+            foreach ($data['schemes'] as $row) {
+                if (! is_array($row) || empty($row['id'])) {
+                    continue;
+                }
+                $scheme = Scheme::query()->find((int) $row['id']);
+                if (! $scheme) {
+                    continue;
+                }
+                $meta = is_array($scheme->metadata) ? $scheme->metadata : [];
+                $previousRequirements = $meta['requirements'] ?? [];
+                $meta['requirements'] = [
+                    'require_internal_audit' => (bool) ($row['require_internal_audit'] ?? true),
+                    'require_homeowner_agreement' => (bool) ($row['require_homeowner_agreement'] ?? true),
+                    'require_epc' => (bool) ($row['require_epc'] ?? false),
+                    'require_photos' => (bool) ($row['require_photos'] ?? true),
+                    'min_measurement' => isset($row['min_measurement']) && $row['min_measurement'] !== ''
+                        ? (float) $row['min_measurement']
+                        : null,
+                    'max_measurement' => isset($row['max_measurement']) && $row['max_measurement'] !== ''
+                        ? (float) $row['max_measurement']
+                        : null,
+                ];
+                $scheme->update(['metadata' => $meta]);
+                $this->auditLogService->log(
+                    'settings.scheme_requirements_updated',
+                    $scheme,
+                    ['requirements' => $previousRequirements],
+                    ['requirements' => $meta['requirements']],
+                    $request->user(),
+                );
+            }
+        }
+
+        return redirect()
+            ->route('admin.settings.index', ['tab' => 'leads_packages'])
+            ->with('success', __('rml.admin.settings.leads_packages.saved_flash'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  list<string>  $keys
+     * @param  array<string, string>  $casts
+     * @return array<string, mixed>
+     */
+    private function pickSettings(array $data, array $keys, array $casts = []): array
+    {
+        $out = [];
+        foreach ($keys as $key) {
+            if (! array_key_exists($key, $data)) {
+                continue;
+            }
+            $value = $data[$key];
+            $cast = $casts[$key] ?? null;
+            $out[$key] = match ($cast) {
+                'int' => (int) $value,
+                'float' => (float) $value,
+                'float_nullable' => $value === null || $value === '' ? null : (float) $value,
+                'bool' => (bool) $value,
+                default => $value,
+            };
+        }
+
+        return $out;
     }
 }

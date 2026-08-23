@@ -144,3 +144,4 @@ Code quality rules:
 - Use migrations, seeders, factories, policies, requests, controllers, services, and tests where appropriate.
 - Run tests/formatting after major changes.
 - Do not overwrite important existing code without checking.
+- NEVER wipe the local Postgres DB (`migrate:fresh`, `migrate:refresh`, `db:wipe`). Tests use sqlite memory. If demo users missing, run `db:seed` only. Demo login: admin@rml.test / password.

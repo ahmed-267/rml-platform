@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { router, useForm } from '@inertiajs/react';
 import {
     Button,
@@ -15,6 +15,7 @@ import {
     tableActionIcons,
 } from '@/Components/ui';
 import { useIsMobile } from '@/hooks/use-media-query';
+import { useClientTableSort } from '@/hooks/use-list-sort';
 import {
     COMMISSION_APPLIES_TO,
     type CommissionAppliesTo,
@@ -113,6 +114,87 @@ function CommissionFormFields({
                 className="sm:col-span-2"
             />
         </div>
+    );
+}
+
+function CommissionRulesTable({
+    rules,
+    t,
+    common,
+    triggerLabel,
+    appliesToLabel,
+    actionButtons,
+}: {
+    rules: CommissionRuleRow[];
+    t: Record<string, string>;
+    common: Record<string, string>;
+    triggerLabel: string;
+    appliesToLabel: (value: string | null) => string;
+    actionButtons: (rule: CommissionRuleRow) => ReactNode;
+}) {
+    const { sortedRows, sortableHeader } = useClientTableSort(rules, {
+        defaultSort: 'name',
+        defaultDirection: 'asc',
+        sortAscLabel: common.sort_asc,
+        sortDescLabel: common.sort_desc,
+        accessors: {
+            name: (row) => row.name,
+            applies_to: (row) => appliesToLabel(row.applies_to),
+            rate: (row) => row.rate_per_m2 ?? 0,
+            status: (row) => (row.active ? 1 : 0),
+        },
+    });
+
+    return (
+        <DataTable
+            data={sortedRows}
+            getRowId={(row) => String(row.id)}
+            emptyMessage={common.empty}
+            columns={[
+                {
+                    id: 'name',
+                    header: sortableHeader(common.name, 'name'),
+                    cell: (row) => row.name,
+                },
+                {
+                    id: 'applies_to',
+                    header: sortableHeader(t.applies_to, 'applies_to'),
+                    cell: (row) => appliesToLabel(row.applies_to),
+                },
+                {
+                    id: 'rate',
+                    header: sortableHeader(t.rate, 'rate'),
+                    cell: (row) => formatRate(row, common),
+                },
+                {
+                    id: 'trigger',
+                    header: t.trigger,
+                    cell: () => (
+                        <span
+                            className="text-xs text-rml-muted"
+                            title={t.trigger_hint}
+                        >
+                            {triggerLabel}
+                        </span>
+                    ),
+                },
+                {
+                    id: 'status',
+                    header: sortableHeader(common.status, 'status'),
+                    cell: (row) => (
+                        <StatusBadge
+                            label={row.active ? t.active : t.inactive}
+                            tone={row.active ? 'success' : 'neutral'}
+                        />
+                    ),
+                },
+                {
+                    id: 'actions',
+                    header: common.actions,
+                    cell: (row) => actionButtons(row),
+                },
+            ]}
+        />
     );
 }
 
@@ -273,54 +355,13 @@ export default function CommissionsTab({
         }
 
         return (
-            <DataTable
-                data={sectionRules}
-                getRowId={(row) => String(row.id)}
-                emptyMessage={common.empty}
-                columns={[
-                    {
-                        id: 'name',
-                        header: common.name,
-                        cell: (row) => row.name,
-                    },
-                    {
-                        id: 'applies_to',
-                        header: t.applies_to,
-                        cell: (row) => appliesToLabel(row.applies_to),
-                    },
-                    {
-                        id: 'rate',
-                        header: t.rate,
-                        cell: (row) => formatRate(row, common),
-                    },
-                    {
-                        id: 'trigger',
-                        header: t.trigger,
-                        cell: () => (
-                            <span
-                                className="text-xs text-rml-muted"
-                                title={t.trigger_hint}
-                            >
-                                {triggerLabel}
-                            </span>
-                        ),
-                    },
-                    {
-                        id: 'status',
-                        header: common.status,
-                        cell: (row) => (
-                            <StatusBadge
-                                label={row.active ? t.active : t.inactive}
-                                tone={row.active ? 'success' : 'neutral'}
-                            />
-                        ),
-                    },
-                    {
-                        id: 'actions',
-                        header: common.actions,
-                        cell: (row) => actionButtons(row),
-                    },
-                ]}
+            <CommissionRulesTable
+                rules={sectionRules}
+                t={t}
+                common={common}
+                triggerLabel={triggerLabel}
+                appliesToLabel={appliesToLabel}
+                actionButtons={actionButtons}
             />
         );
     };

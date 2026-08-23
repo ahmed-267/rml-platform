@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import {
     Button,
+    ConfirmDialog,
     DataTable,
     EmptyState,
     FilterBar,
@@ -12,7 +13,9 @@ import {
     Select,
     SortableHeader,
     StatusBadge,
+    TableActionButton,
     TableActionLink,
+    TableActions,
     tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
@@ -45,7 +48,11 @@ interface PurchaseRow {
     zone: string | null;
     item_count: number;
     details_released: boolean;
+    can_edit?: boolean;
+    can_delete?: boolean;
+    cannot_delete_reason?: string | null;
     payment: {
+        id?: number;
         status: string | null;
         method: string | null;
     } | null;
@@ -108,6 +115,8 @@ export default function BuyerPurchasesIndex({
     const [search, setSearch] = useState(filters.search ?? '');
     const [status, setStatus] = useState(filters.status ?? '');
     const [filtersOpen, setFiltersOpen] = useState(false);
+    const [deleteRow, setDeleteRow] = useState<PurchaseRow | null>(null);
+    const [deleteProcessing, setDeleteProcessing] = useState(false);
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection = resolveSortDirection(
@@ -174,6 +183,62 @@ export default function BuyerPurchasesIndex({
             sortAscLabel={common.sort_asc}
             sortDescLabel={common.sort_desc}
         />
+    );
+
+    const confirmDelete = () => {
+        if (!deleteRow) {
+            return;
+        }
+        setDeleteProcessing(true);
+        router.delete(route('buyer.purchases.destroy', deleteRow.id), {
+            preserveScroll: true,
+            onFinish: () => {
+                setDeleteProcessing(false);
+                setDeleteRow(null);
+            },
+        });
+    };
+
+    const rowActions = (row: PurchaseRow) => (
+        <TableActions>
+            <TableActionLink
+                href={route('buyer.purchases.show', row.id)}
+                label={common.view ?? 'View'}
+                icon={tableActionIcons.view}
+            />
+            {row.can_edit ? (
+                <TableActionLink
+                    href={route('buyer.purchases.show', row.id)}
+                    label={common.edit ?? 'Edit'}
+                    icon={tableActionIcons.edit}
+                />
+            ) : (
+                <TableActionButton
+                    label={t.cannot_edit_paid ?? 'Paid purchases cannot be edited'}
+                    icon={tableActionIcons.edit}
+                    disabled
+                />
+            )}
+            {row.can_delete ? (
+                <TableActionButton
+                    label={common.delete ?? 'Delete'}
+                    icon={tableActionIcons.delete}
+                    tone="danger"
+                    onClick={() => setDeleteRow(row)}
+                />
+            ) : (
+                <TableActionButton
+                    label={
+                        row.cannot_delete_reason ??
+                        t.cannot_delete_paid ??
+                        'Paid purchases cannot be deleted'
+                    }
+                    icon={tableActionIcons.delete}
+                    tone="danger"
+                    disabled
+                />
+            )}
+        </TableActions>
     );
 
     return (
@@ -281,12 +346,7 @@ export default function BuyerPurchasesIndex({
                                 </p>
                             </div>
                         ),
-                        actions: (
-                            <TableActionLink href={route(
-                                    'buyer.purchases.show',
-                                    purchase.id,
-                                )} label={common.view} icon={tableActionIcons.view} />
-                        ),
+                        actions: rowActions(purchase),
                     }))}
                 />
             ) : (
@@ -306,12 +366,12 @@ export default function BuyerPurchasesIndex({
                         },
                         {
                             id: 'scheme',
-                            header: common.scheme,
+                            header: sortableHeader(common.scheme ?? '', 'scheme'),
                             cell: (row) => row.scheme ?? '—',
                         },
                         {
                             id: 'zone',
-                            header: common.zone,
+                            header: sortableHeader(common.zone ?? '', 'zone'),
                             cell: (row) => row.zone ?? '—',
                         },
                         {
@@ -347,7 +407,7 @@ export default function BuyerPurchasesIndex({
                             id: 'purchased_at',
                             header: sortableHeader(
                                 translations.buyer?.dashboard?.purchased_date ??
-                                    '',
+                                    'Date',
                                 'date',
                             ),
                             cell: (row) =>
@@ -359,9 +419,7 @@ export default function BuyerPurchasesIndex({
                         {
                             id: 'actions',
                             header: common.actions,
-                            cell: (row) => (
-                                <TableActionLink href={route('buyer.purchases.show', row.id)} label={common.view} icon={tableActionIcons.view} />
-                            ),
+                            cell: (row) => rowActions(row),
                         },
                     ]}
                 />
@@ -386,6 +444,24 @@ export default function BuyerPurchasesIndex({
                     )
                 }
                 labels={paginationLabels(common)}
+            />
+
+            <ConfirmDialog
+                open={deleteRow != null}
+                onClose={() => {
+                    if (!deleteProcessing) {
+                        setDeleteRow(null);
+                    }
+                }}
+                onConfirm={confirmDelete}
+                title={t.delete_confirm_title ?? 'Cancel this purchase?'}
+                body={
+                    t.delete_confirm_body ??
+                    'This cancels the pending purchase and payment.'
+                }
+                confirmLabel={common.delete ?? 'Delete'}
+                cancelLabel={common.cancel ?? 'Cancel'}
+                processing={deleteProcessing}
             />
         </AppLayout>
     );

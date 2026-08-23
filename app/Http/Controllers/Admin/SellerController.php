@@ -6,12 +6,14 @@ use App\Enums\ApprovalStatus;
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\RejectRegistrationRequest;
+use App\Http\Requests\Admin\UpdateCompanyCoordinatesRequest;
 use App\Http\Requests\Admin\UpdateSellerRequest;
 use App\Models\Commission;
 use App\Models\Lead;
 use App\Models\Payout;
 use App\Models\User;
 use App\Services\ApprovalService;
+use App\Services\LocationService;
 use App\Support\AccountActivity;
 use App\Support\AccountListSorter;
 use App\Support\ListPagination;
@@ -25,6 +27,7 @@ class SellerController extends Controller
 {
     public function __construct(
         private readonly ApprovalService $approvalService,
+        private readonly LocationService $locationService,
     ) {}
 
     public function index(Request $request): Response
@@ -209,6 +212,13 @@ class SellerController extends Controller
 
         $company = $user->sellerProfile?->company;
         if ($company) {
+            $previous = [
+                'address' => $company->address,
+                'city' => $company->city,
+                'postcode' => $company->postcode,
+                'country' => $company->country,
+            ];
+
             $company->fill([
                 'name' => $request->input('company_name', $company->name),
                 'email' => $request->input('company_email', $company->email),
@@ -220,9 +230,50 @@ class SellerController extends Controller
                 'notes' => $request->input('company_notes', $company->notes),
             ]);
             $company->save();
+
+            $addressChanged = $previous['address'] !== $company->address
+                || $previous['city'] !== $company->city
+                || $previous['postcode'] !== $company->postcode
+                || $previous['country'] !== $company->country;
+
+            if ($addressChanged) {
+                $this->locationService->geocodeCompany($company);
+            }
         }
 
         return back()->with('success', __('rml.admin.sellers.updated_flash'));
+    }
+
+    public function geocodeCompany(Request $request, User $user): RedirectResponse
+    {
+        $this->authorizeSellerAction($request, $user);
+        $company = $user->sellerProfile?->company;
+        abort_unless($company, 404);
+
+        $this->locationService->geocodeCompany($company);
+
+        return back()->with('success', __('rml.location.geocode_retry_flash'));
+    }
+
+    public function updateCompanyLocation(UpdateCompanyCoordinatesRequest $request, User $user): RedirectResponse
+    {
+        $this->assertSeller($user);
+        abort_unless(
+            $request->user()?->can(Permissions::MANAGE_SELLERS)
+                || $request->user()?->hasRole(UserRole::SuperAdmin->value),
+            403,
+        );
+
+        $company = $user->sellerProfile?->company;
+        abort_unless($company, 404);
+
+        $this->locationService->applyManualCompanyCoordinates(
+            $company,
+            (float) $request->input('latitude'),
+            (float) $request->input('longitude'),
+        );
+
+        return back()->with('success', __('rml.location.coordinates_updated_flash'));
     }
 
     public function approve(Request $request, User $user): RedirectResponse
@@ -342,6 +393,7 @@ class SellerController extends Controller
                 'country' => $company->country,
                 'approval_status' => $company->approval_status?->value,
                 'notes' => $company->notes,
+                ...$this->locationService->companyLocationPayload($company),
             ] : null,
             'approved_at' => $user->approved_at?->toIso8601String(),
             'rejection_reason_code' => $user->rejection_reason_code,

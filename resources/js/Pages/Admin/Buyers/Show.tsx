@@ -3,6 +3,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import { AccountRowActions } from '@/Components/admin/AccountRowActions';
 import { BackLink } from '@/Components/admin/BackLink';
+import { LocationCard } from '@/Components/admin/LocationCard';
 import { ProfileCard, ProfileField } from '@/Components/admin/ProfileCard';
 import {
     Button,
@@ -39,6 +40,12 @@ interface BuyerDetail {
         country: string | null;
         notes: string | null;
         approval_status?: string | null;
+        latitude?: number | null;
+        longitude?: number | null;
+        formatted_address?: string | null;
+        geocoding_status?: string | null;
+        geocoded_at?: string | null;
+        geocoding_error?: string | null;
     } | null;
     approved_at: string | null;
     rejection_reason?: string | null;
@@ -87,6 +94,7 @@ export default function BuyersShow({
     const t = translations.admin.buyers;
     const common = translations.admin.common;
     const rejection = translations.rejection;
+    const locationT = translations.location;
     const statuses = translations.statuses;
     const roles = translations.roles;
     const purchaseStatuses = translations.purchase_statuses;
@@ -258,6 +266,38 @@ export default function BuyersShow({
                         />
                     </dl>
                 </ProfileCard>
+
+                {buyer.company && (
+                    <LocationCard
+                        location={buyer.company}
+                        locale={app.locale}
+                        geocodeRoute={route(
+                            'admin.buyers.geocode-company',
+                            buyer.id,
+                        )}
+                        updateRoute={route(
+                            'admin.buyers.company-location',
+                            buyer.id,
+                        )}
+                        labels={{
+                            title: locationT?.company_title ?? '',
+                            status: locationT?.status ?? '',
+                            latitude: locationT?.latitude ?? '',
+                            longitude: locationT?.longitude ?? '',
+                            formatted_address:
+                                locationT?.formatted_address ?? '',
+                            geocoded_at: locationT?.geocoded_at ?? '',
+                            geocoding_error: locationT?.geocoding_error ?? '',
+                            retry: locationT?.retry ?? '',
+                            edit_coordinates:
+                                locationT?.edit_coordinates ?? '',
+                            save_coordinates:
+                                locationT?.save_coordinates ?? '',
+                            cancel: locationT?.cancel ?? common.cancel,
+                            statuses: locationT?.statuses ?? {},
+                        }}
+                    />
+                )}
 
                 <ProfileCard title={common.purchase_summary}>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

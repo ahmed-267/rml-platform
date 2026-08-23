@@ -8,6 +8,8 @@ import {
     Download,
     Eye,
     type LucideIcon,
+    MapPin,
+    Package,
     PauseCircle,
     Pencil,
     RotateCcw,
@@ -159,4 +161,6 @@ export const tableActionIcons = {
     reinstate: RotateCcw,
     buy: ShoppingCart,
     pay: CreditCard,
+    location: MapPin,
+    package: Package,
 } as const;

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\CadastralLookupStatus;
+use App\Enums\GeocodingStatus;
 use App\Enums\LeadStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,6 +19,7 @@ class Lead extends Model
         'lead_reference',
         'submitted_by_user_id',
         'seller_company_id',
+        'lead_source',
         'scheme_id',
         'zone_id',
         'status',
@@ -32,9 +35,31 @@ class Lead extends Model
         'country',
         'latitude',
         'longitude',
+        'formatted_address',
+        'geocoding_status',
+        'geocoded_at',
+        'geocoding_error',
+        'cadastral_reference',
+        'cadastral_lookup_status',
+        'cadastral_verified_at',
+        'catastro_status',
+        'catastro_provider',
+        'catastro_checked_at',
+        'catastro_matched_address',
+        'catastro_municipality',
+        'catastro_province',
+        'catastro_postcode',
+        'catastro_property_type',
+        'catastro_built_area',
+        'catastro_construction_year',
+        'catastro_raw_response_json',
+        'catastro_warnings_json',
+        'catastro_error_message',
+        'survey_eligibility_status',
         'property_type',
         'epc_rating',
         'size_m2',
+        'submitted_property_area_m2',
         'distance_km',
         'buying_price',
         'selling_price',
@@ -57,9 +82,15 @@ class Lead extends Model
     {
         return [
             'status' => LeadStatus::class,
+            'geocoding_status' => GeocodingStatus::class,
+            'cadastral_lookup_status' => CadastralLookupStatus::class,
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'size_m2' => 'decimal:2',
+            'submitted_property_area_m2' => 'decimal:2',
+            'catastro_built_area' => 'decimal:2',
+            'catastro_raw_response_json' => 'array',
+            'catastro_warnings_json' => 'array',
             'distance_km' => 'decimal:2',
             'buying_price' => 'decimal:2',
             'selling_price' => 'decimal:2',
@@ -68,6 +99,9 @@ class Lead extends Model
             'rejected_at' => 'datetime',
             'listed_at' => 'datetime',
             'sold_at' => 'datetime',
+            'geocoded_at' => 'datetime',
+            'cadastral_verified_at' => 'datetime',
+            'catastro_checked_at' => 'datetime',
         ];
     }
 
@@ -104,6 +138,21 @@ class Lead extends Model
     public function evidenceFiles(): HasMany
     {
         return $this->hasMany(LeadEvidenceFile::class);
+    }
+
+    public function survey(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(LeadSurvey::class);
+    }
+
+    public function catastroSnapshots(): HasMany
+    {
+        return $this->hasMany(LeadCatastroSnapshot::class);
+    }
+
+    public function latestCatastroSnapshot(): \Illuminate\Database\Eloquent\Relations\HasOne
+    {
+        return $this->hasOne(LeadCatastroSnapshot::class)->latestOfMany();
     }
 
     public function audits(): HasMany

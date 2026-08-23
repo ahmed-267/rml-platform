@@ -307,4 +307,19 @@ class SettingsRefactorTest extends TestCase
             ->assertInertia(fn ($page) => $page
                 ->has('commission_rules', 2));
     }
+
+    public function test_legacy_document_settings_tabs_map_to_general(): void
+    {
+        $admin = User::query()->where('email', 'admin@rml.test')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->get(route('admin.settings.index', ['tab' => 'agreements']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Admin/Settings/Index')
+                ->where('tab', 'general')
+                ->has('agreement_templates')
+                ->has('terms_templates')
+                ->has('gdpr_templates'));
+    }
 }

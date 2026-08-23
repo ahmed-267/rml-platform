@@ -1,0 +1,51 @@
+{
+  "kind": "multiple",
+  "message": "Multiple cadastral properties found. Select the correct unit.",
+  "properties": [
+    {
+      "cadastral_reference": "4518801VK4720A0001CC",
+      "cadastral_address": "CL MAYOR 10 PLANTA 01 PUERTA A 45001 TOLEDO (TOLEDO)",
+      "province": "TOLEDO",
+      "municipality": "TOLEDO",
+      "street_type": "CL",
+      "street_name": "MAYOR",
+      "street_number": "10",
+      "postcode": "45001",
+      "property_use": "Residencial",
+      "constructed_area_m2": 68,
+      "floor": "01",
+      "door": "A",
+      "unit_label": "Planta 01 Puerta A"
+    },
+    {
+      "cadastral_reference": "4518801VK4720A0002CC",
+      "cadastral_address": "CL MAYOR 10 PLANTA 01 PUERTA B 45001 TOLEDO (TOLEDO)",
+      "province": "TOLEDO",
+      "municipality": "TOLEDO",
+      "street_type": "CL",
+      "street_name": "MAYOR",
+      "street_number": "10",
+      "postcode": "45001",
+      "property_use": "Residencial",
+      "constructed_area_m2": 72,
+      "floor": "01",
+      "door": "B",
+      "unit_label": "Planta 01 Puerta B"
+    },
+    {
+      "cadastral_reference": "4518801VK4720A0003CC",
+      "cadastral_address": "CL MAYOR 10 PLANTA 02 PUERTA A 45001 TOLEDO (TOLEDO)",
+      "province": "TOLEDO",
+      "municipality": "TOLEDO",
+      "street_type": "CL",
+      "street_name": "MAYOR",
+      "street_number": "10",
+      "postcode": "45001",
+      "property_use": "Residencial",
+      "constructed_area_m2": 75,
+      "floor": "02",
+      "door": "A",
+      "unit_label": "Planta 02 Puerta A"
+    }
+  ]
+}

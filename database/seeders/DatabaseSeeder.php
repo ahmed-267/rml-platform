@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             SchemeSeeder::class,
             DomainDemoSeeder::class,
             ExpandedDemoDataSeeder::class,
+            CatastroDemoSeeder::class,
         ]);
     }
 }

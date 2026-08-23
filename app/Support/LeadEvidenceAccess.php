@@ -6,6 +6,7 @@ use App\Enums\EvidenceFileType;
 use App\Enums\UserRole;
 use App\Models\Lead;
 use App\Models\LeadEvidenceFile;
+use App\Models\Scheme;
 use App\Models\User;
 
 final class LeadEvidenceAccess
@@ -48,11 +49,70 @@ final class LeadEvidenceAccess
      */
     public static function requiredTypesForScheme(?string $schemeSlug): array
     {
-        // Photos + homeowner agreement are required for every scheme.
-        // EPC / technical docs remain optional uploads (shown in UI).
+        $requirements = self::schemeRequirements($schemeSlug);
+        $types = [];
+
+        if ($requirements['require_photos']) {
+            $types[] = EvidenceFileType::Photo;
+        }
+        if ($requirements['require_homeowner_agreement']) {
+            $types[] = EvidenceFileType::SignedHomeownerAgreement;
+        }
+        if ($requirements['require_epc']) {
+            $types[] = EvidenceFileType::EligibilityDocument;
+        }
+
+        // Safe default when a scheme has all toggles off.
+        if ($types === []) {
+            $types = [
+                EvidenceFileType::Photo,
+                EvidenceFileType::SignedHomeownerAgreement,
+            ];
+        }
+
+        return $types;
+    }
+
+    /**
+     * @return array{
+     *     require_internal_audit: bool,
+     *     require_homeowner_agreement: bool,
+     *     require_epc: bool,
+     *     require_photos: bool,
+     *     min_measurement: float|null,
+     *     max_measurement: float|null
+     * }
+     */
+    public static function schemeRequirements(?string $schemeSlug): array
+    {
+        $defaults = [
+            'require_internal_audit' => true,
+            'require_homeowner_agreement' => true,
+            'require_epc' => false,
+            'require_photos' => true,
+            'min_measurement' => null,
+            'max_measurement' => null,
+        ];
+
+        if (! $schemeSlug) {
+            return $defaults;
+        }
+
+        $scheme = Scheme::query()->where('slug', $schemeSlug)->first(['id', 'metadata']);
+        $meta = is_array($scheme?->metadata) ? $scheme->metadata : [];
+        $requirements = is_array($meta['requirements'] ?? null) ? $meta['requirements'] : [];
+
         return [
-            EvidenceFileType::Photo,
-            EvidenceFileType::SignedHomeownerAgreement,
+            'require_internal_audit' => (bool) ($requirements['require_internal_audit'] ?? $defaults['require_internal_audit']),
+            'require_homeowner_agreement' => (bool) ($requirements['require_homeowner_agreement'] ?? $defaults['require_homeowner_agreement']),
+            'require_epc' => (bool) ($requirements['require_epc'] ?? $defaults['require_epc']),
+            'require_photos' => (bool) ($requirements['require_photos'] ?? $defaults['require_photos']),
+            'min_measurement' => isset($requirements['min_measurement'])
+                ? (float) $requirements['min_measurement']
+                : null,
+            'max_measurement' => isset($requirements['max_measurement'])
+                ? (float) $requirements['max_measurement']
+                : null,
         ];
     }
 

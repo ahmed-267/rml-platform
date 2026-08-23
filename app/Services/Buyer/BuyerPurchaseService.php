@@ -191,11 +191,36 @@ class BuyerPurchaseService
             }
 
             foreach ($leads as $lead) {
-                if (! $this->availabilityService->isAvailable($lead)) {
+                // Package members are reserved to this package — skip package-reservation
+                // availability, but still require marketplace status and no active purchase.
+                if (! in_array($lead->status, LeadAvailabilityService::MARKETPLACE_STATUSES, true)) {
                     throw ValidationException::withMessages([
                         'package_id' => __('rml.buyer.leads.unavailable'),
                     ]);
                 }
+
+                $hasActivePurchase = $lead->purchaseItems()
+                    ->whereHas('purchase', function ($purchaseQuery) {
+                        $purchaseQuery->whereIn('status', [
+                            \App\Enums\PurchaseStatus::Pending->value,
+                            \App\Enums\PurchaseStatus::Paid->value,
+                        ]);
+                    })
+                    ->exists();
+
+                if ($hasActivePurchase) {
+                    throw ValidationException::withMessages([
+                        'package_id' => __('rml.buyer.leads.unavailable'),
+                    ]);
+                }
+            }
+
+            if ($package->buyer_company_id !== null
+                && (int) $package->buyer_company_id !== (int) $companyId
+            ) {
+                throw ValidationException::withMessages([
+                    'package_id' => __('rml.buyer.packages.unavailable'),
+                ]);
             }
 
             $purchase = $this->persistPurchase($buyer, $companyId, $leads, $method, $package);

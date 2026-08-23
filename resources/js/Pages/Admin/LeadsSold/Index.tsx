@@ -6,6 +6,7 @@ import {
     DataTable,
     EmptyState,
     FilterBar,
+    FormInput,
     MobileFilterDrawer,
     KpiCard,
     MobileCardList,
@@ -14,6 +15,7 @@ import {
     SortableHeader,
     StatusBadge,
     TableActionLink,
+    TableActions,
     tableActionIcons,
 } from '@/Components/ui';
 import type { SortDirection } from '@/Components/ui/SortableHeader';
@@ -41,8 +43,13 @@ interface SoldLeadRow {
     seller_name: string | null;
     seller_company: string | null;
     buyer_company: string | null;
+    buyer_company_id?: number | null;
+    buyer_user_id?: number | null;
     buyer_name: string | null;
+    payment_id?: number | null;
+    payment_reference?: string | null;
     payment_status: string | null;
+    release_status?: string | null;
     margin: number | null;
     sold_at: string | null;
 }
@@ -57,6 +64,11 @@ export default function LeadsSoldIndex({
     leads: Paginator<SoldLeadRow>;
     filters: {
         scheme_id?: string | number | null;
+        installer_id?: string | number | null;
+        payment_status?: string | null;
+        release_status?: string | null;
+        sold_from?: string | null;
+        sold_to?: string | null;
         search?: string | null;
         sort?: string | null;
         direction?: string | null;
@@ -64,6 +76,9 @@ export default function LeadsSoldIndex({
     };
     filterOptions: {
         schemes: Array<{ id: number; name: string }>;
+        installers?: Array<{ id: number; name: string }>;
+        payment_statuses?: string[];
+        release_statuses?: string[];
     };
     summary: {
         total_sold: number;
@@ -75,6 +90,7 @@ export default function LeadsSoldIndex({
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.admin.leads_sold;
     const lb = translations.admin.leads_bought;
+    const leadsT = translations.admin.leads;
     const common = translations.admin.common;
     const leadStatuses = translations.lead_statuses;
     const paymentStatuses = translations.payment_statuses;
@@ -85,6 +101,17 @@ export default function LeadsSoldIndex({
     const [schemeId, setSchemeId] = useState(
         filters.scheme_id != null ? String(filters.scheme_id) : '',
     );
+    const [installerId, setInstallerId] = useState(
+        filters.installer_id != null ? String(filters.installer_id) : '',
+    );
+    const [paymentStatus, setPaymentStatus] = useState(
+        filters.payment_status ?? '',
+    );
+    const [releaseStatus, setReleaseStatus] = useState(
+        filters.release_status ?? '',
+    );
+    const [soldFrom, setSoldFrom] = useState(filters.sold_from ?? '');
+    const [soldTo, setSoldTo] = useState(filters.sold_to ?? '');
 
     const currentSort = filters.sort ?? 'date';
     const currentDirection: SortDirection =
@@ -99,6 +126,11 @@ export default function LeadsSoldIndex({
         tab: 'sold',
         search: search || undefined,
         scheme_id: schemeId || undefined,
+        installer_id: installerId || undefined,
+        payment_status: paymentStatus || undefined,
+        release_status: releaseStatus || undefined,
+        sold_from: soldFrom || undefined,
+        sold_to: soldTo || undefined,
         sort: currentSort,
         direction: currentDirection,
         per_page: currentPerPage,
@@ -110,14 +142,25 @@ export default function LeadsSoldIndex({
             preserveState: true,
             replace: true,
         });
-    }
+    };
 
-    useInstantListFilters(applyFilters, search, [schemeId]);
-
+    useInstantListFilters(applyFilters, search, [
+        schemeId,
+        installerId,
+        paymentStatus,
+        releaseStatus,
+        soldFrom,
+        soldTo,
+    ]);
 
     const resetFilters = () => {
         setSearch('');
         setSchemeId('');
+        setInstallerId('');
+        setPaymentStatus('');
+        setReleaseStatus('');
+        setSoldFrom('');
+        setSoldTo('');
         router.get(
             listHref,
             { tab: 'sold', per_page: currentPerPage },
@@ -154,8 +197,147 @@ export default function LeadsSoldIndex({
         />
     );
 
-    const body = (
+    const releaseLabel = (value: string | null | undefined) => {
+        if (value === 'released') {
+            return t.release_released ?? 'Released';
+        }
+        if (value === 'pending_release') {
+            return t.release_pending ?? 'Pending release';
+        }
+        return value ?? '—';
+    };
+
+    const soldActions = (row: SoldLeadRow) => (
+        <TableActions>
+            <TableActionLink
+                href={route('admin.leads-sold.show', row.id)}
+                label={common.view}
+                icon={tableActionIcons.view}
+            />
+            {row.buyer_user_id != null && (
+                <TableActionLink
+                    href={route('admin.buyers.show', row.buyer_user_id)}
+                    label={t.view_buyer ?? 'View buyer'}
+                    icon={tableActionIcons.buy}
+                />
+            )}
+            {row.payment_reference && (
+                <TableActionLink
+                    href={route('admin.payments.index', {
+                        tab: 'buyer',
+                        search: row.payment_reference,
+                    })}
+                    label={t.view_payment ?? 'View payment'}
+                    icon={tableActionIcons.pay}
+                />
+            )}
+            {row.payment_status === 'paid' && row.payment_reference && (
+                <TableActionLink
+                    href={route('admin.payments.index', {
+                        tab: 'buyer',
+                        search: row.payment_reference,
+                    })}
+                    label={t.download_invoice ?? 'Download invoice'}
+                    icon={tableActionIcons.download}
+                />
+            )}
+        </TableActions>
+    );
+
+    const filterControls = (
         <>
+            <div className="w-full sm:w-[14rem]">
+                <Select
+                    label={t.filter_installer ?? t.buyer}
+                    value={installerId}
+                    onChange={(e) => setInstallerId(e.target.value)}
+                    options={[
+                        {
+                            label: t.all_installers ?? common.all,
+                            value: '',
+                        },
+                        ...(filterOptions.installers ?? []).map((item) => ({
+                            label: item.name,
+                            value: String(item.id),
+                        })),
+                    ]}
+                />
+            </div>
+            <div className="w-full sm:w-[14rem]">
+                <Select
+                    label={common.scheme}
+                    value={schemeId}
+                    onChange={(e) => setSchemeId(e.target.value)}
+                    options={[
+                        {
+                            label:
+                                t.all_schemes ??
+                                lb.all_schemes ??
+                                common.all,
+                            value: '',
+                        },
+                        ...filterOptions.schemes.map((s) => ({
+                            label: s.name,
+                            value: String(s.id),
+                        })),
+                    ]}
+                />
+            </div>
+            <div className="w-full sm:w-[12.5rem]">
+                <Select
+                    label={t.payment_status ?? 'Payment status'}
+                    value={paymentStatus}
+                    onChange={(e) => setPaymentStatus(e.target.value)}
+                    options={[
+                        {
+                            label: common.all_payment_statuses ?? common.all,
+                            value: '',
+                        },
+                        ...(filterOptions.payment_statuses ?? []).map((s) => ({
+                            label: paymentStatuses[s] ?? s,
+                            value: s,
+                        })),
+                    ]}
+                />
+            </div>
+            <div className="w-full sm:w-[12.5rem]">
+                <Select
+                    label={t.release_status ?? 'Release status'}
+                    value={releaseStatus}
+                    onChange={(e) => setReleaseStatus(e.target.value)}
+                    options={[
+                        {
+                            label: common.all_release_statuses ?? common.all,
+                            value: '',
+                        },
+                        ...(filterOptions.release_statuses ?? []).map((s) => ({
+                            label: releaseLabel(s),
+                            value: s,
+                        })),
+                    ]}
+                />
+            </div>
+            <div className="w-full sm:w-[11rem]">
+                <FormInput
+                    type="date"
+                    label={t.filter_sold_from ?? t.sold_date ?? 'Sold from'}
+                    value={soldFrom}
+                    onChange={(e) => setSoldFrom(e.target.value)}
+                />
+            </div>
+            <div className="w-full sm:w-[11rem]">
+                <FormInput
+                    type="date"
+                    label={t.filter_sold_to ?? 'Sold to'}
+                    value={soldTo}
+                    onChange={(e) => setSoldTo(e.target.value)}
+                />
+            </div>
+        </>
+    );
+
+    const body = (
+        <div className="min-w-0 space-y-4 overflow-x-hidden">
             {!embedded && <Head title={t.index_title} />}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -184,34 +366,38 @@ export default function LeadsSoldIndex({
                 searchPlaceholder={t.search_placeholder}
                 onOpenMobileFilters={() => setFiltersOpen(true)}
                 actions={
-                    <>
-<Button size="sm" variant="ghost" onClick={resetFilters}>
-                            {common.reset}
+                    <Button size="sm" variant="ghost" onClick={resetFilters}>
+                        {common.reset}
+                    </Button>
+                }
+                endActions={
+                    <div className="flex gap-2">
+                        <Button size="sm" variant="primary">
+                            {leadsT.view_table ?? 'Table'}
                         </Button>
-                    </>
+                        <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                                router.get(
+                                    listHref,
+                                    queryParams({
+                                        view: 'map',
+                                        page: undefined,
+                                    }),
+                                    {
+                                        preserveState: false,
+                                        replace: true,
+                                    },
+                                )
+                            }
+                        >
+                            {leadsT.view_map ?? 'Map'}
+                        </Button>
+                    </div>
                 }
             >
-                <div className="w-full sm:w-[14rem]">
-                    <Select
-                        label={common.scheme}
-                        aria-label={common.scheme}
-                        value={schemeId}
-                        onChange={(e) => setSchemeId(e.target.value)}
-                        options={[
-                            {
-                                label:
-                                    t.all_schemes ??
-                                    lb.all_schemes ??
-                                    common.all,
-                                value: '',
-                            },
-                            ...filterOptions.schemes.map((s) => ({
-                                label: s.name,
-                                value: String(s.id),
-                            })),
-                        ]}
-                    />
-                </div>
+                {!isMobile && filterControls}
             </FilterBar>
 
             <MobileFilterDrawer
@@ -220,25 +406,7 @@ export default function LeadsSoldIndex({
                 onApply={applyFilters}
                 onReset={resetFilters}
             >
-                <Select
-                    label={common.scheme}
-                    aria-label={common.scheme}
-                    value={schemeId}
-                    onChange={(e) => setSchemeId(e.target.value)}
-                    options={[
-                        {
-                            label:
-                                t.all_schemes ??
-                                lb.all_schemes ??
-                                common.all,
-                            value: '',
-                        },
-                        ...filterOptions.schemes.map((s) => ({
-                            label: s.name,
-                            value: String(s.id),
-                        })),
-                    ]}
-                />
+                {filterControls}
             </MobileFilterDrawer>
 
             {leads.data.length === 0 ? (
@@ -260,13 +428,24 @@ export default function LeadsSoldIndex({
                             />
                         ),
                         body: (
-                            <p className="text-rml-muted">
-                                {t.margin}: {formatMoney(row.margin)}
-                            </p>
+                            <div className="space-y-1 text-rml-muted">
+                                <p>
+                                    {t.margin}: {formatMoney(row.margin)}
+                                </p>
+                                <p>
+                                    {t.payment_status}:{' '}
+                                    {row.payment_status
+                                        ? (paymentStatuses[row.payment_status] ??
+                                          row.payment_status)
+                                        : '—'}
+                                </p>
+                                <p>
+                                    {t.release_status}:{' '}
+                                    {releaseLabel(row.release_status)}
+                                </p>
+                            </div>
                         ),
-                        actions: (
-                            <TableActionLink href={route('admin.leads-sold.show', row.id)} label={common.view} icon={tableActionIcons.view} />
-                        ),
+                        actions: soldActions(row),
                     }))}
                 />
             ) : (
@@ -288,12 +467,6 @@ export default function LeadsSoldIndex({
                             ),
                         },
                         {
-                            id: 'seller',
-                            header: sortableHeader(lb.seller, 'seller'),
-                            cell: (row) =>
-                                row.seller_company ?? row.seller_name ?? '—',
-                        },
-                        {
                             id: 'buyer',
                             header: sortableHeader(t.buyer, 'buyer'),
                             cell: (row) =>
@@ -303,19 +476,6 @@ export default function LeadsSoldIndex({
                             id: 'scheme',
                             header: sortableHeader(common.scheme, 'scheme'),
                             cell: (row) => row.scheme ?? '—',
-                        },
-                        {
-                            id: 'zone',
-                            header: sortableHeader(common.zone, 'zone'),
-                            cell: (row) => row.zone ?? '—',
-                        },
-                        {
-                            id: 'buying_price',
-                            header: sortableHeader(
-                                lb.seller_payout ?? lb.buying_price,
-                                'buying_price',
-                            ),
-                            cell: (row) => formatMoney(row.buying_price),
                         },
                         {
                             id: 'selling_price',
@@ -353,16 +513,31 @@ export default function LeadsSoldIndex({
                                 ),
                         },
                         {
+                            id: 'release_status',
+                            header: t.release_status ?? 'Release',
+                            cell: (row) => (
+                                <StatusBadge
+                                    label={releaseLabel(row.release_status)}
+                                    tone={
+                                        row.release_status === 'released'
+                                            ? 'success'
+                                            : 'warning'
+                                    }
+                                />
+                            ),
+                        },
+                        {
                             id: 'sold_at',
-                            header: sortableHeader(common.date, 'date'),
+                            header: sortableHeader(
+                                t.sold_date ?? common.date,
+                                'date',
+                            ),
                             cell: (row) => formatDate(row.sold_at, app.locale),
                         },
                         {
                             id: 'actions',
                             header: common.actions,
-                            cell: (row) => (
-                                <TableActionLink href={route('admin.leads-sold.show', row.id)} label={common.view} icon={tableActionIcons.view} />
-                            ),
+                            cell: (row) => soldActions(row),
                         },
                     ]}
                 />
@@ -388,7 +563,7 @@ export default function LeadsSoldIndex({
                 }
                 labels={paginationLabels(common)}
             />
-        </>
+        </div>
     );
 
     if (embedded) {

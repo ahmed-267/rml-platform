@@ -24,6 +24,7 @@ import {
 import { useIsMobile } from '@/hooks/use-media-query';
 import type { PageProps } from '@/types';
 import { useInstantListFilters } from '@/hooks/use-instant-list-filters';
+import { useClientTableSort } from '@/hooks/use-list-sort';
 
 interface AuditLogRow {
     id: number;
@@ -98,6 +99,20 @@ export default function AuditLogsIndex({
     };
 
     const { page, pageCount } = paginationMeta(logs);
+
+    const { sortedRows, sortableHeader } = useClientTableSort(logs.data, {
+        defaultSort: 'created_at',
+        defaultDirection: 'desc',
+        sortAscLabel: common.sort_asc,
+        sortDescLabel: common.sort_desc,
+        accessors: {
+            action: (row) => row.action,
+            entity: (row) =>
+                `${row.entity_type}${row.entity_id != null ? ` #${row.entity_id}` : ''}`,
+            user: (row) => row.user?.name ?? common.unknown,
+            created_at: (row) => row.created_at ?? '',
+        },
+    });
 
     const detailBody = detail ? (
         <div className="space-y-4">
@@ -182,7 +197,7 @@ export default function AuditLogsIndex({
                 <EmptyState title={common.empty} />
             ) : isMobile ? (
                 <MobileCardList
-                    items={logs.data.map((log) => ({
+                    items={sortedRows.map((log) => ({
                         id: String(log.id),
                         title: log.action,
                         subtitle: log.user?.name ?? common.unknown,
@@ -203,29 +218,29 @@ export default function AuditLogsIndex({
                 />
             ) : (
                 <DataTable
-                    data={logs.data}
+                    data={sortedRows}
                     getRowId={(r) => String(r.id)}
                     emptyMessage={common.empty}
                     columns={[
                         {
                             id: 'action',
-                            header: t.action,
+                            header: sortableHeader(t.action, 'action'),
                             cell: (r) => r.action,
                         },
                         {
                             id: 'entity',
-                            header: t.entity,
+                            header: sortableHeader(t.entity, 'entity'),
                             cell: (r) =>
                                 `${r.entity_type}${r.entity_id != null ? ` #${r.entity_id}` : ''}`,
                         },
                         {
                             id: 'user',
-                            header: t.user,
+                            header: sortableHeader(t.user, 'user'),
                             cell: (r) => r.user?.name ?? common.unknown,
                         },
                         {
                             id: 'created_at',
-                            header: common.date,
+                            header: sortableHeader(common.date, 'created_at'),
                             cell: (r) =>
                                 formatDateTime(r.created_at, app.locale),
                         },

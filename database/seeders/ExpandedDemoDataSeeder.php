@@ -45,6 +45,7 @@ use App\Models\User;
 use App\Models\Zone;
 use App\Services\AuditLogService;
 use App\Services\LeadPricingService;
+use App\Support\SpanishLocations;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -736,13 +737,6 @@ class ExpandedDemoDataSeeder extends Seeder
         int $daysAgo,
         ?AuditDecisionStatus $auditStatus = null,
     ): Lead {
-        $postcodeMap = [
-            'Madrid' => '28013', 'Barcelona' => '08015', 'Valencia' => '46003',
-            'Sevilla' => '41004', 'Málaga' => '29005', 'Alicante' => '03002',
-            'Zaragoza' => '50003', 'Murcia' => '30004', 'Granada' => '18005',
-            'Córdoba' => '14006',
-        ];
-
         $lead = Lead::query()->updateOrCreate(
             ['lead_reference' => $reference],
             [
@@ -756,10 +750,7 @@ class ExpandedDemoDataSeeder extends Seeder
                 'customer_phone' => '+34600'.substr(preg_replace('/\D/', '', $reference) ?: '0000', -6),
                 'customer_whatsapp' => '+34600'.substr(preg_replace('/\D/', '', $reference) ?: '0000', -6),
                 'customer_email' => Str::lower($first).'.'.Str::lower($last).'.'.Str::lower($reference).'@example.es',
-                'address_line_1' => 'Calle Demo '.((int) substr($reference, -2)).', '.$city,
-                'city' => $city,
-                'postcode' => $postcodeMap[$city] ?? '28001',
-                'country' => 'ES',
+                ...SpanishLocations::leadAttributes($city, (int) substr(preg_replace('/\D/', '', $reference) ?: '0', -2)),
                 'property_type' => ['detached', 'semi_detached', 'terrace', 'flat'][((int) substr($reference, -1)) % 4],
                 'epc_rating' => ['D', 'E', 'F', 'G'][((int) substr($reference, -1)) % 4],
                 'size_m2' => $size,
@@ -1052,6 +1043,8 @@ class ExpandedDemoDataSeeder extends Seeder
         User $approver,
         bool $individual = false,
     ): Company {
+        $location = SpanishLocations::companyAttributes($city);
+
         return Company::query()->updateOrCreate(
             ['name' => $name, 'type' => $type->value],
             [
@@ -1060,12 +1053,7 @@ class ExpandedDemoDataSeeder extends Seeder
                 'email' => Str::slug($name, '.').'@demo.rml.test',
                 'phone' => '+34911'.str_pad((string) abs(crc32($name) % 100000), 5, '0', STR_PAD_LEFT),
                 'whatsapp' => '+34610'.str_pad((string) abs(crc32($name) % 100000), 5, '0', STR_PAD_LEFT),
-                'address' => $city.' Business Park',
-                'city' => $city,
-                'postcode' => $postcode,
-                'country' => 'ES',
-                'latitude' => 40.0 + (abs(crc32($city)) % 100) / 100,
-                'longitude' => -3.0 - (abs(crc32($city)) % 100) / 100,
+                ...$location,
                 'notes' => 'Expanded demo '.$type->value.' company',
                 'approved_at' => now(),
                 'approved_by' => $approver->id,

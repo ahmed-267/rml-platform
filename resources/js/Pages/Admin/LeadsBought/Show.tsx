@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import AppLayout from '@/Layouts/AppLayout';
 import {
     AuditLeadModal,
     type AuditPayload,
 } from '@/Components/admin/AuditLeadModal';
 import { BackLink } from '@/Components/admin/BackLink';
+import { LocationCard } from '@/Components/admin/LocationCard';
+import { CatastroVerificationCard } from '@/Components/catastro/CatastroVerificationCard';
+import type { CatastroPanelPayload } from '@/Components/catastro/CatastroVerificationCard';
 import { SellerQuickViewModal } from '@/Components/admin/SellerQuickViewModal';
 import {
     Button,
     StatusBadge,
     TableActionButton,
+    Tooltip,
     tableActionIcons,
 } from '@/Components/ui';
 import {
@@ -53,6 +57,15 @@ interface AdminLead {
     scheme: { id: number; name: string } | null;
     zone: { id: number; code: string; name: string } | null;
     size_m2: number | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    formatted_address?: string | null;
+    geocoding_status?: string | null;
+    geocoded_at?: string | null;
+    geocoding_error?: string | null;
+    cadastral_reference?: string | null;
+    cadastral_lookup_status?: string | null;
+    cadastral_verified_at?: string | null;
     evidence: Array<{
         id: number;
         file_type: string | null;
@@ -76,18 +89,44 @@ export default function LeadsBoughtShow({
     lead,
     auditOpen,
     audit,
+    can_sell = false,
+    sellable = false,
+    sellable_reason = null,
+    survey = null,
+    catastro = null,
+    can_lookup_catastro = false,
+    can_review_catastro = false,
 }: {
     lead: AdminLead;
     auditOpen?: boolean;
     audit?: AuditPayload | null;
+    can_sell?: boolean;
+    sellable?: boolean;
+    sellable_reason?: string | null;
+    survey?: {
+        exists: boolean;
+        status: string;
+        action: string;
+        action_label: string;
+        href: string | null;
+        eligibility_status: string;
+        catastro_status: string;
+    } | null;
+    catastro?: CatastroPanelPayload | null;
+    can_lookup_catastro?: boolean;
+    can_review_catastro?: boolean;
 }) {
     const { translations, app } = usePage<PageProps>().props;
     const t = translations.admin.leads_bought;
+    const surveyT = translations.survey;
     const auditT = translations.admin.audit;
     const common = translations.admin.common;
     const rejection = translations.rejection;
+    const locationT = translations.location;
     const leadStatuses = translations.lead_statuses;
     const statuses = translations.statuses;
+    const leadsT = translations.admin.leads;
+    const salesT = translations.admin.sales;
 
     const [modalOpen, setModalOpen] = useState(Boolean(auditOpen));
     const [sellerOpen, setSellerOpen] = useState(false);
@@ -99,14 +138,66 @@ export default function LeadsBoughtShow({
     const customerName =
         `${lead.customer_first_name} ${lead.customer_last_name}`.trim();
 
+    const sellDisabledReason =
+        sellable_reason === 'sold'
+            ? (leadsT.map_ineligible_sold ?? 'Lead is sold')
+            : sellable_reason === 'rejected'
+              ? (leadsT.map_ineligible_rejected ?? 'Lead is rejected')
+              : sellable_reason === 'cancelled'
+                ? (leadsT.map_ineligible_cancelled ?? 'Lead is cancelled')
+                : sellable_reason === 'in_package'
+                  ? (leadsT.map_ineligible_in_package ??
+                    'Already in an active package')
+                  : (salesT.not_eligible_reason ??
+                    'Only listed, approved leads that are not locked can be sold.');
+
     return (
         <AppLayout
             title={t.show_title}
             subtitle={lead.lead_reference}
             headerActions={
-                <Button size="sm" onClick={() => setModalOpen(true)}>
-                    {t.audit_lead}
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                    {survey?.href && (
+                        <Link
+                            href={survey.href}
+                            method={survey.action === 'start' ? 'post' : 'get'}
+                            as={survey.action === 'start' ? 'button' : 'a'}
+                        >
+                            <Button size="sm" variant="secondary">
+                                {survey.action_label}
+                            </Button>
+                        </Link>
+                    )}
+                    {can_sell &&
+                        (sellable ? (
+                            <Button
+                                size="sm"
+                                variant="primary"
+                                onClick={() =>
+                                    router.get(
+                                        route('admin.sales.create', {
+                                            type: 'lead',
+                                            lead_id: lead.id,
+                                            return_to: 'lead',
+                                        }),
+                                    )
+                                }
+                            >
+                                {leadsT.sell_lead ?? leadsT.buy_lead ?? 'Buy lead'}
+                            </Button>
+                        ) : (
+                            <Tooltip label={sellDisabledReason}>
+                                <span>
+                                    <Button size="sm" variant="outline" disabled>
+                                        {leadsT.sell_lead ?? leadsT.buy_lead ?? 'Buy lead'}
+                                    </Button>
+                                </span>
+                            </Tooltip>
+                        ))}
+                    <Button size="sm" onClick={() => setModalOpen(true)}>
+                        {t.audit_lead}
+                    </Button>
+                </div>
             }
         >
             <Head title={t.show_title} />
@@ -116,6 +207,7 @@ export default function LeadsBoughtShow({
                     href={route('admin.leads.index', { tab: 'registered' })}
                     label={common.back}
                     className="mt-0.5"
+                    useHistory={false}
                 />
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
                     <span className="font-mono text-2xl font-bold tracking-tight text-rml-text sm:text-3xl">
@@ -130,6 +222,45 @@ export default function LeadsBoughtShow({
                     )}
                 </div>
             </div>
+
+            {survey && (
+                <section className="rml-card space-y-2 p-4 sm:p-5">
+                    <h2 className="text-base font-semibold text-rml-text">
+                        {surveyT.card_title}
+                    </h2>
+                    <div className="flex flex-wrap gap-2">
+                        <StatusBadge
+                            label={
+                                surveyT.statuses?.[
+                                    survey.status as keyof typeof surveyT.statuses
+                                ] ?? survey.status
+                            }
+                            tone="neutral"
+                        />
+                        <StatusBadge
+                            label={`${surveyT.catastro_status}: ${
+                                surveyT.catastro_statuses?.[
+                                    survey.catastro_status as keyof typeof surveyT.catastro_statuses
+                                ] ?? survey.catastro_status
+                            }`}
+                            tone="info"
+                        />
+                    </div>
+                    <p className="text-sm text-rml-muted">
+                        {surveyT.eligibility}: {survey.eligibility_status}
+                    </p>
+                </section>
+            )}
+
+            {catastro && (
+                <CatastroVerificationCard
+                    leadId={lead.id}
+                    catastro={catastro}
+                    routePrefix="admin"
+                    canLookup={can_lookup_catastro}
+                    canReview={can_review_catastro}
+                />
+            )}
 
             <section className="rml-card grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
                 <DetailRow
@@ -171,6 +302,29 @@ export default function LeadsBoughtShow({
                     value={formatDateTime(lead.created_at, app.locale)}
                 />
             </section>
+
+            <LocationCard
+                location={lead}
+                locale={app.locale}
+                showCadastral
+                geocodeRoute={route('admin.leads.geocode', lead.id)}
+                updateRoute={route('admin.leads.location', lead.id)}
+                labels={{
+                    title: locationT?.title ?? '',
+                    status: locationT?.status ?? '',
+                    latitude: locationT?.latitude ?? '',
+                    longitude: locationT?.longitude ?? '',
+                    formatted_address: locationT?.formatted_address ?? '',
+                    geocoded_at: locationT?.geocoded_at ?? '',
+                    geocoding_error: locationT?.geocoding_error ?? '',
+                    cadastral_reference: locationT?.cadastral_reference,
+                    retry: locationT?.retry ?? '',
+                    edit_coordinates: locationT?.edit_coordinates ?? '',
+                    save_coordinates: locationT?.save_coordinates ?? '',
+                    cancel: locationT?.cancel ?? common.cancel,
+                    statuses: locationT?.statuses ?? {},
+                }}
+            />
 
             {(lead.rejection_reason ||
                 lead.rejection_comment ||

@@ -20,6 +20,10 @@ import { rejectionReasonOptions } from '@/lib/rejection-reasons';
 import { leadStatusLabel, leadStatusTone } from '@/lib/lead-status';
 import type { PageProps } from '@/types';
 import { StatusBadge } from '@/Components/ui/StatusBadge';
+import {
+    CatastroVerificationCard,
+    type CatastroPanelPayload,
+} from '@/Components/catastro/CatastroVerificationCard';
 
 export interface AuditChecklistItemPayload {
     id: number;
@@ -90,6 +94,9 @@ export interface AuditPayload {
     assigned_auditor_id?: number | null;
     can_assign_auditor?: boolean;
     auditors?: AuditAuditorOption[];
+    catastro?: CatastroPanelPayload;
+    can_lookup_catastro?: boolean;
+    can_review_catastro?: boolean;
 }
 
 export interface AuditLeadModalProps {
@@ -981,6 +988,20 @@ export function AuditLeadModal({
                                 </AuditField>
                             </dl>
                         </AuditPanel>
+
+                        {loadedAudit.catastro && (
+                            <CatastroVerificationCard
+                                leadId={leadId}
+                                catastro={loadedAudit.catastro}
+                                routePrefix="admin"
+                                canLookup={
+                                    loadedAudit.can_lookup_catastro ?? false
+                                }
+                                canReview={
+                                    loadedAudit.can_review_catastro ?? false
+                                }
+                            />
+                        )}
 
                         <AuditPanel
                             title={t.seller_details ?? common.company}

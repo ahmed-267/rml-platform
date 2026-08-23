@@ -67,7 +67,7 @@ const adminNav: NavItem[] = [
         label: 'Leads',
         labelKey: 'leads',
         href: '/admin/leads',
-        match: ['/admin/leads-bought', '/admin/leads-sold'],
+        match: ['/admin/leads-bought', '/admin/leads-sold', '/admin/packages'],
     },
     { label: 'Payments', labelKey: 'payments', href: '/admin/payments' },
     { label: 'Messages / Issues', labelKey: 'messages', href: '/admin/messages' },

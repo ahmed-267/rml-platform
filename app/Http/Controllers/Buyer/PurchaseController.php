@@ -10,6 +10,7 @@ use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Models\Purchase;
+use App\Services\Buyer\BuyerPurchaseService;
 use App\Services\Buyer\LeadReleaseService;
 use App\Services\Payments\PaymentProviderManager;
 use App\Services\Payments\PaymentService;
@@ -67,6 +68,28 @@ class PurchaseController extends Controller
                 'status' => 'purchases.status',
                 'amount' => 'purchases.total_amount',
                 'date' => 'purchases.purchased_at',
+                'scheme' => function (Builder $q, string $direction): void {
+                    $q->orderBy(
+                        \App\Models\Scheme::query()
+                            ->select('name')
+                            ->join('leads', 'leads.scheme_id', '=', 'schemes.id')
+                            ->join('purchase_items', 'purchase_items.lead_id', '=', 'leads.id')
+                            ->whereColumn('purchase_items.purchase_id', 'purchases.id')
+                            ->limit(1),
+                        $direction,
+                    );
+                },
+                'zone' => function (Builder $q, string $direction): void {
+                    $q->orderBy(
+                        \App\Models\Zone::query()
+                            ->select('code')
+                            ->join('leads', 'leads.zone_id', '=', 'zones.id')
+                            ->join('purchase_items', 'purchase_items.lead_id', '=', 'leads.id')
+                            ->whereColumn('purchase_items.purchase_id', 'purchases.id')
+                            ->limit(1),
+                        $direction,
+                    );
+                },
                 'payment_status' => function (Builder $q, string $direction): void {
                     $q->orderBy(
                         Payment::query()
@@ -148,6 +171,27 @@ class PurchaseController extends Controller
         return back()->with('success', __('rml.whatsapp.sent'));
     }
 
+    public function destroy(Request $request, Purchase $purchase): RedirectResponse
+    {
+        abort_unless($request->user()?->can('view', $purchase), 403);
+
+        $purchase->loadMissing('payment');
+
+        if ($purchase->status !== PurchaseStatus::Pending) {
+            return back()->with('error', __('rml.buyer.purchases.cannot_delete_paid'));
+        }
+
+        if ($purchase->payment?->status === PaymentStatus::Paid) {
+            return back()->with('error', __('rml.buyer.purchases.cannot_delete_paid'));
+        }
+
+        app(BuyerPurchaseService::class)->cancelPendingPurchase($request->user(), $purchase);
+
+        return redirect()
+            ->route('buyer.purchases.index')
+            ->with('success', __('rml.buyer.purchases.deleted'));
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -211,6 +255,13 @@ class PurchaseController extends Controller
             'can_download_invoice' => (bool) $invoice,
             'can_download_receipt' => (bool) $receipt && $released,
             'can_send_whatsapp' => $released,
+            'can_edit' => $purchase->status === PurchaseStatus::Pending && ! $released,
+            'can_delete' => $purchase->status === PurchaseStatus::Pending
+                && $payment?->status !== PaymentStatus::Paid,
+            'cannot_delete_reason' => $purchase->status !== PurchaseStatus::Pending
+                || $payment?->status === PaymentStatus::Paid
+                    ? __('rml.buyer.purchases.cannot_delete_paid')
+                    : null,
             'package' => $package ? [
                 'id' => $package->id,
                 'package_reference' => $package->package_reference,

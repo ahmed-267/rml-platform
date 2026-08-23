@@ -50,6 +50,28 @@ class LeadStatusPresentation
     }
 
     /**
+     * Status filter options for the admin leads map by tab.
+     *
+     * @return list<string>
+     */
+    public static function visibleValuesForMapTab(string $tab): array
+    {
+        if ($tab === 'sold') {
+            // Sold map uses payment/release filters, not lead pipeline status.
+            return [];
+        }
+
+        // Registered / pipeline — never include Sold.
+        return [
+            self::PENDING_REVIEW,
+            self::NEEDS_INFORMATION,
+            self::LISTED,
+            self::REJECTED,
+            self::CANCELLED,
+        ];
+    }
+
+    /**
      * @return list<string>
      */
     public static function expand(string $visibleOrInternal): array

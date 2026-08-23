@@ -36,7 +36,32 @@ class LeadPackagePolicy
 
     public function buy(User $user, LeadPackage $package): bool
     {
-        return $user->can(Permissions::BUY_LEADS)
-            && $package->status === PackageStatus::Available;
+        if (! $user->can(Permissions::BUY_LEADS) || $package->status !== PackageStatus::Available) {
+            return false;
+        }
+
+        if ($package->buyer_company_id === null) {
+            return true;
+        }
+
+        return (int) $user->buyerProfile?->company_id === (int) $package->buyer_company_id;
+    }
+
+    public function create(User $user): bool
+    {
+        return $user->hasRole(UserRole::SuperAdmin->value)
+            || $user->can(Permissions::MANAGE_PACKAGES);
+    }
+
+    public function update(User $user, LeadPackage $package): bool
+    {
+        return $this->create($user);
+    }
+
+    public function cancel(User $user, LeadPackage $package): bool
+    {
+        return $this->create($user)
+            && $package->status !== PackageStatus::Sold
+            && $package->status !== PackageStatus::Cancelled;
     }
 }

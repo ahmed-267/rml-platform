@@ -190,9 +190,14 @@ class StripePaymentsTest extends TestCase
         $payment = Payment::query()->latest('id')->firstOrFail();
         $payment->update(['status' => PaymentStatus::Paid, 'paid_at' => now()]);
 
-        $this->actingAs($buyer)
-            ->post(route('buyer.payments.pay', $payment))
-            ->assertStatus(422);
+        $this->withoutExceptionHandling();
+
+        try {
+            $this->actingAs($buyer)->post(route('buyer.payments.pay', $payment));
+            $this->fail('Expected ValidationException for already-paid payment.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertArrayHasKey('payment', $e->errors());
+        }
     }
 
     public function test_cannot_pay_for_already_sold_lead(): void

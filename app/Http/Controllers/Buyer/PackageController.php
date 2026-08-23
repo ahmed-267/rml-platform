@@ -130,8 +130,16 @@ class PackageController extends Controller
      */
     private function pageProps(User $user): array
     {
+        $companyId = $user->buyerProfile?->company_id;
+
         $packages = LeadPackage::query()
             ->where('status', PackageStatus::Available)
+            ->where(function ($q) use ($companyId) {
+                $q->whereNull('buyer_company_id');
+                if ($companyId) {
+                    $q->orWhere('buyer_company_id', $companyId);
+                }
+            })
             ->with(['scheme:id,name,slug', 'leads.zone', 'leads.scheme'])
             ->latest()
             ->limit(50)
@@ -143,9 +151,10 @@ class PackageController extends Controller
 
         $prebuilt = $packages->map(function (LeadPackage $package) use ($user, $availableIds) {
             $pricing = $this->packagePricingService->calculate($package);
-            $availableLeads = $package->leads->filter(
-                fn ($lead) => isset($availableIds[(int) $lead->id])
-            );
+            // Assigned packages reserve leads — still show summary even when reserved to this buyer.
+            $leadsForDisplay = $package->buyer_company_id
+                ? $package->leads
+                : $package->leads->filter(fn ($lead) => isset($availableIds[(int) $lead->id]));
 
             return [
                 'id' => $package->id,
@@ -154,15 +163,24 @@ class PackageController extends Controller
                 'package_type' => $package->package_type?->value,
                 'scheme' => $package->scheme?->name,
                 'zone_mix' => $package->zone_mix,
-                'lead_count' => $availableLeads->count(),
-                'avg_size_m2' => $availableLeads->count() > 0
-                    ? round((float) $availableLeads->avg('size_m2'), 2)
+                'lead_count' => $leadsForDisplay->count(),
+                'total_size_m2' => round((float) $leadsForDisplay->sum('size_m2'), 2),
+                'distance_range_min' => $package->distance_range_min !== null
+                    ? (float) $package->distance_range_min
+                    : null,
+                'distance_range_max' => $package->distance_range_max !== null
+                    ? (float) $package->distance_range_max
+                    : null,
+                'avg_size_m2' => $leadsForDisplay->count() > 0
+                    ? round((float) $leadsForDisplay->avg('size_m2'), 2)
                     : null,
                 'avg_price_per_m2' => $pricing['avg_price_per_m2'],
                 'estimated_total' => $pricing['estimated_total'],
-                'buyable' => $availableLeads->count() > 0
-                    && $availableLeads->count() === $package->leads->count(),
-                'leads' => BuyerLeadPresenter::marketplaceCollection($availableLeads, $user),
+                'buyable' => $leadsForDisplay->count() > 0
+                    && $leadsForDisplay->count() === $package->leads->count(),
+                'assigned' => $package->buyer_company_id !== null,
+                // Marketplace-safe only — no customer PII / coordinates.
+                'leads' => BuyerLeadPresenter::marketplaceCollection($leadsForDisplay, $user),
             ];
         });
 

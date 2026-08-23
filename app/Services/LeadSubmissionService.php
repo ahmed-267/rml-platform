@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\EvidenceFileType;
 use App\Enums\EvidenceStatus;
 use App\Enums\EvidenceVisibility;
+use App\Enums\GeocodingStatus;
 use App\Enums\LeadStatus;
 use App\Models\Lead;
 use App\Models\LeadEvidenceFile;
@@ -31,6 +32,7 @@ class LeadSubmissionService
 
     public function __construct(
         private readonly AuditLogService $auditLogService,
+        private readonly LocationService $locationService,
     ) {}
 
     /**
@@ -74,6 +76,31 @@ class LeadSubmissionService
             $metrics = is_array($data['metrics'] ?? null) ? $data['metrics'] : [];
             $zoneId = $this->resolveZoneId($data, $metrics);
 
+            $addressFields = [
+                'address_line_1' => $data['address_line_1'] ?? '',
+                'address_line_2' => $data['address_line_2'] ?? null,
+                'city' => $data['city'] ?? '',
+                'postcode' => $data['postcode'] ?? '',
+                'country' => $data['country'] ?? 'ES',
+            ];
+
+            $previousAddress = $isUpdate
+                ? [
+                    'address_line_1' => $lead->address_line_1,
+                    'address_line_2' => $lead->address_line_2,
+                    'city' => $lead->city,
+                    'postcode' => $lead->postcode,
+                    'country' => $lead->country,
+                ]
+                : null;
+
+            $manualLat = isset($data['latitude']) && is_numeric($data['latitude'])
+                ? (float) $data['latitude']
+                : null;
+            $manualLng = isset($data['longitude']) && is_numeric($data['longitude'])
+                ? (float) $data['longitude']
+                : null;
+
             $lead->fill([
                 'scheme_id' => $data['scheme_id'],
                 'zone_id' => $zoneId,
@@ -82,18 +109,30 @@ class LeadSubmissionService
                 'customer_phone' => $data['customer_phone'] ?? $data['phone'] ?? '',
                 'customer_whatsapp' => $data['customer_whatsapp'] ?? $data['whatsapp'] ?? null,
                 'customer_email' => $data['customer_email'] ?? $data['email'] ?? null,
-                'address_line_1' => $data['address_line_1'] ?? '',
-                'address_line_2' => $data['address_line_2'] ?? null,
-                'city' => $data['city'] ?? '',
-                'postcode' => $data['postcode'] ?? '',
-                'country' => $data['country'] ?? 'ES',
-                'latitude' => $data['latitude'] ?? null,
-                'longitude' => $data['longitude'] ?? null,
+                ...$addressFields,
+                'cadastral_reference' => array_key_exists('cadastral_reference', $data)
+                    ? $data['cadastral_reference']
+                    : ($isUpdate ? $lead->cadastral_reference : null),
                 'size_m2' => $data['size_m2'] ?? $metrics['size_m2'] ?? $metrics['property_size_m2'] ?? null,
+                'submitted_property_area_m2' => $data['submitted_property_area_m2']
+                    ?? $data['size_m2']
+                    ?? $metrics['size_m2']
+                    ?? $metrics['property_size_m2']
+                    ?? null,
                 'property_type' => $data['property_type'] ?? $metrics['property_type'] ?? null,
                 'epc_rating' => $data['epc_rating'] ?? $metrics['epc_rating'] ?? null,
                 'notes' => $data['notes'] ?? $metrics['notes'] ?? null,
             ]);
+
+            if ($manualLat !== null && $manualLng !== null) {
+                $lead->fill([
+                    'latitude' => $manualLat,
+                    'longitude' => $manualLng,
+                    'geocoding_status' => GeocodingStatus::ManuallyCorrected,
+                    'geocoding_error' => null,
+                    'geocoded_at' => now(),
+                ]);
+            }
 
             if (! $isUpdate) {
                 $lead->submitted_by_user_id = $user->id;
@@ -101,6 +140,20 @@ class LeadSubmissionService
             }
 
             $lead->save();
+
+            $addressChanged = ! $isUpdate
+                || $previousAddress === null
+                || $previousAddress['address_line_1'] !== ($addressFields['address_line_1'] ?? '')
+                || ($previousAddress['address_line_2'] ?? null) !== ($addressFields['address_line_2'] ?? null)
+                || $previousAddress['city'] !== ($addressFields['city'] ?? '')
+                || $previousAddress['postcode'] !== ($addressFields['postcode'] ?? '')
+                || ($previousAddress['country'] ?? null) !== ($addressFields['country'] ?? null);
+
+            if ($manualLat === null || $manualLng === null) {
+                if ($addressChanged && trim(($addressFields['address_line_1'] ?? '').($addressFields['city'] ?? '').($addressFields['postcode'] ?? '')) !== '') {
+                    $this->locationService->geocodeLead($lead);
+                }
+            }
 
             $this->syncMetricValues($lead, (int) $lead->scheme_id, $metrics);
             $this->storeEvidenceFiles($user, $lead, $uploadedFiles);
@@ -121,12 +174,21 @@ class LeadSubmissionService
             } else {
                 $lead->loadMissing('scheme:id,slug');
                 if (! $this->hasAllRequiredEvidence($lead)) {
-                    throw ValidationException::withMessages([
-                        'evidence' => __('rml.seller.leads.evidence_incomplete'),
-                    ]);
+                    if (! \App\Support\LeadSettings::allowEvidenceLater()) {
+                        throw ValidationException::withMessages([
+                            'evidence' => __('rml.seller.leads.evidence_incomplete'),
+                        ]);
+                    }
+                    $status = LeadStatus::PendingEvidence;
+                } else {
+                    $status = \App\Support\LeadSettings::defaultStatusAfterSubmission();
+                    if (
+                        \App\Support\LeadSettings::requireInternalAudit()
+                        && $status === LeadStatus::Listed
+                    ) {
+                        $status = LeadStatus::PendingValidation;
+                    }
                 }
-
-                $status = LeadStatus::PendingValidation;
                 $lead->status = $status;
                 $lead->save();
 

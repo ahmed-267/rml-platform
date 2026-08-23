@@ -1,0 +1,5 @@
+{
+  "kind": "regional_provider",
+  "provider": "navarra_regional",
+  "message": "National Catastro does not cover this location. Manual or regional verification is required."
+}
